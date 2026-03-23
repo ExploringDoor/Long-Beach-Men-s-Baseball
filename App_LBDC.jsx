@@ -1,6 +1,19 @@
 import { useState } from "react";
 
-const L_LEAGUE = "/league2.png";
+const L_LEAGUE = "/heropic.jpeg";
+
+const TEAM_LOGOS = {
+  "Tribe":    "/tribe.png",
+  "Dodgers":  "/dodgers.png",
+  "Pirates":  "/pirates.png",
+  "Titans":   "/titans.png",
+  "Brooklyn": "/brooklyn.png",
+  "Generals": "/generals.png",
+  "Blue Sox": "/bluesox.png",
+  "Reds":     "/reds.png",
+  "Cubs":     "/cubs.png",
+  "Braves":   "/braves.png",
+};
 
 const DIV = {
   SAT: {
@@ -180,6 +193,12 @@ const RULES_DATA = [
 
 /* ─── SHARED COMPONENTS ─────────────────────────────────────────────────── */
 function TLogo({ name, size=80 }) {
+  const src = TEAM_LOGOS[name];
+  if (src) return (
+    <div style={{width:size,height:size,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <img src={src} alt={name} style={{width:size*2,height:size*2,objectFit:"contain",display:"block",flexShrink:0}} />
+    </div>
+  );
   const color = TEAM_COLORS[name] || "#002d6e";
   const boxSize = size * 0.75;
   return (
@@ -445,31 +464,8 @@ function HomePage({ setTab, setTeamDetail }) {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {/* HERO */}
-      <div style={{width:"100%",background:"#001a3e",position:"relative",overflow:"hidden",borderBottom:"4px solid #002d6e"}}>
-        <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 60% 80% at 50% 50%, rgba(0,45,110,0.4) 0%, transparent 70%)",pointerEvents:"none"}} />
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"20px 20px 18px",position:"relative",textAlign:"center"}}>
-          <div style={{
-            width:"min(120px,30vw)",height:"min(120px,30vw)",
-            borderRadius:"50%",background:"rgba(0,45,110,0.5)",
-            border:"3px solid rgba(200,16,46,0.7)",
-            boxShadow:"0 0 40px rgba(200,16,46,0.4)",
-            marginBottom:12,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:"min(60px,15vw)",lineHeight:1,
-          }}>⚾</div>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(28px,4vw,52px)",textTransform:"uppercase",letterSpacing:".04em",color:"#fff",lineHeight:1}}>
-            Long Beach<br/><span style={{color:"#FFD700"}}>Diamond Classics</span>
-          </div>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:"clamp(10px,1.2vw,13px)",fontWeight:600,letterSpacing:".2em",textTransform:"uppercase",color:"rgba(255,255,255,0.45)",marginTop:6,marginBottom:10}}>
-            Men's 50+ Baseball · Baldwin Park, CA · NABA Affiliated
-          </div>
-          <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(255,215,0,0.15)",border:"1px solid rgba(255,215,0,0.45)",borderRadius:30,padding:"5px 16px"}}>
-            <span style={{width:7,height:7,borderRadius:"50%",background:"#22c55e",display:"inline-block",flexShrink:0,boxShadow:"0 0 6px #22c55e"}} />
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,fontWeight:700,color:"#FFD700",letterSpacing:".08em",textTransform:"uppercase"}}>
-              ⚾ Spring/Summer 2026 Season Underway — Tribe leads the division!
-            </span>
-          </div>
-        </div>
+      <div style={{width:"100%",borderBottom:"4px solid #002d6e",overflow:"hidden",lineHeight:0}}>
+        <img src="/heropic.jpeg" alt="Long Beach Diamond Classics" style={{width:"100%",display:"block",maxHeight:480,objectFit:"cover",objectPosition:"center"}} />
       </div>
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
