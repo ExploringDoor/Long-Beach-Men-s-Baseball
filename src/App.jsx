@@ -81,26 +81,49 @@ const SCORES = [
 ];
 
 const SCHED = [
-  { label:"Week 8 – Mar 22", fields:[
-    {name:"Caballero Park — Field 1", games:[
-      {time:"9:00 AM",away:"Dodgers",home:"Pirates"},
-      {time:"11:30 AM",away:"Tribe",home:"Generals"},
+  { label:"Apr 11", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Dodgers",home:"Brooklyn"},
     ]},
-    {name:"Caballero Park — Field 2", games:[
-    ]},
-    {name:"Caballero Park — Field 1", games:[
-      {time:"1:30 PM",away:"Brooklyn",home:"Titans"},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Generals",home:"Tribe"},
+      {time:"12:00 PM",away:"Pirates",home:"Titans"},
     ]},
   ]},
-  { label:"Week 9 – Mar 29", fields:[
-    {name:"Caballero Park — Field 1", games:[
-      {time:"9:00 AM",away:"Tribe",home:"Dodgers"},
-      {time:"11:30 AM",away:"Generals",home:"Pirates"},
+  { label:"Apr 18", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Brooklyn",home:"Generals"},
     ]},
-    {name:"Caballero Park — Field 2", games:[
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Titans",home:"Dodgers"},
+      {time:"12:00 PM",away:"Tribe",home:"Pirates"},
     ]},
-    {name:"Caballero Park — Field 1", games:[
-      {time:"1:30 PM",away:"Titans",home:"Brooklyn"},
+  ]},
+  { label:"Apr 25", fields:[
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Pirates",home:"Generals"},
+      {time:"12:00 PM",away:"Dodgers",home:"Tribe"},
+    ]},
+    {name:"St Pius X — Downey", games:[
+      {time:"9:00 AM",away:"Titans",home:"Brooklyn"},
+    ]},
+  ]},
+  { label:"May 2", fields:[
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Generals",home:"Dodgers"},
+      {time:"12:00 PM",away:"Tribe",home:"Titans"},
+    ]},
+    {name:"St Pius X — Downey", games:[
+      {time:"9:00 AM",away:"Brooklyn",home:"Pirates"},
+    ]},
+  ]},
+  { label:"May 9", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Tribe",home:"Brooklyn"},
+      {time:"9:00 AM",away:"Titans",home:"Generals"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Pirates",home:"Dodgers"},
     ]},
   ]},
 ];
@@ -153,7 +176,7 @@ const RULES_DATA = [
     "In case of rain, the league coordinator will notify managers by 7:00 AM on game day.",
     "Rainouts will be rescheduled at the discretion of the league coordinator.",
     "Games cannot be rescheduled by teams unilaterally — contact the league coordinator.",
-    "Home field: Caballero Park, Baldwin Park, CA 91706.",
+    "Fields: Clark Field (Long Beach), Fromhold Field (San Pedro), St Pius X (Downey).",
   ]},
   {section:"Playoffs & NABA",icon:"🏆",items:[
     "Top teams from each division qualify for end-of-season playoffs.",
@@ -239,7 +262,7 @@ const FAKE_RECAPS = {
       `Timely hitting was the story of the day. ${winner} went 6-for-12 with runners in scoring position, while ${loser} left several key opportunities stranded on the bases.`,
     ];
     const outros = [
-      `${winner} improves their division record and stays in the hunt for a top playoff seed. ${loser} will look to bounce back next Saturday at Caballero Park.`,
+      `${winner} improves their division record and stays in the hunt for a top playoff seed. ${loser} will look to bounce back next Saturday.`,
       `With the win, ${winner} moves up in the division standings. Both teams are back in action next Saturday.`,
       `A well-earned victory for ${winner}. The manager praised the team's focus and energy throughout the game.`,
     ];
@@ -526,7 +549,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
-      <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second · Caballero Park, Baldwin Park">
+      <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second">
         <TabBar items={SCHED.map(s=>s.label)} active={wk} onChange={setWk} />
       </PageHero>
       <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
@@ -867,21 +890,21 @@ function Footer({ setTab }) {
 function SubBoardPage() {
   const [view, setView] = useState("board");
   const [posted, setPosted] = useState(false);
-  const [form, setForm] = useState({name:"",team:"",playing:"9:00 AM",available:"11:30 AM",field:"Caballero Park — Field 1",contact:""});
+  const [form, setForm] = useState({name:"",team:"",playing:"9:00 AM",available:"11:30 AM",field:"Clark Field — Long Beach",contact:""});
 
   const sampleAvail = [
-    {initials:"RC",name:"Ray Castro",team:"Tribe",playing:"9:00 AM",available:"11:30 AM",field:"Caballero Park — Field 1",contact:"562-555-1234",color:"#002d6e"},
+    {initials:"RC",name:"Ray Castro",team:"Tribe",playing:"9:00 AM",available:"11:30 AM",field:"Clark Field — Long Beach",contact:"562-555-1234",color:"#002d6e"},
     {initials:"MH",name:"Mike Herrera",team:"Pirates",playing:"9:00 AM",available:"Any game",field:"Any field",contact:"562-555-5678",color:"#1d2d44"},
-    {initials:"DL",name:"Dan Lozano",team:"Dodgers",playing:"11:30 AM",available:"1:30 PM",field:"Caballero Park — Field 2",contact:"562-555-9012",color:"#005a9c"},
+    {initials:"DL",name:"Dan Lozano",team:"Dodgers",playing:"11:30 AM",available:"1:30 PM",field:"Fromhold Field — San Pedro",contact:"562-555-9012",color:"#005a9c"},
   ];
 
   const sampleSubs = [
     {initials:"GV",name:"Gary Vargas",team:"Brooklyn",field:"Any field",times:"Any time",div:"Any division",contact:"562-555-1111",color:"#b45309"},
-    {initials:"AL",name:"Art Lopez",team:"Titans",field:"Caballero Park only",times:"Morning games",div:"Any division",contact:"562-555-2222",color:"#4a1d96"},
+    {initials:"AL",name:"Art Lopez",team:"Titans",field:"Any field",times:"Morning games",div:"Any division",contact:"562-555-2222",color:"#4a1d96"},
     {initials:"BM",name:"Bill Morales",team:"Generals",field:"Any field",times:"9am or 11:30am",div:"Any division",contact:"562-555-3333",color:"#374151"},
   ];
 
-  const fields = ["Caballero Park — Field 1","Caballero Park — Field 2"];
+  const fields = ["Clark Field — Long Beach","Fromhold Field — San Pedro"];
   const times = ["9:00 AM","11:30 AM","1:30 PM"];
 
   return (
