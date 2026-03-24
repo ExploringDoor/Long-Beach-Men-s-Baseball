@@ -1278,9 +1278,9 @@ export default function App() {
         .standings-table{overflow-x:auto;-webkit-overflow-scrolling:touch;}
         .mobile-standings{display:none;}
         .desktop-standings{display:block;}
-        .hero-img { width: 100%; max-height: 400px; object-fit: cover; object-position: center 30%; display: block; }
+        .hero-img { width: 100%; max-height: 400px; object-fit: cover; object-position: center 60%; display: block; }
         @media(max-width:700px){
-          .hero-img { width: 100%; max-height: 250px; object-fit: cover; object-position: center 30%; }
+          .hero-img { width: 100%; max-height: 250px; object-fit: cover; object-position: center 60%; }
           .home-two-col{grid-template-columns:1fr!important;}
           .team-detail-grid{grid-template-columns:1fr!important;}
           .sidebar-standings{display:none!important;}
