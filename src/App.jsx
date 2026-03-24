@@ -483,7 +483,7 @@ function HomePage({ setTab, setTeamDetail }) {
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {/* HERO */}
       <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
-        <img src="/hero1.png" alt="Long Beach Diamond Classics" className="hero-img" style={{display:"block"}} />
+        <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" style={{display:"block"}} />
       </div>
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
