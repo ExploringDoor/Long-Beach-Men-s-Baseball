@@ -438,8 +438,8 @@ function HomePage({ setTab, setTeamDetail }) {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {/* HERO */}
-      <div style={{width:"100%",borderBottom:"4px solid #002d6e",overflow:"hidden",lineHeight:0}}>
-        <img src="/heropic.jpeg" alt="Long Beach Diamond Classics" style={{width:"100%",display:"block",objectFit:"contain"}} />
+      <div style={{width:"100%",borderBottom:"4px solid #002d6e",background:"#f2f4f8",display:"flex",justifyContent:"center",padding:"20px 0"}}>
+        <img src="/heropic.jpeg" alt="Long Beach Diamond Classics" style={{width:"auto",maxWidth:"50%",maxHeight:280,objectFit:"contain",display:"block"}} />
       </div>
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
