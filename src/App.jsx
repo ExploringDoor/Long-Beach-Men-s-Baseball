@@ -172,62 +172,40 @@ const SCHED = [
 ];
 
 const RULES_DATA = [
-  {section:"General Rules",icon:"📋",items:[
-    "All games are governed by NABA official baseball rules, except as modified below.",
-    "Games are 9 innings or 2.5 hours, whichever comes first. No new inning starts after 2 hours.",
-    "A game is official after 5 full innings (4½ if the home team is ahead).",
+  {section:"Playoff Eligibility",icon:"🏆",items:[
+    "To qualify for playoffs, players must participate in a minimum of 4 games (verified by completed box scores). Effective 9/9/22 by league vote.",
+    "Playoff format: Best of 3 series.",
+  ]},
+  {section:"Mercy Rule & Time Limit",icon:"⏱️",items:[
     "Mercy rule: 15 runs after 5 innings, 10 runs after 7 innings.",
-    "Teams must field a minimum of 8 players to avoid forfeit.",
-    "Managers must exchange lineup cards with the plate umpire before the game.",
+    "No new inning after 2 hours and 35 minutes. Unfinished innings revert to the last completed inning.",
+    "Field rentals are in 3-hour blocks — hustle in and out.",
+    "5 pitch warmups between innings.",
   ]},
-  {section:"Batting & Hitting",icon:"⚾",items:[
-    "A standard 9-inch hardball is used for all games.",
-    "Standard strike zone applies — umpire's discretion.",
-    "Each batter starts with a 0-0 count.",
-    "Batting helmets are mandatory for all batters and base runners.",
-    "Designated Hitter (DH) is permitted.",
+  {section:"Courtesy Runners",icon:"🏃",items:[
+    "Teams MAY designate up to 3 Courtesy Runners (Non Runners), including the Catcher with 2 outs.",
+    "Courtesy Runners must be the LAST RECORDED OUT. If the last recorded out is a Non Runner, then the previous recorded out shall run.",
+    "There is no limit to the number of times the last recorded out can run.",
+    "Courtesy Runners running for Non Runners MAY NOT STEAL (including for the Catcher).",
+    "Courtesy Runners shall not be held on at first base. The runner may take a normal lead but must wait for the ball to: 1) Be hit, 2) Strike the ground, or 3) Be caught by the catcher — BEFORE advancing.",
+    "Any attempt to pick off a Courtesy Runner at 1B only will result in the liberation of the runner, making them eligible to now steal bases.",
+    "Penalty for a Courtesy Runner otherwise attempting to steal (not advancing on a wild pitch/passed ball) will result in an OUT.",
+    "Non Runners designated before the START of the game shall not be thrown out at first base from the outfield on a batted ball. Force plays are in effect.",
   ]},
-  {section:"Baserunning",icon:"🏃",items:[
-    "Leading off and stealing bases are permitted.",
-    "Runners may advance on wild pitches and passed balls.",
-    "Courtesy runners are permitted once per inning per team — the runner must be the last recorded out.",
-    "Double bag (orange) is in use at first base — batters use the orange bag, fielders use the white bag.",
-    "Sliding is permitted and encouraged at all bases except first.",
+  {section:"Defensive Shifts",icon:"🧤",items:[
+    "Infielders must remain on the infield at the time of the pitch.",
+    "Infielders may range into the outfield to make any play they are able to.",
   ]},
-  {section:"Pitching",icon:"🤾",items:[
-    "All pitching is conventional baseball pitching — overhand or sidearm.",
-    "Pitchers must keep one foot on the rubber until the ball is released.",
-    "There is no pitch count limit in regular season play.",
-    "Intentional walks: the pitcher may announce an intentional walk without throwing pitches.",
-    "Balks are enforced per NABA rules.",
+  {section:"Rosters & Age",icon:"📋",items:[
+    "There is no limit to the number of players a team can roster.",
+    "Age limits: Each team is permitted to carry up to 3 players who are 45 years of age and up.",
+    "Those 3 players aged 45+ are NOT permitted to pitch.",
   ]},
-  {section:"Lineup & Substitutions",icon:"📝",items:[
-    "Teams may bat 9 or 10 players (with EH) and use free defensive substitution.",
-    "Once a player is removed from the batting order, they may not re-enter.",
-    "Injured player: if no substitute is available, that spot is skipped (no automatic out).",
-    "Teams may use a continuous batting order — all present players bat.",
-  ]},
-  {section:"Sportsmanship",icon:"🤝",items:[
-    "Umpire decisions are final. Arguing balls and strikes results in a warning, then ejection.",
-    "Verbal abuse of umpires, opposing players, or spectators results in immediate ejection.",
-    "Ejected players must leave the field and surrounding area.",
-    "Alcohol is not permitted on or near the playing field.",
-    "Diamond Classics emphasizes sportsmanship, competition, and community. Respect all opponents.",
-  ]},
-  {section:"Fields & Scheduling",icon:"🏟️",items:[
-    "Home team is responsible for field preparation (dragging baselines, bases, chalk if needed).",
-    "In case of rain, the league coordinator will notify managers by 7:00 AM on game day.",
-    "Rainouts will be rescheduled at the discretion of the league coordinator.",
-    "Games cannot be rescheduled by teams unilaterally — contact the league coordinator.",
-    "Fields: Clark Field (Long Beach), Fromhold Field (San Pedro), St Pius X (Downey).",
-  ]},
-  {section:"Playoffs & NABA",icon:"🏆",items:[
-    "Top teams from each division qualify for end-of-season playoffs.",
-    "Playoff seeding is determined by win percentage, then run differential.",
-    "Ties broken by: 1) head-to-head record, 2) run differential, 3) coin flip.",
-    "All playoff games must be played to completion — no time limit.",
-    "League is affiliated with NABA — eligible teams may enter NABA regional and World Series events.",
-    "Playoff rosters are frozen one week before playoff start.",
+  {section:"St Pius X Ground Rules",icon:"🏟️",items:[
+    "The home run line appears deceiving. From left field, the yellow marker is actually behind the screen — balls striking the netting is a HOME RUN.",
+    "Please keep the dugout fences closed to keep more balls in play (this applies also to the softball field in center field).",
+    "Restrooms are located down the left field line.",
+    "Parking is off Consuelo Street (behind the church at the end of the street).",
   ]},
 ];
 
@@ -981,7 +959,7 @@ function RulesPage() {
           ))}
         </div>
         <div style={{marginTop:20,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"14px 20px",textAlign:"center",fontSize:13,color:"rgba(0,0,0,0.4)"}}>
-          Questions? Contact the league coordinator · Rules subject to change by league vote.
+          Questions? Contact Daniel Gutierrez, Diamond Classics Founder · Rules subject to change by league vote.
         </div>
       </div>
     </div>
