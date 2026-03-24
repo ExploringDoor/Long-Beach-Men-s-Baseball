@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const L_LEAGUE = "/heropic.jpeg";
+const L_LEAGUE = "/hero1.png";
 
 const TEAM_LOGOS = {
   "Tribe":    "/tribe.png",
@@ -482,8 +482,8 @@ function HomePage({ setTab, setTeamDetail }) {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {/* HERO */}
-      <div style={{width:"100%",borderBottom:"4px solid #002d6e",background:"#f2f4f8",display:"flex",justifyContent:"center"}}>
-        <img src="/heropic.jpeg" alt="Long Beach Diamond Classics" className="hero-img" style={{display:"block"}} />
+      <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
+        <img src="/hero1.png" alt="Long Beach Diamond Classics" className="hero-img" style={{display:"block"}} />
       </div>
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
@@ -1278,9 +1278,9 @@ export default function App() {
         .standings-table{overflow-x:auto;-webkit-overflow-scrolling:touch;}
         .mobile-standings{display:none;}
         .desktop-standings{display:block;}
-        .hero-img { width: auto; max-width: 50%; max-height: 280px; object-fit: contain; padding: 20px 0; }
+        .hero-img { width: 100%; max-height: 220px; object-fit: cover; object-position: center; display: block; }
         @media(max-width:700px){
-          .hero-img { width: 100%; max-height: none; object-fit: contain; }
+          .hero-img { width: 100%; max-height: 130px; object-fit: cover; }
           .home-two-col{grid-template-columns:1fr!important;}
           .team-detail-grid{grid-template-columns:1fr!important;}
           .sidebar-standings{display:none!important;}
