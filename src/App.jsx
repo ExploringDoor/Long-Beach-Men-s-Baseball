@@ -9,10 +9,6 @@ const TEAM_LOGOS = {
   "Titans":   "/titans.png",
   "Brooklyn": "/brooklyn.png",
   "Generals": "/generals.png",
-  "Blue Sox": "/bluesox.png",
-  "Reds":     "/reds.png",
-  "Cubs":     "/cubs.png",
-  "Braves":   "/braves.png",
 };
 
 const DIV = {
@@ -26,14 +22,6 @@ const DIV = {
       {seed:5,name:"Brooklyn",full:"Brooklyn",w:2,l:5,t:1,pct:".286",gp:7,rs:37,ra:58,diff:"-21"},
       {seed:6,name:"Generals",full:"Generals",w:1,l:6,t:0,pct:".143",gp:7,rs:31,ra:67,diff:"-36"},
     ]},
-  BOOM: {
-    name: "Boomers 60/70 Division", accent: "#c8102e",
-    teams: [
-      {seed:1,name:"Blue Sox",full:"Blue Sox",w:5,l:1,t:0,pct:".833",gp:6,rs:55,ra:32,diff:"+23"},
-      {seed:2,name:"Reds",full:"Reds",w:4,l:2,t:0,pct:".667",gp:6,rs:48,ra:39,diff:"+9"},
-      {seed:3,name:"Cubs",full:"Cubs",w:2,l:4,t:0,pct:".333",gp:6,rs:38,ra:50,diff:"-12"},
-      {seed:4,name:"Braves",full:"Braves",w:1,l:5,t:0,pct:".167",gp:6,rs:28,ra:56,diff:"-28"},
-    ]},
 };
 
 const ALL_TEAMS = Object.entries(DIV).flatMap(([dk,div]) =>
@@ -43,7 +31,6 @@ const ALL_TEAMS = Object.entries(DIV).flatMap(([dk,div]) =>
 const TEAM_COLORS = {
   "Tribe":"#002d6e","Dodgers":"#005a9c","Pirates":"#1d2d44","Titans":"#4a1d96",
   "Brooklyn":"#b45309","Generals":"#374151",
-  "Blue Sox":"#0369a1","Reds":"#dc2626","Cubs":"#0f766e","Braves":"#15803d",
 };
 
 const TEAM_ROSTERS = {
@@ -60,45 +47,36 @@ const SCORES = [
     {away:"Tribe",aScore:7,home:"Generals",hScore:4,div:"SAT"},
     {away:"Dodgers",aScore:11,home:"Brooklyn",hScore:3,div:"SAT"},
     {away:"Pirates",aScore:8,home:"Titans",hScore:5,div:"SAT"},
-    {away:"Blue Sox",aScore:9,home:"Braves",hScore:2,div:"BOOM"},
-    {away:"Reds",aScore:6,home:"Cubs",hScore:4,div:"BOOM"},
   ]},
   {week:"Week 6 – Mar 8", games:[
     {away:"Brooklyn",aScore:6,home:"Tribe",hScore:6,div:"SAT",note:"Tie/8"},
     {away:"Generals",aScore:3,home:"Pirates",hScore:9,div:"SAT"},
     {away:"Titans",aScore:7,home:"Dodgers",hScore:10,div:"SAT"},
-    {away:"Cubs",aScore:5,home:"Blue Sox",hScore:8,div:"BOOM"},
-    {away:"Braves",aScore:1,home:"Reds",hScore:7,div:"BOOM"},
   ]},
   {week:"Week 5 – Mar 1", games:[
     {away:"Dodgers",aScore:8,home:"Pirates",hScore:5,div:"SAT"},
     {away:"Tribe",aScore:12,home:"Titans",hScore:4,div:"SAT"},
     {away:"Generals",aScore:2,home:"Brooklyn",hScore:6,div:"SAT"},
-    {away:"Reds",aScore:9,home:"Blue Sox",hScore:11,div:"BOOM"},
   ]},
   {week:"Week 4 – Feb 22", games:[
     {away:"Pirates",aScore:7,home:"Tribe",hScore:9,div:"SAT"},
     {away:"Brooklyn",aScore:4,home:"Dodgers",hScore:6,div:"SAT"},
     {away:"Titans",aScore:5,home:"Generals",hScore:3,div:"SAT"},
-    {away:"Braves",aScore:0,home:"Reds",hScore:8,div:"BOOM",note:"Forfeit"},
   ]},
   {week:"Week 3 – Feb 15", games:[
     {away:"Dodgers",aScore:9,home:"Tribe",hScore:11,div:"SAT"},
     {away:"Generals",aScore:4,home:"Titans",hScore:6,div:"SAT"},
     {away:"Pirates",aScore:10,home:"Brooklyn",hScore:7,div:"SAT"},
-    {away:"Blue Sox",aScore:12,home:"Cubs",hScore:3,div:"BOOM"},
   ]},
   {week:"Week 2 – Feb 8", games:[
     {away:"Tribe",aScore:8,home:"Brooklyn",hScore:2,div:"SAT"},
     {away:"Dodgers",aScore:5,home:"Generals",hScore:1,div:"SAT"},
     {away:"Titans",aScore:4,home:"Pirates",hScore:7,div:"SAT"},
-    {away:"Reds",aScore:11,home:"Braves",hScore:3,div:"BOOM"},
   ]},
   {week:"Week 1 – Feb 1", games:[
     {away:"Pirates",aScore:6,home:"Tribe",hScore:8,div:"SAT"},
     {away:"Generals",aScore:2,home:"Brooklyn",hScore:5,div:"SAT"},
     {away:"Dodgers",aScore:7,home:"Titans",hScore:4,div:"SAT"},
-    {away:"Cubs",aScore:3,home:"Blue Sox",hScore:9,div:"BOOM"},
   ]},
 ];
 
@@ -109,8 +87,6 @@ const SCHED = [
       {time:"11:30 AM",away:"Tribe",home:"Generals"},
     ]},
     {name:"Caballero Park — Field 2", games:[
-      {time:"9:00 AM",away:"Blue Sox",home:"Cubs"},
-      {time:"11:30 AM",away:"Reds",home:"Braves"},
     ]},
     {name:"Caballero Park — Field 1", games:[
       {time:"1:30 PM",away:"Brooklyn",home:"Titans"},
@@ -122,8 +98,6 @@ const SCHED = [
       {time:"11:30 AM",away:"Generals",home:"Pirates"},
     ]},
     {name:"Caballero Park — Field 2", games:[
-      {time:"9:00 AM",away:"Braves",home:"Reds"},
-      {time:"11:30 AM",away:"Cubs",home:"Blue Sox"},
     ]},
     {name:"Caballero Park — Field 1", games:[
       {time:"1:30 PM",away:"Titans",home:"Brooklyn"},
