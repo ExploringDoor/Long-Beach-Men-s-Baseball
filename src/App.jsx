@@ -13,14 +13,14 @@ const TEAM_LOGOS = {
 
 const DIV = {
   SAT: {
-    name: "Saturday Division", accent: "#002d6e",
+    name: "Spring/Summer 2026", accent: "#002d6e",
     teams: [
-      {seed:1,name:"Tribe",full:"Tribe",w:6,l:1,t:0,pct:".857",gp:7,rs:62,ra:38,diff:"+24"},
-      {seed:2,name:"Dodgers",full:"Dodgers",w:5,l:2,t:0,pct:".714",gp:7,rs:58,ra:41,diff:"+17"},
-      {seed:3,name:"Pirates",full:"Pirates",w:4,l:3,t:0,pct:".571",gp:7,rs:49,ra:44,diff:"+5"},
-      {seed:4,name:"Titans",full:"Titans",w:3,l:4,t:0,pct:".429",gp:7,rs:42,ra:51,diff:"-9"},
-      {seed:5,name:"Brooklyn",full:"Brooklyn",w:2,l:5,t:1,pct:".286",gp:7,rs:37,ra:58,diff:"-21"},
-      {seed:6,name:"Generals",full:"Generals",w:1,l:6,t:0,pct:".143",gp:7,rs:31,ra:67,diff:"-36"},
+      {seed:1,name:"Tribe",full:"Tribe",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:2,name:"Dodgers",full:"Dodgers",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:3,name:"Pirates",full:"Pirates",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:4,name:"Titans",full:"Titans",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:5,name:"Brooklyn",full:"Brooklyn",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:6,name:"Generals",full:"Generals",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
     ]},
 };
 
@@ -43,41 +43,85 @@ const TEAM_ROSTERS = {
 };
 
 const SCORES = [
-  {week:"Week 7 – Mar 15", games:[
-    {away:"Tribe",aScore:7,home:"Generals",hScore:4,div:"SAT"},
-    {away:"Dodgers",aScore:11,home:"Brooklyn",hScore:3,div:"SAT"},
-    {away:"Pirates",aScore:8,home:"Titans",hScore:5,div:"SAT"},
-  ]},
-  {week:"Week 6 – Mar 8", games:[
-    {away:"Brooklyn",aScore:6,home:"Tribe",hScore:6,div:"SAT",note:"Tie/8"},
-    {away:"Generals",aScore:3,home:"Pirates",hScore:9,div:"SAT"},
-    {away:"Titans",aScore:7,home:"Dodgers",hScore:10,div:"SAT"},
-  ]},
-  {week:"Week 5 – Mar 1", games:[
-    {away:"Dodgers",aScore:8,home:"Pirates",hScore:5,div:"SAT"},
-    {away:"Tribe",aScore:12,home:"Titans",hScore:4,div:"SAT"},
-    {away:"Generals",aScore:2,home:"Brooklyn",hScore:6,div:"SAT"},
-  ]},
-  {week:"Week 4 – Feb 22", games:[
-    {away:"Pirates",aScore:7,home:"Tribe",hScore:9,div:"SAT"},
-    {away:"Brooklyn",aScore:4,home:"Dodgers",hScore:6,div:"SAT"},
-    {away:"Titans",aScore:5,home:"Generals",hScore:3,div:"SAT"},
-  ]},
-  {week:"Week 3 – Feb 15", games:[
-    {away:"Dodgers",aScore:9,home:"Tribe",hScore:11,div:"SAT"},
-    {away:"Generals",aScore:4,home:"Titans",hScore:6,div:"SAT"},
-    {away:"Pirates",aScore:10,home:"Brooklyn",hScore:7,div:"SAT"},
-  ]},
-  {week:"Week 2 – Feb 8", games:[
-    {away:"Tribe",aScore:8,home:"Brooklyn",hScore:2,div:"SAT"},
-    {away:"Dodgers",aScore:5,home:"Generals",hScore:1,div:"SAT"},
-    {away:"Titans",aScore:4,home:"Pirates",hScore:7,div:"SAT"},
-  ]},
-  {week:"Week 1 – Feb 1", games:[
-    {away:"Pirates",aScore:6,home:"Tribe",hScore:8,div:"SAT"},
-    {away:"Generals",aScore:2,home:"Brooklyn",hScore:5,div:"SAT"},
-    {away:"Dodgers",aScore:7,home:"Titans",hScore:4,div:"SAT"},
-  ]},
+  {
+    season:"Spring/Summer 2026",
+    weeks:[
+      {week:"Season opens Apr 11, 2026", games:[]},
+    ]
+  },
+  {
+    season:"Fall/Winter 2026",
+    weeks:[
+      {week:"Mar 14, 2026 — Championship", games:[
+        {away:"Dodgers",aScore:10,home:"Tribe",hScore:5,div:"Championship",note:"Dodgers Advance To Championship Game!"},
+        {away:"Generals",aScore:12,home:"Brooklyn",hScore:8,div:"Championship",note:"General Potvin Takes Out Brooklyn!"},
+      ]},
+      {week:"Feb 28, 2026", games:[
+        {away:"Pirates",aScore:20,home:"Titans",hScore:10,div:"FW26"},
+        {away:"Generals",aScore:5,home:"Titans",hScore:4,div:"FW26",note:"Generals clinch playoff berth"},
+        {away:"Dodgers",aScore:13,home:"Tribe",hScore:0,div:"FW26"},
+      ]},
+      {week:"Feb 21, 2026", games:[
+        {away:"Brooklyn",aScore:11,home:"Titans",hScore:4,div:"FW26",note:"Brooklyn Bests Titans"},
+      ]},
+      {week:"Feb 14, 2026", games:[
+        {away:"Tribe",aScore:15,home:"Pirates",hScore:5,div:"FW26"},
+        {away:"Dodgers",aScore:10,home:"Titans",hScore:4,div:"FW26"},
+        {away:"Brooklyn",aScore:10,home:"Generals",hScore:6,div:"FW26",note:"Brooklyn Stages Comeback!"},
+      ]},
+      {week:"Feb 7, 2026", games:[
+        {away:"Dodgers",aScore:9,home:"Pirates",hScore:0,div:"FW26",note:"Forfeit — Protest Upheld"},
+        {away:"Brooklyn",aScore:10,home:"Tribe",hScore:9,div:"FW26",note:"Brooklyn Survives Tribal Scare!"},
+      ]},
+      {week:"Jan 31, 2026", games:[
+        {away:"Tribe",aScore:21,home:"Titans",hScore:4,div:"FW26"},
+        {away:"Dodgers",aScore:14,home:"Generals",hScore:4,div:"FW26"},
+        {away:"Pirates",aScore:4,home:"Brooklyn",hScore:4,div:"FW26",note:"Tie"},
+      ]},
+      {week:"Jan 24, 2026", games:[
+        {away:"Generals",aScore:18,home:"Pirates",hScore:6,div:"FW26",note:"Generals Cruise to Win"},
+        {away:"Tribe",aScore:12,home:"Dodgers",hScore:4,div:"FW26"},
+        {away:"Titans",aScore:7,home:"Brooklyn",hScore:5,div:"FW26",note:"Weinrich Holds Off Brooklyn!"},
+      ]},
+      {week:"Jan 10, 2026", games:[
+        {away:"Tribe",aScore:16,home:"Pirates",hScore:9,div:"FW26"},
+        {away:"Brooklyn",aScore:6,home:"Generals",hScore:2,div:"FW26",note:"Brooklyn Holds Off Generals"},
+        {away:"Dodgers",aScore:10,home:"Titans",hScore:3,div:"FW26"},
+      ]},
+      {week:"Dec 20, 2025", games:[
+        {away:"Tribe",aScore:11,home:"Generals",hScore:6,div:"FW26"},
+        {away:"Brooklyn",aScore:7,home:"Dodgers",hScore:4,div:"FW26",note:"Brooklyn Holds Off Dodgers"},
+      ]},
+      {week:"Dec 13, 2025", games:[
+        {away:"Titans",aScore:9,home:"Generals",hScore:0,div:"FW26"},
+        {away:"Brooklyn",aScore:10,home:"Tribe",hScore:4,div:"FW26",note:"Brooklyn Holds Off Tribe"},
+        {away:"Dodgers",aScore:16,home:"Pirates",hScore:1,div:"FW26"},
+      ]},
+      {week:"Dec 6, 2025", games:[
+        {away:"Tribe",aScore:21,home:"Titans",hScore:5,div:"FW26"},
+        {away:"Generals",aScore:10,home:"Dodgers",hScore:5,div:"FW26"},
+        {away:"Brooklyn",aScore:11,home:"Pirates",hScore:0,div:"FW26",note:"Pirates Garner Just 2 Hits"},
+      ]},
+      {week:"Nov 8, 2025 — Opening Week", games:[
+        {away:"Brooklyn",aScore:15,home:"Dodgers",hScore:3,div:"FW26",note:"Brooklyn Breaks Open Game Late"},
+        {away:"Generals",aScore:5,home:"Tribe",hScore:4,div:"FW26",note:"Generals win a close game"},
+        {away:"Titans",aScore:10,home:"Pirates",hScore:6,div:"FW26",note:"Titans start season with a W"},
+      ]},
+    ]
+  },
+  {
+    season:"2025 NABA AZ World Series",
+    weeks:[
+      {week:"Oct 5–10, 2025 — Tempe, AZ", games:[
+        {away:"Diamond Classics Titans",aScore:0,home:"Guam",hScore:0,div:"NABA",note:"Oct 5 · 7:00 PM · Tempe Diablo #2"},
+        {away:"Diamond Classics Titans",aScore:0,home:"Dallas Redbirds",hScore:0,div:"NABA",note:"Oct 6 · 12:00 PM · Red Mountain #3"},
+        {away:"Diamond Classics Titans",aScore:0,home:"KC Royals",hScore:0,div:"NABA",note:"Oct 7 · 3:30 PM · Tempe Diablo Stadium"},
+        {away:"Serpientes",aScore:0,home:"Diamond Classics Titans",hScore:0,div:"NABA",note:"Oct 8 · 3:30 PM · Indian School Park #2"},
+        {away:"Serpientes",aScore:0,home:"Diamond Classics Titans",hScore:0,div:"NABA",note:"Oct 9 · 12:00 PM · Indian School Park #3"},
+        {away:"Diamond Classics Titans",aScore:0,home:"SD BC",hScore:0,div:"NABA",note:"Oct 10 · 4:30 AM · Tempe Diablo #1"},
+      ]},
+    ]
+  },
 ];
 
 const SCHED = [
@@ -120,7 +164,7 @@ const SCHED = [
   { label:"May 9", fields:[
     {name:"Clark Field — Long Beach", games:[
       {time:"9:00 AM",away:"Tribe",home:"Brooklyn"},
-      {time:"9:00 AM",away:"Titans",home:"Generals"},
+      {time:"12:00 PM",away:"Titans",home:"Generals"},
     ]},
     {name:"Fromhold Field — San Pedro", games:[
       {time:"9:00 AM",away:"Pirates",home:"Dodgers"},
@@ -456,7 +500,7 @@ function Navbar({ tab, setTab }) {
 function HomePage({ setTab, setTeamDetail }) {
   const topTeams = [...ALL_TEAMS].sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8);
   const nextGames = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g,field:f.name}))).slice(0,5);
-  const recent = SCORES[0].games;
+  const recent = SCORES[1].weeks[0].games;
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
@@ -489,7 +533,7 @@ function HomePage({ setTab, setTeamDetail }) {
                 <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date="Mar 22" onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
+                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date="Apr 11" onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
               </div>
             </div>
           </div>
@@ -524,17 +568,45 @@ function HomePage({ setTab, setTeamDetail }) {
 
 /* ─── SCORES PAGE ─────────────────────────────────────────────────────────  */
 function ScoresPage({ setTab, setTeamDetail }) {
-  const [wk,setWk] = useState(0);
+  const [seasonIdx, setSeasonIdx] = useState(0);
+  const [weekIdx, setWeekIdx] = useState(0);
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
+  const season = SCORES[seasonIdx];
+  const week = season.weeks[weekIdx];
+  const handleSeasonChange = (i) => { setSeasonIdx(i); setWeekIdx(0); };
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
-      <PageHero label="2026 Season" title="Scores">
-        <TabBar items={SCORES.map(s=>s.week)} active={wk} onChange={setWk} />
+      <PageHero label="Results" title="Scores">
+        <TabBar items={SCORES.map(s=>s.season)} active={seasonIdx} onChange={handleSeasonChange} />
       </PageHero>
       <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:12}}>
-          {SCORES[wk].games.map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)}
-        </div>
+        {/* Week selector */}
+        {season.weeks.length > 1 && (
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
+            {season.weeks.map((w,i) => (
+              <button key={i} onClick={() => setWeekIdx(i)} style={{
+                padding:"6px 14px",borderRadius:20,cursor:"pointer",
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
+                letterSpacing:".04em",textTransform:"uppercase",
+                background:weekIdx===i?"#002d6e":"#fff",
+                color:weekIdx===i?"#fff":"#555",
+                border:`1px solid ${weekIdx===i?"#002d6e":"rgba(0,0,0,0.15)"}`,
+                transition:"all .15s",
+              }}>{w.week}</button>
+            ))}
+          </div>
+        )}
+        {week.games.length === 0 ? (
+          <div style={{background:"#fff",borderRadius:12,padding:"48px",textAlign:"center",border:"1px solid rgba(0,0,0,0.09)"}}>
+            <div style={{fontSize:40,marginBottom:12}}>⚾</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",textTransform:"uppercase"}}>Season Opens April 11th</div>
+            <div style={{fontSize:14,color:"rgba(0,0,0,0.45)",marginTop:8}}>Check back after the first games are played!</div>
+          </div>
+        ) : (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:12}}>
+            {week.games.map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -628,7 +700,7 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
   const roster = TEAM_ROSTERS[teamName] || [];
   if (!team) return null;
   const color = TEAM_COLORS[teamName] || "#002d6e";
-  const teamGames = SCORES.flatMap(w => w.games.filter(g => g.away===teamName||g.home===teamName)).slice(0,5);
+  const teamGames = SCORES.flatMap(s => s.weeks.flatMap(w => w.games)).filter(g => g.away===teamName||g.home===teamName).slice(0,5);
   const upcoming = SCHED[0].fields.flatMap(f => f.games.map(g=>({...g,field:f.name}))).filter(g=>g.away===teamName||g.home===teamName);
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); } };
   return (
