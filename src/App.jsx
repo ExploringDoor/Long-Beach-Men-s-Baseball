@@ -112,13 +112,12 @@ const SCORES = [
   {
     season:"2025 NABA AZ World Series",
     weeks:[
-      {week:"Oct 5–10, 2025 — Tempe, AZ", games:[
-        {away:"Diamond Classics Titans",aScore:0,home:"Guam",hScore:0,div:"NABA",note:"Oct 5 · 7:00 PM · Tempe Diablo #2"},
-        {away:"Diamond Classics Titans",aScore:0,home:"Dallas Redbirds",hScore:0,div:"NABA",note:"Oct 6 · 12:00 PM · Red Mountain #3"},
-        {away:"Diamond Classics Titans",aScore:0,home:"KC Royals",hScore:0,div:"NABA",note:"Oct 7 · 3:30 PM · Tempe Diablo Stadium"},
-        {away:"Serpientes",aScore:0,home:"Diamond Classics Titans",hScore:0,div:"NABA",note:"Oct 8 · 3:30 PM · Indian School Park #2"},
-        {away:"Serpientes",aScore:0,home:"Diamond Classics Titans",hScore:0,div:"NABA",note:"Oct 9 · 12:00 PM · Indian School Park #3"},
-        {away:"Diamond Classics Titans",aScore:0,home:"SD BC",hScore:0,div:"NABA",note:"Oct 10 · 4:30 AM · Tempe Diablo #1"},
+      {week:"Oct 5–9, 2025 — Tempe, AZ", games:[
+        {away:"Diamond Classics Titans",aScore:18,home:"Guam",hScore:0,div:"NABA",note:"Oct 5 · Tempe Diablo #2"},
+        {away:"Dallas Redbirds",aScore:15,home:"Diamond Classics Titans",hScore:1,div:"NABA",note:"Oct 6 · Red Mountain #3"},
+        {away:"KC Royals",aScore:18,home:"Diamond Classics Titans",hScore:8,div:"NABA",note:"Oct 7 · Tempe Diablo Stadium"},
+        {away:"Diamond Classics Titans",aScore:19,home:"Serpientes",hScore:9,div:"NABA",note:"Oct 8 · Indian School Park #2"},
+        {away:"Diamond Classics Titans",aScore:10,home:"Serpientes",hScore:5,div:"NABA",note:"Oct 9 · Indian School Park #3"},
       ]},
     ]
   },
@@ -634,61 +633,120 @@ function SchedulePage({ setTab, setTeamDetail }) {
 }
 
 /* ─── STANDINGS PAGE ──────────────────────────────────────────────────────── */
+const STANDINGS_HISTORY = [
+  {
+    season:"Fall/Winter 2025-26", champion:"Brooklyn",
+    note:"Brooklyn won the regular season. Dodgers won the Championship Game.",
+    teams:[
+      {seed:1,name:"Brooklyn",  w:8,l:2,t:1,pct:".773",gp:11,rs:97, ra:55, diff:"+42"},
+      {seed:2,name:"Dodgers",   w:7,l:4,t:0,pct:".636",gp:11,rs:98, ra:61, diff:"+37"},
+      {seed:3,name:"Tribe",     w:6,l:5,t:0,pct:".545",gp:11,rs:118,ra:81, diff:"+37"},
+      {seed:4,name:"Generals",  w:5,l:5,t:0,pct:".500",gp:10,rs:68, ra:77, diff:"-9"},
+      {seed:5,name:"Titans",    w:3,l:7,t:0,pct:".300",gp:10,rs:60, ra:109,diff:"-49"},
+      {seed:6,name:"Pirates",   w:1,l:7,t:1,pct:".167",gp:9, rs:51, ra:109,diff:"-58"},
+    ]
+  },
+];
+
 function StandingsPage({ setTab, setTeamDetail }) {
-  const [dk,setDk] = useState("SAT");
-  const div = DIV[dk];
+  const [view, setView] = useState("current"); // "current" | "history"
+  const [histIdx, setHistIdx] = useState(0);
+  const div = DIV["SAT"];
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); } };
-  return (
-    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
-      <PageHero label="2026 Season" title="Standings">
-        <TabBar items={Object.entries(DIV).map(([,d])=>d.name)} active={Object.keys(DIV).indexOf(dk)} onChange={i => setDk(Object.keys(DIV)[i])} />
-      </PageHero>
-      <div className="mobile-standings" style={{display:"none",padding:"16px 12px 60px"}}>
-        {div.teams.map((t,i) => (
-          <div key={t.name} onClick={() => goTeam(t.name)} style={{background:"#fff",borderRadius:10,marginBottom:8,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,border:"1px solid rgba(0,0,0,0.08)",borderLeft:`3px solid ${i===0?"#002d6e":div.accent}`,cursor:"pointer"}}>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:i===0?"#002d6e":"rgba(0,0,0,0.25)",width:24,flexShrink:0}}>{t.seed}</span>
-            <TLogo name={t.name} size={80} />
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
-              <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{t.pct} PCT · {t.gp} GP</div>
-            </div>
-            <div style={{textAlign:"right",flexShrink:0}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",lineHeight:1}}>{t.w}-{t.l}</div>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:t.diff.startsWith("+")?div.accent:t.diff==="0"?"rgba(0,0,0,0.3)":"#dc2626"}}>{t.diff}</div>
-            </div>
+  const hist = STANDINGS_HISTORY[histIdx];
+
+  const StandingsTable = ({ teams, accent="#002d6e" }) => (<>
+    <div className="mobile-standings" style={{display:"none",padding:"16px 12px"}}>
+      {teams.map((t,i) => (
+        <div key={t.name} onClick={() => goTeam(t.name)} style={{background:"#fff",borderRadius:10,marginBottom:8,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,border:"1px solid rgba(0,0,0,0.08)",borderLeft:`3px solid ${i===0?"#002d6e":accent}`,cursor:"pointer"}}>
+          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:i===0?"#002d6e":"rgba(0,0,0,0.25)",width:24,flexShrink:0}}>{t.seed}</span>
+          <TLogo name={t.name} size={80} />
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
+            <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{t.pct} PCT · {t.gp} GP</div>
           </div>
-        ))}
-      </div>
-      <div className="desktop-standings" style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
-        <div className="standings-table">
-        <Card style={{boxShadow:"0 2px 8px rgba(0,0,0,0.05)",minWidth:"unset"}}>
-          <div style={{display:"grid",gridTemplateColumns:"50px minmax(300px,1fr) 60px 60px 60px 80px 60px 60px 60px 70px",padding:"10px 20px",background:"#f8f9fb",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
-            {["#","Team","W","L","T","PCT","GP","RS","RA","DIFF"].map((h,i) => (
-              <span key={h} style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(0,0,0,0.3)",textAlign:i>1?"center":"left"}}>{h}</span>
-            ))}
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",lineHeight:1}}>{t.w}-{t.l}{t.t>0?`-${t.t}`:""}</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:700,color:t.diff.startsWith("+")?accent:"#dc2626"}}>{t.diff}</div>
           </div>
-          {div.teams.map((t,i) => (
-            <div key={t.name} onClick={() => goTeam(t.name)} style={{display:"grid",gridTemplateColumns:"50px minmax(300px,1fr) 60px 60px 60px 80px 60px 60px 60px 70px",padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.04)",alignItems:"center",transition:"background .15s",cursor:"pointer"}}
-              onMouseEnter={e => e.currentTarget.style.background="rgba(0,45,110,0.03)"}
-              onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:30,color:i===0?"#002d6e":"rgba(0,0,0,0.22)"}}>{t.seed}</span>
-              <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <TLogo name={t.name} size={130} />
-                <div>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:38,textTransform:"uppercase",color:"#111",lineHeight:1}}>{t.name}</div>
-                  <div style={{height:3,width:120,background:"rgba(0,0,0,0.07)",borderRadius:2,marginTop:6,overflow:"hidden"}}>
-                    <div style={{height:"100%",background:i===0?"#002d6e":"rgba(0,0,0,0.18)",borderRadius:2,width:`${parseFloat(t.pct)*100}%`}} />
-                  </div>
+        </div>
+      ))}
+    </div>
+    <div className="desktop-standings standings-table">
+      <Card style={{boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
+        <div style={{display:"grid",gridTemplateColumns:"50px minmax(260px,1fr) 60px 60px 60px 80px 60px 60px 60px 70px",padding:"10px 20px",background:"#f8f9fb",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
+          {["#","Team","W","L","T","PCT","GP","RS","RA","DIFF"].map((h,hi) => (
+            <span key={h} style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(0,0,0,0.3)",textAlign:hi>1?"center":"left"}}>{h}</span>
+          ))}
+        </div>
+        {teams.map((t,i) => (
+          <div key={t.name} onClick={() => goTeam(t.name)} style={{display:"grid",gridTemplateColumns:"50px minmax(260px,1fr) 60px 60px 60px 80px 60px 60px 60px 70px",padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.04)",alignItems:"center",transition:"background .15s",cursor:"pointer",background:i===0?"rgba(0,45,110,0.02)":"transparent"}}
+            onMouseEnter={e => e.currentTarget.style.background="rgba(0,45,110,0.04)"}
+            onMouseLeave={e => e.currentTarget.style.background=i===0?"rgba(0,45,110,0.02)":"transparent"}>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:30,color:i===0?"#002d6e":"rgba(0,0,0,0.22)"}}>{t.seed}</span>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <TLogo name={t.name} size={130} />
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:38,textTransform:"uppercase",color:"#111",lineHeight:1}}>{t.name}</div>
+                <div style={{height:3,width:120,background:"rgba(0,0,0,0.07)",borderRadius:2,marginTop:6,overflow:"hidden"}}>
+                  <div style={{height:"100%",background:i===0?"#002d6e":"rgba(0,0,0,0.18)",borderRadius:2,width:`${parseFloat(t.pct)*100}%`}} />
                 </div>
               </div>
-              {[t.w,t.l,t.t,t.pct,t.gp,t.rs,t.ra].map((v,vi) => (
-                <span key={vi} style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:vi===3?18:28,fontWeight:vi===0?900:vi===3?700:400,color:vi===0?"#111":vi===3?"#002d6e":"rgba(0,0,0,0.55)",textAlign:"center",display:"block"}}>{v}</span>
-              ))}
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:700,textAlign:"center",display:"block",color:t.diff.startsWith("+")?div.accent:t.diff==="0"?"rgba(0,0,0,0.3)":"#dc2626"}}>{t.diff}</span>
             </div>
-          ))}
-        </Card>
-        </div>
+            {[t.w,t.l,t.t,t.pct,t.gp,t.rs,t.ra].map((v,vi) => (
+              <span key={vi} style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:vi===3?18:28,fontWeight:vi===0?900:vi===3?700:400,color:vi===0?"#111":vi===3?"#002d6e":"rgba(0,0,0,0.55)",textAlign:"center",display:"block"}}>{v}</span>
+            ))}
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:700,textAlign:"center",display:"block",color:t.diff.startsWith("+")?"#002d6e":"#dc2626"}}>{t.diff}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  </>);
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      <PageHero label="Diamond Classics" title="Standings">
+        <TabBar items={["Current Season","Season History"]} active={view==="current"?0:1} onChange={i => setView(i===0?"current":"history")} />
+      </PageHero>
+
+      <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        {view==="current" && <>
+          <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
+            ⚾ <strong>Season opens April 11, 2026</strong> — standings will update after each week's games.
+          </div>
+          <StandingsTable teams={div.teams} />
+        </>}
+
+        {view==="history" && <>
+          {/* Season selector */}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
+            {STANDINGS_HISTORY.map((s,i) => (
+              <button key={i} onClick={() => setHistIdx(i)} style={{
+                padding:"8px 18px",borderRadius:20,cursor:"pointer",
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
+                letterSpacing:".04em",textTransform:"uppercase",
+                background:histIdx===i?"#002d6e":"#fff",
+                color:histIdx===i?"#fff":"#555",
+                border:`1px solid ${histIdx===i?"#002d6e":"rgba(0,0,0,0.15)"}`,
+              }}>{s.season}</button>
+            ))}
+          </div>
+
+          {/* Champion banner */}
+          <div style={{background:"#002d6e",borderRadius:10,padding:"16px 24px",marginBottom:20,display:"flex",alignItems:"center",gap:16}}>
+            <span style={{fontSize:32}}>🏆</span>
+            <div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#FFD700",textTransform:"uppercase"}}>{hist.season} — Final Standings</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:2}}>{hist.note}</div>
+            </div>
+            <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+              <TLogo name={hist.champion} size={80} />
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>{hist.champion}</div>
+            </div>
+          </div>
+
+          <StandingsTable teams={hist.teams} />
+        </>}
       </div>
     </div>
   );
