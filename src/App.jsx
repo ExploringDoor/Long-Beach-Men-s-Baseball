@@ -338,6 +338,8 @@ const BOOMERS_SCHED = [
   {date:"Jul 25",time:"3:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"Clark Field — Long Beach"},
   {date:"Aug 8", time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
 ];
+
+const RULES_DATA = [
   {section:"Playoff Eligibility",icon:"🏆",items:[
     "To qualify for playoffs, players must participate in a minimum of 4 games (verified by completed box scores). Effective 9/9/22 by league vote.",
     "Playoff format: Best of 3 series.",
