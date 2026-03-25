@@ -741,14 +741,30 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const [wk,setWk] = useState(0);
   const week = SCHED[wk];
   const games = week.fields.flatMap(f => f.games.map(g => ({...g,field:f.name})));
-  const dateStr = week.label.split("–")[1]?.trim()||"";
+  const dateStr = week.label;
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
+  const allTeams = ["Tribe","Dodgers","Pirates","Titans","Brooklyn","Generals","Black Sox"];
+  const playingTeams = new Set(games.flatMap(g => [g.away, g.home]));
+  const byeTeams = allTeams.filter(t => !playingTeams.has(t));
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second">
         <TabBar items={SCHED.map(s=>s.label)} active={wk} onChange={setWk} />
       </PageHero>
       <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+        {byeTeams.length > 0 && (
+          <div style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"3px solid #c8102e",borderRadius:8,padding:"12px 18px",marginBottom:16}}>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,letterSpacing:"1px",textTransform:"uppercase",color:"#c8102e",flexShrink:0}}>BYE WEEK</span>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              {byeTeams.map(t => (
+                <div key={t} style={{display:"flex",alignItems:"center",gap:6}}>
+                  <TLogo name={t} size={40} />
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,color:"#111",textTransform:"uppercase"}}>{t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {games.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
         </div>
