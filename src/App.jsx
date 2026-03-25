@@ -900,8 +900,22 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
   if (!team) return null;
   const color = TEAM_COLORS[teamName] || "#002d6e";
   const teamGames = SCORES.flatMap(s => s.weeks.flatMap(w => w.games)).filter(g => g.away===teamName||g.home===teamName).slice(0,5);
-  const upcoming = SCHED[0].fields.flatMap(f => f.games.map(g=>({...g,field:f.name}))).filter(g=>g.away===teamName||g.home===teamName);
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); } };
+
+  // Build full season schedule for this team
+  const fullSchedule = SCHED.flatMap(week =>
+    week.fields.flatMap(f =>
+      f.games
+        .filter(g => g.away===teamName || g.home===teamName)
+        .map(g => ({
+          date: week.label,
+          time: g.time,
+          isHome: g.home===teamName,
+          opponent: g.home===teamName ? g.away : g.home,
+          field: f.name,
+        }))
+    )
+  );
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <div style={{background:`linear-gradient(135deg, ${color}15 0%, #fff 60%)`,borderBottom:"3px solid #002d6e",padding:"32px clamp(12px,3vw,40px) 0"}}>
@@ -958,35 +972,35 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
 
         <div style={{display:"flex",flexDirection:"column",gap:16,position:"sticky",top:72}}>
           <Card>
-            <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Upcoming Games</span>
+            <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>2026 Schedule</span>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,color:color,fontWeight:700}}>{fullSchedule.length} Games</span>
             </div>
-            {upcoming.length===0 ? (
-              <div style={{padding:"16px",fontSize:13,color:"rgba(0,0,0,0.4)"}}>No upcoming games scheduled.</div>
-            ) : upcoming.map((g,i) => {
-              const isHome = g.home===teamName;
-              const opp = isHome ? g.away : g.home;
-              return (
-                <div key={i} style={{padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                    <TLogo name={opp} size={70} />
-                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>{isHome?"vs":"@"} {opp}</span>
-                  </div>
-                  <div style={{fontSize:12,color:"rgba(0,0,0,0.4)"}}>{g.time} · Mar 22 · {g.field}</div>
+            {fullSchedule.map((g,i) => (
+              <div key={i} style={{display:"grid",gridTemplateColumns:"52px 48px 1fr",alignItems:"center",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"transparent":"rgba(0,0,0,0.01)"}}>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#111",lineHeight:1}}>{g.date}</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.time}</div>
                 </div>
-              );
-            })}
-          </Card>
-          <Card>
-            <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>{team.divName}</span>
-            </div>
-            {DIV[team.divKey].teams.map((t,i) => (
-              <div key={t.name} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",background:t.name===teamName?"rgba(0,45,110,0.04)":"transparent"}}>
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:i===0?"#002d6e":"rgba(0,0,0,0.25)",width:20,textAlign:"center"}}>{t.seed}</span>
-                <TLogo name={t.name} size={70} />
-                <span style={{flex:1,fontSize:13,fontWeight:t.name===teamName?700:500,color:t.name===teamName?color:"#111",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:700,color:"#111",flexShrink:0}}>{t.w}-{t.l}</span>
+                <div style={{
+                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
+                  letterSpacing:".08em",textTransform:"uppercase",
+                  color:g.isHome?"#fff":"#002d6e",
+                  background:g.isHome?"#002d6e":"rgba(0,45,110,0.08)",
+                  border:`1px solid ${g.isHome?"#002d6e":"rgba(0,45,110,0.2)"}`,
+                  borderRadius:4,padding:"2px 6px",textAlign:"center",
+                }}>
+                  {g.isHome?"HOME":"AWAY"}
+                </div>
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <TLogo name={g.opponent} size={44} />
+                    <div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,color:"#111",textTransform:"uppercase",lineHeight:1}}>{g.isHome?"vs":"@"} {g.opponent}</div>
+                      <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.field.replace("Clark Field — Long Beach","Clark Field").replace("Fromhold Field — San Pedro","Fromhold Field").replace("St Pius X — Downey","St Pius X")}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             ))}
           </Card>
