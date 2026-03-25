@@ -9,6 +9,7 @@ const TEAM_LOGOS = {
   "Titans":   "/titans.png",
   "Brooklyn": "/brooklyn.png",
   "Generals": "/generals.png",
+  "Black Sox": "/blacksox.png",
 };
 
 const DIV = {
@@ -21,6 +22,7 @@ const DIV = {
       {seed:4,name:"Titans",full:"Titans",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
       {seed:5,name:"Brooklyn",full:"Brooklyn",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
       {seed:6,name:"Generals",full:"Generals",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:7,name:"Black Sox",full:"Black Sox",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
     ]},
 };
 
@@ -30,7 +32,7 @@ const ALL_TEAMS = Object.entries(DIV).flatMap(([dk,div]) =>
 
 const TEAM_COLORS = {
   "Tribe":"#002d6e","Dodgers":"#005a9c","Pirates":"#1d2d44","Titans":"#4a1d96",
-  "Brooklyn":"#b45309","Generals":"#374151",
+  "Brooklyn":"#b45309","Generals":"#374151","Black Sox":"#111111",
 };
 
 const TEAM_ROSTERS = {
@@ -40,6 +42,7 @@ const TEAM_ROSTERS = {
   "Titans": ["Mike McCann","M. Torres","R. Schmidt","D. Mueller","J. Hoffmann","K. Weber","B. Fischer","A. Wagner","C. Bauer"],
   "Brooklyn": ["Daniel Gutierrez","B. Johnson","T. Davis","K. Wilson","R. Brown","J. Thompson","M. Harris","C. Jackson"],
   "Generals": ["TBD","P. Garcia","R. Martinez","J. Santos","A. Flores","B. Reyes","C. Lopez"],
+  "Black Sox": ["TBD"],
 };
 
 const SCORES = [
@@ -126,11 +129,11 @@ const SCORES = [
 const SCHED = [
   { label:"Apr 11", fields:[
     {name:"Clark Field — Long Beach", games:[
-      {time:"9:00 AM",away:"Dodgers",home:"Brooklyn"},
+      {time:"9:00 AM",away:"Pirates",home:"Brooklyn"},
     ]},
     {name:"Fromhold Field — San Pedro", games:[
-      {time:"9:00 AM",away:"Generals",home:"Tribe"},
-      {time:"12:00 PM",away:"Pirates",home:"Titans"},
+      {time:"9:00 AM",away:"Generals",home:"Dodgers"},
+      {time:"12:00 PM",away:"Tribe",home:"Titans"},
     ]},
   ]},
   { label:"Apr 18", fields:[
@@ -138,32 +141,176 @@ const SCHED = [
       {time:"9:00 AM",away:"Brooklyn",home:"Generals"},
     ]},
     {name:"Fromhold Field — San Pedro", games:[
-      {time:"9:00 AM",away:"Titans",home:"Dodgers"},
+      {time:"9:00 AM",away:"Dodgers",home:"Black Sox"},
       {time:"12:00 PM",away:"Tribe",home:"Pirates"},
     ]},
   ]},
   { label:"Apr 25", fields:[
     {name:"Fromhold Field — San Pedro", games:[
-      {time:"9:00 AM",away:"Pirates",home:"Generals"},
-      {time:"12:00 PM",away:"Dodgers",home:"Tribe"},
+      {time:"9:00 AM",away:"Generals",home:"Tribe"},
+      {time:"12:00 PM",away:"Black Sox",home:"Titans"},
     ]},
     {name:"St Pius X — Downey", games:[
-      {time:"9:00 AM",away:"Titans",home:"Brooklyn"},
+      {time:"9:00 AM",away:"Dodgers",home:"Brooklyn"},
     ]},
   ]},
   { label:"May 2", fields:[
     {name:"Fromhold Field — San Pedro", games:[
-      {time:"9:00 AM",away:"Generals",home:"Dodgers"},
-      {time:"12:00 PM",away:"Tribe",home:"Titans"},
+      {time:"9:00 AM",away:"Titans",home:"Pirates"},
+      {time:"12:00 PM",away:"Dodgers",home:"Tribe"},
     ]},
     {name:"St Pius X — Downey", games:[
-      {time:"9:00 AM",away:"Brooklyn",home:"Pirates"},
+      {time:"9:00 AM",away:"Brooklyn",home:"Black Sox"},
     ]},
   ]},
   { label:"May 9", fields:[
     {name:"Clark Field — Long Beach", games:[
-      {time:"9:00 AM",away:"Tribe",home:"Brooklyn"},
+      {time:"9:00 AM",away:"Brooklyn",home:"Tribe"},
       {time:"12:00 PM",away:"Titans",home:"Generals"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Black Sox",home:"Pirates"},
+    ]},
+  ]},
+  { label:"May 16", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Tribe",home:"Black Sox"},
+      {time:"12:00 PM",away:"Pirates",home:"Generals"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Titans",home:"Dodgers"},
+    ]},
+  ]},
+  { label:"May 30", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Brooklyn",home:"Titans"},
+      {time:"12:00 PM",away:"Black Sox",home:"Generals"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Pirates",home:"Dodgers"},
+    ]},
+  ]},
+  { label:"Jun 6", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Dodgers",home:"Generals"},
+      {time:"12:00 PM",away:"Titans",home:"Tribe"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Brooklyn",home:"Pirates"},
+    ]},
+  ]},
+  { label:"Jun 13", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Generals",home:"Brooklyn"},
+      {time:"12:00 PM",away:"Pirates",home:"Tribe"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Black Sox",home:"Dodgers"},
+    ]},
+  ]},
+  { label:"Jun 20", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Tribe",home:"Generals"},
+      {time:"12:00 PM",away:"Titans",home:"Black Sox"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Brooklyn",home:"Dodgers"},
+    ]},
+  ]},
+  { label:"Jun 27", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Pirates",home:"Titans"},
+      {time:"12:00 PM",away:"Black Sox",home:"Brooklyn"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Tribe",home:"Dodgers"},
+    ]},
+  ]},
+  { label:"Jul 11", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Tribe",home:"Brooklyn"},
+      {time:"12:00 PM",away:"Generals",home:"Titans"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Black Sox",home:"Pirates"},
+    ]},
+  ]},
+  { label:"Jul 18", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Pirates",home:"Generals"},
+      {time:"12:00 PM",away:"Dodgers",home:"Titans"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Black Sox",home:"Tribe"},
+    ]},
+  ]},
+  { label:"Jul 25", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Black Sox",home:"Generals"},
+      {time:"12:00 PM",away:"Brooklyn",home:"Titans"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Pirates",home:"Dodgers"},
+    ]},
+  ]},
+  { label:"Aug 1", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Pirates",home:"Brooklyn"},
+      {time:"12:00 PM",away:"Tribe",home:"Titans"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Generals",home:"Dodgers"},
+    ]},
+  ]},
+  { label:"Aug 8", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Brooklyn",home:"Generals"},
+      {time:"12:00 PM",away:"Dodgers",home:"Black Sox"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Tribe",home:"Pirates"},
+    ]},
+  ]},
+  { label:"Aug 15", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Dodgers",home:"Brooklyn"},
+      {time:"12:00 PM",away:"Black Sox",home:"Titans"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Generals",home:"Tribe"},
+    ]},
+  ]},
+  { label:"Aug 22", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Brooklyn",home:"Black Sox"},
+      {time:"12:00 PM",away:"Dodgers",home:"Tribe"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Titans",home:"Pirates"},
+    ]},
+  ]},
+  { label:"Aug 29", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Titans",home:"Generals"},
+      {time:"12:00 PM",away:"Brooklyn",home:"Tribe"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Black Sox",home:"Pirates"},
+    ]},
+  ]},
+  { label:"Sep 12", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Pirates",home:"Generals"},
+      {time:"12:00 PM",away:"Tribe",home:"Black Sox"},
+    ]},
+    {name:"Fromhold Field — San Pedro", games:[
+      {time:"9:00 AM",away:"Titans",home:"Dodgers"},
+    ]},
+  ]},
+  { label:"Sep 19", fields:[
+    {name:"Clark Field — Long Beach", games:[
+      {time:"9:00 AM",away:"Black Sox",home:"Generals"},
+      {time:"12:00 PM",away:"Brooklyn",home:"Titans"},
     ]},
     {name:"Fromhold Field — San Pedro", games:[
       {time:"9:00 AM",away:"Pirates",home:"Dodgers"},
@@ -510,7 +657,7 @@ function HomePage({ setTab, setTeamDetail }) {
                 <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date="Apr 11" onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
+                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date="Apr 11, 2026" onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
               </div>
             </div>
           </div>
