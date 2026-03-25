@@ -45,6 +45,16 @@ const TEAM_ROSTERS = {
   "Black Sox": ["TBD"],
 };
 
+const TEAM_CAL_LINKS = {
+  "Tribe":    "https://calendar.google.com/calendar/r?cid=c595f97c1b49bf9edc22855592ee79225543282bec41c68c18715cb57dd6a109%40group.calendar.google.com",
+  "Dodgers":  "https://calendar.google.com/calendar/r?cid=7da402a2fc41e88b5f82a28cc8dc1f1c3424a421e6a8b7227406354079352b17%40group.calendar.google.com",
+  "Pirates":  "https://calendar.google.com/calendar/r?cid=9de8fd5874f11ff42f25cf6d92caaee9261c137c8be4c64b0d26083014484010%40group.calendar.google.com",
+  "Titans":   "https://calendar.google.com/calendar/r?cid=2a4c0c5588dc9e3b492690304ce6da913ffff3daad4340a83cecafc6111cd6e1%40group.calendar.google.com",
+  "Brooklyn": "https://calendar.google.com/calendar/r?cid=0474cdc6fd4e9341b1638d7b458b4a3c498c53a42e489a72c652e0c61a58559d%40group.calendar.google.com",
+  "Generals": "https://calendar.google.com/calendar/r?cid=87c7cc1dfa649ad6095d8daaaf95db1f1ecb222aeab8849eb6681b3c62f2a8cc%40group.calendar.google.com",
+  "Black Sox":"https://calendar.google.com/calendar/r?cid=72509ee387916b56600af826b8e0fd6c11e4227a7c1eee79dae873650a260b29%40group.calendar.google.com",
+};
+
 const SCORES = [
   {
     season:"Spring/Summer 2026",
@@ -936,6 +946,17 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
                 <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:4,fontFamily:"'Barlow Condensed',sans-serif"}}>{team.pct} PCT</div>
                 <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:2}}>{team.rs} RF · {team.ra} RA</div>
               </div>
+              {TEAM_CAL_LINKS[teamName] && (
+                <a href={TEAM_CAL_LINKS[teamName]} target="_blank" rel="noopener noreferrer" style={{
+                  display:"flex",alignItems:"center",gap:8,
+                  background:"#002d6e",borderRadius:8,padding:"12px 20px",
+                  textDecoration:"none",
+                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
+                  letterSpacing:".06em",textTransform:"uppercase",color:"#fff",
+                }}>
+                  📅 Subscribe to Schedule
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -1080,7 +1101,14 @@ function TeamsPage({ setTab, setTeamDetail }) {
                         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:18,color:t.diff.startsWith("+")?div.accent:t.diff==="0"?"#111":"#dc2626"}}>{t.diff}</div>
                         <div style={{fontSize:10,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:".08em"}}>Differential</div>
                       </div>
-                      <div style={{marginLeft:"auto",display:"flex",alignItems:"center"}}>
+                      <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12}}>
+                        {TEAM_CAL_LINKS[t.name] && (
+                          <a href={TEAM_CAL_LINKS[t.name]} target="_blank" rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{fontSize:12,fontWeight:700,color:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",textDecoration:"none",border:"1px solid #002d6e",borderRadius:6,padding:"4px 10px",whiteSpace:"nowrap"}}>
+                            📅 Subscribe
+                          </a>
+                        )}
                         <span style={{fontSize:12,fontWeight:700,color:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif"}}>View Team →</span>
                       </div>
                     </div>
