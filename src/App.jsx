@@ -328,7 +328,16 @@ const SCHED = [
   ]},
 ];
 
-const RULES_DATA = [
+const BOOMERS_SCHED = [
+  {date:"Apr 11",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
+  {date:"Apr 25",time:"2:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey"},
+  {date:"May 9", time:"3:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
+  {date:"Jun 6", time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey"},
+  {date:"Jun 20",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
+  {date:"Jul 11",time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
+  {date:"Jul 25",time:"3:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"Clark Field — Long Beach"},
+  {date:"Aug 8", time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
+];
   {section:"Playoff Eligibility",icon:"🏆",items:[
     "To qualify for playoffs, players must participate in a minimum of 4 games (verified by completed box scores). Effective 9/9/22 by league vote.",
     "Playoff format: Best of 3 series.",
@@ -748,6 +757,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
 
 /* ─── SCHEDULE PAGE ───────────────────────────────────────────────────────── */
 function SchedulePage({ setTab, setTeamDetail }) {
+  const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers
   const [wk,setWk] = useState(0);
   const week = SCHED[wk];
   const games = week.fields.flatMap(f => f.games.map(g => ({...g,field:f.name})));
@@ -756,29 +766,84 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const allTeams = ["Tribe","Dodgers","Pirates","Titans","Brooklyn","Generals","Black Sox"];
   const playingTeams = new Set(games.flatMap(g => [g.away, g.home]));
   const byeTeams = allTeams.filter(t => !playingTeams.has(t));
+
+  const handleLeagueChange = (i) => { setLeague(i); setWk(0); };
+
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second">
-        <TabBar items={SCHED.map(s=>s.label)} active={wk} onChange={setWk} />
+        <TabBar items={["Saturday Division","Boomers 60/70"]} active={league} onChange={handleLeagueChange} />
       </PageHero>
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
-        {byeTeams.length > 0 && (
-          <div style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"3px solid #c8102e",borderRadius:8,padding:"12px 18px",marginBottom:16}}>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,letterSpacing:"1px",textTransform:"uppercase",color:"#c8102e",flexShrink:0}}>BYE WEEK</span>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {byeTeams.map(t => (
-                <div key={t} style={{display:"flex",alignItems:"center",gap:6}}>
-                  <TLogo name={t} size={40} />
-                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,color:"#111",textTransform:"uppercase"}}>{t}</span>
-                </div>
-              ))}
+
+      {league === 0 && <>
+        <div style={{borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fff",padding:"0 clamp(12px,3vw,40px)"}}>
+          <div style={{maxWidth:1400,margin:"0 auto",overflowX:"auto",display:"flex",gap:0,scrollbarWidth:"none"}}>
+            {SCHED.map((s,i) => (
+              <button key={i} onClick={() => setWk(i)} style={{
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
+                textTransform:"uppercase",color:wk===i?"#111":"rgba(0,0,0,0.38)",
+                padding:"12px 16px",background:"none",border:"none",
+                borderBottom:wk===i?"3px solid #111":"3px solid transparent",
+                cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,
+              }}>{s.label}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+          {byeTeams.length > 0 && (
+            <div style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"3px solid #c8102e",borderRadius:8,padding:"12px 18px",marginBottom:16}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,letterSpacing:"1px",textTransform:"uppercase",color:"#c8102e",flexShrink:0}}>BYE WEEK</span>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                {byeTeams.map(t => (
+                  <div key={t} style={{display:"flex",alignItems:"center",gap:6}}>
+                    <TLogo name={t} size={40} />
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,color:"#111",textTransform:"uppercase"}}>{t}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {games.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
+          </div>
+        </div>
+      </>}
+
+      {league === 1 && (
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+          <div style={{background:"#002d6e",borderRadius:8,padding:"14px 20px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:24}}>⚾</span>
+            <div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#FFD700",textTransform:"uppercase"}}>2026 Boomers 60/70 Division</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.55)"}}>Eddie Murray Mashers '56 vs Greg Maddux Magicians '66 · All games at 2:00–3:00 PM</div>
             </div>
           </div>
-        )}
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {games.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {BOOMERS_SCHED.map((g,i) => (
+              <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #c8102e",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
+                <div style={{display:"flex",alignItems:"center",padding:"14px 18px",gap:12,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:8,flex:"1 1 220px",minWidth:0}}>
+                    {i===0 && <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#c8102e",marginBottom:-2}}>▶ NEXT GAME</div>}
+                    {[g.away, g.home].map((t,j) => (
+                      <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{width:32,height:32,borderRadius:6,background:"rgba(0,45,110,0.1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          <span style={{fontSize:14}}>⚾</span>
+                        </div>
+                        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",textTransform:"uppercase",lineHeight:1}}>{t}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{flexShrink:0,borderLeft:"1px solid rgba(0,0,0,0.08)",paddingLeft:14}}>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",lineHeight:1}}>{g.time}</div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,color:"rgba(0,0,0,0.55)",fontWeight:700,marginTop:3}}>{g.date}</div>
+                    <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.field}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
