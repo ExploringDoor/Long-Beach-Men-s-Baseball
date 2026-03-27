@@ -1818,7 +1818,7 @@ function AdminPage() {
 
 /* ─── SUPABASE CONFIG ───────────────────────────────────────────────────── */
 const SB_URL = "https://vhovzpajuyphjatjlodo.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZob3Z6cGFqdXlwaGphdGpsb2RvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDU3MDk4MCwiZXhwIjoyMDkwMTQ2OTgwfQ.Th0l7Hx5_tQurLZ9xEyKkkD4Wicb8CRgr4WX2ZHYQG4";
+const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
 
 async function sbFetch(path) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
