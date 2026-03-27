@@ -773,7 +773,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
         <div style={{background:"#002d6e",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase"}}>{game.away_team} vs {game.home_team}</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{game.game_date ? new Date(game.game_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}) : ""} · {game.venue || ""}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{game.game_date ? new Date(game.game_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}) : ""} · {game.field || ""}</div>
           </div>
           <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:34,height:34,cursor:"pointer",fontSize:18,flexShrink:0}}>✕</button>
         </div>
@@ -938,7 +938,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
       .then(allSeasons => {
         const found = allSeasons.find(s => s.name.includes("Fall/Winter 2025-26") || s.name === "Fall/Winter 2025-26");
         if (!found) throw new Error("Season 'Fall/Winter 2025-26' not found. Seasons in DB: " + allSeasons.map(s=>s.name).join(", "));
-        return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,venue,headline&season_id=eq.${found.id}&order=game_date.desc&limit=200`);
+        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&order=game_date.desc&limit=200`);
       })
       .then(games => {
         const weekMap = {};
