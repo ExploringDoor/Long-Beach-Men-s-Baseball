@@ -936,7 +936,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
     setFwError(null);
     sbFetch("seasons?select=id,name&limit=20")
       .then(allSeasons => {
-        const found = allSeasons.find(s => s.name === "Fall/Winter 2025-26");
+        const found = allSeasons.find(s => s.name.includes("Fall/Winter 2025-26") || s.name === "Fall/Winter 2025-26");
         if (!found) throw new Error("Season 'Fall/Winter 2025-26' not found. Seasons in DB: " + allSeasons.map(s=>s.name).join(", "));
         return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,venue,headline&season_id=eq.${found.id}&order=game_date.desc&limit=200`);
       })
@@ -1818,21 +1818,29 @@ function AdminPage() {
 
 /* ─── SUPABASE CONFIG ───────────────────────────────────────────────────── */
 const SB_URL = "https://vhovzpajuyphjatjlodo.supabase.co";
-const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZob3Z6cGFqdXlwaGphdGpsb2RvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDU3MDk4MCwiZXhwIjoyMDkwMTQ2OTgwfQ.Th0l7Hx5_tQurLZ9xEyKkkD4Wicb8CRgr4WX2ZHYQG4";
 
 async function sbFetch(path) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
-    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" }
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      Accept: "application/json",
+      Prefer: "return=representation",
+    }
   });
-  if (!r.ok) throw new Error(`Supabase error ${r.status}`);
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    throw new Error(`Supabase error ${r.status}: ${body}`);
+  }
   return r.json();
 }
 
 /* ─── STATS PAGE ─────────────────────────────────────────────────────────── */
 function StatsPage() {
   const [tab, setTab] = useState(0);
-  const [season, setSeason] = useState("Fall/Winter 2025-26");
-  const [seasons, setSeasons] = useState(["Fall/Winter 2025-26"]);
+  const [season, setSeason] = useState("Fall/Winter 2025-26 (Season #10)");
+  const [seasons, setSeasons] = useState(["Fall/Winter 2025-26 (Season #10)"]);
   const [batting, setBatting] = useState([]);
   const [pitching, setPitching] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1858,7 +1866,7 @@ function StatsPage() {
     // Get season ID first, then game IDs, then lines — avoids PostgREST join-filter bug
     sbFetch(`seasons?select=id,name&limit=20`)
       .then(allSeasons => {
-        const found = allSeasons.find(s => s.name === season);
+        const found = allSeasons.find(s => s.name === season || s.name.includes(season));
         if (!found) throw new Error(`Season not found: ${season}`);
         const seasonId = found.id;
         return sbFetch(`games?select=id&season_id=eq.${seasonId}&limit=200`)
