@@ -918,33 +918,29 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
 }
 
 function ScoresPage({ setTab, setTeamDetail }) {
+  // Tab indices: 0=Spring/Summer 2026, 1=Fall/Winter 2026 (live), 2=NABA
   const [seasonIdx, setSeasonIdx] = useState(0);
   const [weekIdx, setWeekIdx] = useState(0);
-  const [liveGames, setLiveGames] = useState(null);
-  const [liveLoading, setLiveLoading] = useState(false);
-  const [liveWeeks, setLiveWeeks] = useState([]);
+  const [fwWeeks, setFwWeeks] = useState([]);
+  const [fwLoading, setFwLoading] = useState(false);
+  const [fwError, setFwError] = useState(null);
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const season = SCORES[seasonIdx];
-  const week = season.weeks[weekIdx];
-  const isFW26 = season.season === "Fall/Winter 2026"; // Tab index 1 = FW26
+  const week = season?.weeks?.[weekIdx];
+  const isFW = seasonIdx === 1; // Fall/Winter 2026 tab = index 1
 
-  const handleSeasonChange = (i) => {
-    setSeasonIdx(i);
-    setWeekIdx(0);
-    if (SCORES[i].season === "Fall/Winter 2026" && !liveGames) {
-      loadLiveGames();
-    }
-  };
-
-  const loadLiveGames = () => {
-    setLiveLoading(true);
+  // Load FW26 live data whenever we switch to that tab
+  useEffect(() => {
+    if (!isFW) return;
+    setFwLoading(true);
+    setFwError(null);
     sbFetch("seasons?select=id&name=eq.Fall%2FWinter%202025-26&limit=1")
       .then(ss => {
-        if (!ss.length) throw new Error("season not found");
-        return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,venue,headline&season_id=eq.${ss[0].id}&order=game_date.desc&limit=100`);
+        if (!ss.length) throw new Error("Season 'Fall/Winter 2025-26' not found in database");
+        const sid = ss[0].id;
+        return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,venue,headline&season_id=eq.${sid}&order=game_date.desc&limit=200`);
       })
       .then(games => {
-        // Group by date
         const weekMap = {};
         games.forEach(g => {
           const d = g.game_date || "Unknown";
@@ -954,21 +950,34 @@ function ScoresPage({ setTab, setTeamDetail }) {
         const weeks = Object.entries(weekMap)
           .sort(([a],[b]) => b.localeCompare(a))
           .map(([date, gs]) => ({
-            label: new Date(date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
+            date,
+            label: date === "Unknown" ? "Unknown Date" : new Date(date + "T12:00:00").toLocaleDateString("en-US", {month:"short", day:"numeric", year:"numeric"}),
             games: gs,
           }));
-        setLiveWeeks(weeks);
-        setLiveGames(games);
-        setLiveLoading(false);
+        setFwWeeks(weeks);
+        setFwLoading(false);
       })
-      .catch(() => setLiveLoading(false));
-  };
-
-  useEffect(() => {
-    if (isFW26 && !liveGames) loadLiveGames();
+      .catch(e => { setFwError(e.message); setFwLoading(false); });
   }, [seasonIdx]);
 
-  const currentLiveWeek = liveWeeks[weekIdx];
+  const handleSeasonChange = (i) => { setSeasonIdx(i); setWeekIdx(0); };
+  const fwWeek = fwWeeks[weekIdx];
+
+  const WeekPills = ({ items, active, onChange }) => (
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
+      {items.map((w,i) => (
+        <button key={i} onClick={() => onChange(i)} style={{
+          padding:"6px 14px", borderRadius:20, cursor:"pointer",
+          fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13,
+          letterSpacing:".04em", textTransform:"uppercase",
+          background:active===i?"#002d6e":"#fff",
+          color:active===i?"#fff":"#555",
+          border:`1px solid ${active===i?"#002d6e":"rgba(0,0,0,0.15)"}`,
+          transition:"all .15s",
+        }}>{w}</button>
+      ))}
+    </div>
+  );
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
@@ -977,27 +986,33 @@ function ScoresPage({ setTab, setTeamDetail }) {
       </PageHero>
       <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
 
-        {/* FALL/WINTER: Live from Supabase */}
-        {isFW26 && (
+        {/* FALL/WINTER 2026: Live box scores from Supabase */}
+        {isFW && (
           <>
-            {liveLoading && <div style={{textAlign:"center",padding:60,color:"rgba(0,0,0,0.4)"}}>Loading box scores…</div>}
-            {!liveLoading && liveWeeks.length > 0 && (
+            {fwLoading && (
+              <div style={{textAlign:"center",padding:60,color:"rgba(0,0,0,0.4)"}}>
+                <div style={{fontSize:32,marginBottom:12}}>⚾</div>
+                Loading box scores from database…
+              </div>
+            )}
+            {fwError && (
+              <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"16px 20px",color:"#991b1b",fontSize:14}}>
+                ⚠️ {fwError}
+              </div>
+            )}
+            {!fwLoading && !fwError && fwWeeks.length === 0 && (
+              <div style={{background:"#fff",borderRadius:12,padding:"48px",textAlign:"center",border:"1px solid rgba(0,0,0,0.09)"}}>
+                <div style={{fontSize:40,marginBottom:12}}>⚾</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#111",textTransform:"uppercase"}}>No games found</div>
+                <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:8}}>No game data was returned from the database.</div>
+              </div>
+            )}
+            {!fwLoading && fwWeeks.length > 0 && (
               <>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-                  {liveWeeks.map((w,i) => (
-                    <button key={i} onClick={() => setWeekIdx(i)} style={{
-                      padding:"6px 14px",borderRadius:20,cursor:"pointer",
-                      fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
-                      letterSpacing:".04em",textTransform:"uppercase",
-                      background:weekIdx===i?"#002d6e":"#fff",
-                      color:weekIdx===i?"#fff":"#555",
-                      border:`1px solid ${weekIdx===i?"#002d6e":"rgba(0,0,0,0.15)"}`,
-                    }}>{w.label}</button>
-                  ))}
-                </div>
-                {currentLiveWeek && (
+                <WeekPills items={fwWeeks.map(w=>w.label)} active={weekIdx} onChange={setWeekIdx} />
+                {fwWeek && (
                   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:12}}>
-                    {currentLiveWeek.games.map((g,i) => (
+                    {fwWeek.games.map((g,i) => (
                       <LiveBoxScoreFinalCard key={i} game={g} onTeamClick={goTeam} />
                     ))}
                   </div>
@@ -1007,24 +1022,13 @@ function ScoresPage({ setTab, setTeamDetail }) {
           </>
         )}
 
-        {/* OTHER SEASONS: static data */}
-        {!isFW26 && (
+        {/* SPRING/SUMMER + NABA: static hardcoded data */}
+        {!isFW && (
           <>
             {season.weeks.length > 1 && (
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-                {season.weeks.map((w,i) => (
-                  <button key={i} onClick={() => setWeekIdx(i)} style={{
-                    padding:"6px 14px",borderRadius:20,cursor:"pointer",
-                    fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
-                    letterSpacing:".04em",textTransform:"uppercase",
-                    background:weekIdx===i?"#002d6e":"#fff",
-                    color:weekIdx===i?"#fff":"#555",
-                    border:`1px solid ${weekIdx===i?"#002d6e":"rgba(0,0,0,0.15)"}`,
-                  }}>{w.week}</button>
-                ))}
-              </div>
+              <WeekPills items={season.weeks.map(w=>w.week)} active={weekIdx} onChange={setWeekIdx} />
             )}
-            {week.games.length === 0 ? (
+            {week && week.games.length === 0 ? (
               <div style={{background:"#fff",borderRadius:12,padding:"48px",textAlign:"center",border:"1px solid rgba(0,0,0,0.09)"}}>
                 <div style={{fontSize:40,marginBottom:12}}>⚾</div>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",textTransform:"uppercase"}}>Season Opens April 11th</div>
@@ -1032,7 +1036,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
               </div>
             ) : (
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:12}}>
-                {week.games.map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)}
+                {week && week.games.map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)}
               </div>
             )}
           </>
