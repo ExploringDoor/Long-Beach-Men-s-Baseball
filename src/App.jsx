@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const L_LEAGUE = "/hero111.jpg";
 
@@ -573,7 +573,7 @@ function Ticker({ setTab }) {
 /* ─── NAVBAR ─────────────────────────────────────────────────────────────── */
 function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["subs","Sub Board"],["rules","Rules"],["admin","⚙ Admin"]];
+  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["subs","Sub Board"],["rules","Rules"],["admin","⚙ Admin"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); window.scrollTo(0,0); };
   return (
     <>
@@ -1527,6 +1527,332 @@ function AdminPage() {
   );
 }
 
+/* ─── SUPABASE CONFIG ───────────────────────────────────────────────────── */
+const SB_URL = "https://vhovzpajuyphjatjlodo.supabase.co";
+const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
+
+async function sbFetch(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" }
+  });
+  if (!r.ok) throw new Error(`Supabase error ${r.status}`);
+  return r.json();
+}
+
+/* ─── STATS PAGE ─────────────────────────────────────────────────────────── */
+function StatsPage() {
+  const [tab, setTab] = useState(0);
+  const [season, setSeason] = useState("Fall/Winter 2025-26");
+  const [seasons, setSeasons] = useState(["Fall/Winter 2025-26"]);
+  const [batting, setBatting] = useState([]);
+  const [pitching, setPitching] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [playerGames, setPlayerGames] = useState([]);
+  const [playerLoading, setPlayerLoading] = useState(false);
+
+  // Load seasons list
+  useEffect(() => {
+    sbFetch("seasons?select=name&order=id.desc")
+      .then(d => { if (d.length) setSeasons(d.map(s => s.name)); })
+      .catch(() => {});
+  }, []);
+
+  // Load batting/pitching leaderboards when season changes
+  useEffect(() => {
+    setLoading(true); setError(null);
+    const seasonFilter = `seasons.name=eq.${encodeURIComponent(season)}`;
+
+    Promise.all([
+      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf,games!inner(season_id,seasons!inner(name))&games.seasons.name=eq.${encodeURIComponent(season)}&order=h.desc&limit=200`),
+      sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision,games!inner(season_id,seasons!inner(name))&games.seasons.name=eq.${encodeURIComponent(season)}&order=ip.desc&limit=200`),
+    ]).then(([bat, pit]) => {
+      // Aggregate batting by player+team
+      const batMap = {};
+      bat.forEach(row => {
+        const key = `${row.player_name}||${row.team}`;
+        if (!batMap[key]) batMap[key] = { player_name: row.player_name, team: row.team, ab:0, r:0, h:0, rbi:0, bb:0, k:0, doubles:0, triples:0, hr:0, sb:0, hbp:0, sf:0, gp:0 };
+        const p = batMap[key];
+        p.gp++; p.ab+=row.ab||0; p.r+=row.r||0; p.h+=row.h||0; p.rbi+=row.rbi||0;
+        p.bb+=row.bb||0; p.k+=row.k||0; p.doubles+=row.doubles||0;
+        p.triples+=row.triples||0; p.hr+=row.hr||0; p.sb+=row.sb||0;
+        p.hbp+=row.hbp||0; p.sf+=row.sf||0;
+      });
+      const batArr = Object.values(batMap).map(p => ({
+        ...p,
+        avg: p.ab > 0 ? (p.h / p.ab).toFixed(3).replace(/^0/,"") : ".000",
+        obp: (p.ab+p.bb+p.hbp) > 0 ? ((p.h+p.bb+p.hbp)/(p.ab+p.bb+p.hbp+p.sf)).toFixed(3).replace(/^0/,"") : ".000",
+        slg: p.ab > 0 ? ((p.h - p.doubles - p.triples - p.hr + p.doubles*2 + p.triples*3 + p.hr*4)/p.ab).toFixed(3).replace(/^0/,"") : ".000",
+      })).sort((a,b) => parseFloat(b.avg) - parseFloat(a.avg) || b.ab - a.ab);
+
+      // Aggregate pitching by player+team
+      const pitMap = {};
+      pit.forEach(row => {
+        const key = `${row.player_name}||${row.team}`;
+        if (!pitMap[key]) pitMap[key] = { player_name: row.player_name, team: row.team, ip:0, h:0, r:0, er:0, bb:0, k:0, w:0, l:0, sv:0, app:0 };
+        const p = pitMap[key];
+        p.app++; p.ip+=parseFloat(row.ip)||0; p.h+=row.h||0; p.r+=row.r||0;
+        p.er+=row.er||0; p.bb+=row.bb||0; p.k+=row.k||0;
+        if (row.decision==="W") p.w++;
+        if (row.decision==="L") p.l++;
+        if (row.decision==="S") p.sv++;
+      });
+      const pitArr = Object.values(pitMap).map(p => ({
+        ...p,
+        ipDisplay: `${Math.floor(p.ip)}.${ Math.round((p.ip % 1)*3) }`,
+        era: p.ip > 0 ? ((p.er / p.ip) * 9).toFixed(2) : "---",
+        whip: p.ip > 0 ? ((p.h + p.bb) / p.ip).toFixed(2) : "---",
+      })).sort((a,b) => parseFloat(a.era) - parseFloat(b.era) || b.ip - a.ip);
+
+      setBatting(batArr);
+      setPitching(pitArr);
+      setLoading(false);
+    }).catch(e => { setError(e.message); setLoading(false); });
+  }, [season]);
+
+  // Load individual player game log
+  const loadPlayer = (playerName, team) => {
+    setSelectedPlayer({ playerName, team });
+    setPlayerLoading(true);
+    sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,games!inner(game_date,home_team,away_team,home_score,away_score,seasons!inner(name))&player_name=eq.${encodeURIComponent(playerName)}&team=eq.${encodeURIComponent(team)}&games.seasons.name=eq.${encodeURIComponent(season)}&order=games.game_date.asc`)
+      .then(d => { setPlayerGames(d); setPlayerLoading(false); })
+      .catch(() => setPlayerLoading(false));
+  };
+
+  const fmtAvg = v => v === ".000" ? ".000" : v;
+  const TEAM_COLOR = name => TEAM_COLORS[name] || "#002d6e";
+
+  const batColumns = ["GP","AB","H","AVG","OBP","SLG","R","RBI","2B","3B","HR","BB","K","SB"];
+  const pitColumns = ["APP","IP","W","L","SV","ERA","WHIP","H","R","ER","BB","K"];
+
+  const filteredBat = batting.filter(p =>
+    p.player_name.toLowerCase().includes(playerSearch.toLowerCase()) ||
+    p.team.toLowerCase().includes(playerSearch.toLowerCase())
+  );
+  const filteredPit = pitching.filter(p =>
+    p.player_name.toLowerCase().includes(playerSearch.toLowerCase()) ||
+    p.team.toLowerCase().includes(playerSearch.toLowerCase())
+  );
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="League Statistics" title="Stats" subtitle="Fall/Winter 2025-26 · All batting and pitching lines">
+        <TabBar items={["Batting","Pitching"]} active={tab} onChange={setTab} />
+      </PageHero>
+
+      <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+        {/* Controls */}
+        <div style={{display:"flex",flexWrap:"wrap",gap:12,marginBottom:20,alignItems:"center"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid rgba(0,0,0,0.12)",borderRadius:8,padding:"8px 14px",flex:"1 1 200px",maxWidth:340}}>
+            <span style={{fontSize:16}}>🔍</span>
+            <input value={playerSearch} onChange={e => setPlayerSearch(e.target.value)}
+              placeholder="Search player or team…"
+              style={{border:"none",outline:"none",fontSize:14,width:"100%",background:"transparent"}} />
+            {playerSearch && <button onClick={() => setPlayerSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"rgba(0,0,0,0.3)",fontSize:16,padding:0}}>✕</button>}
+          </div>
+          <select value={season} onChange={e => setSeason(e.target.value)}
+            style={{padding:"9px 14px",borderRadius:8,border:"1px solid rgba(0,0,0,0.12)",fontSize:14,background:"#fff",cursor:"pointer"}}>
+            {seasons.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          {loading && <span style={{fontSize:13,color:"rgba(0,0,0,0.4)"}}>Loading…</span>}
+        </div>
+
+        {error && (
+          <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:"14px 18px",marginBottom:20,color:"#991b1b",fontSize:14}}>
+            ⚠️ Could not load stats: {error}
+          </div>
+        )}
+
+        {/* Player game log modal */}
+        {selectedPlayer && (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={() => setSelectedPlayer(null)}>
+            <div style={{background:"#fff",borderRadius:14,maxWidth:680,width:"100%",maxHeight:"80vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={e => e.stopPropagation()}>
+              <div style={{background:"#002d6e",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",textTransform:"uppercase"}}>{selectedPlayer.playerName}</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{selectedPlayer.team} · {season}</div>
+                </div>
+                <button onClick={() => setSelectedPlayer(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16}}>✕</button>
+              </div>
+              <div style={{overflowY:"auto",padding:"16px 18px"}}>
+                {playerLoading ? (
+                  <div style={{textAlign:"center",padding:40,color:"rgba(0,0,0,0.4)"}}>Loading game log…</div>
+                ) : playerGames.length === 0 ? (
+                  <div style={{textAlign:"center",padding:40,color:"rgba(0,0,0,0.4)"}}>No game data found.</div>
+                ) : (
+                  <>
+                    <div style={{fontSize:12,fontWeight:700,color:"rgba(0,0,0,0.4)",marginBottom:10,textTransform:"uppercase"}}>Game Log — {playerGames.length} games</div>
+                    <div style={{overflowX:"auto"}}>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                        <thead>
+                          <tr style={{background:"#f8f9fb"}}>
+                            {["Date","Opponent","AB","R","H","RBI","BB","K","2B","3B","HR","SB"].map(c => (
+                              <th key={c} style={{padding:"6px 10px",textAlign:c==="Date"||c==="Opponent"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:"rgba(0,0,0,0.5)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>{c}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {playerGames.map((g, i) => {
+                            const gd = g.games;
+                            const opp = gd ? (g.team === gd.home_team ? `vs ${gd.away_team}` : `@ ${gd.home_team}`) : "—";
+                            const date = gd?.game_date ? new Date(gd.game_date).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—";
+                            return (
+                              <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.06)",background:i%2===0?"#fff":"#fafafa"}}>
+                                <td style={{padding:"7px 10px",whiteSpace:"nowrap",fontSize:12,color:"rgba(0,0,0,0.55)"}}>{date}</td>
+                                <td style={{padding:"7px 10px",whiteSpace:"nowrap",fontWeight:600}}>{opp}</td>
+                                {[g.ab,g.r,g.h,g.rbi,g.bb,g.k,g.doubles,g.triples,g.hr,g.sb].map((v,j) => (
+                                  <td key={j} style={{padding:"7px 10px",textAlign:"center",fontWeight:v>0&&[2,3,4,5,6,8,9]?.includes(j)?700:400,color:v>0&&[3,4,8,9]?.includes(j)?"#002d6e":"inherit"}}>{v||0}</td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Totals row */}
+                    {(() => {
+                      const tot = playerGames.reduce((acc,g) => ({
+                        ab:acc.ab+(g.ab||0), r:acc.r+(g.r||0), h:acc.h+(g.h||0), rbi:acc.rbi+(g.rbi||0),
+                        bb:acc.bb+(g.bb||0), k:acc.k+(g.k||0), doubles:acc.doubles+(g.doubles||0),
+                        triples:acc.triples+(g.triples||0), hr:acc.hr+(g.hr||0), sb:acc.sb+(g.sb||0),
+                      }), {ab:0,r:0,h:0,rbi:0,bb:0,k:0,doubles:0,triples:0,hr:0,sb:0});
+                      const avg = tot.ab > 0 ? (tot.h/tot.ab).toFixed(3).replace(/^0/,"") : ".000";
+                      return (
+                        <div style={{marginTop:14,background:"#f0f4ff",border:"1px solid #c7d2fe",borderRadius:8,padding:"10px 14px",display:"flex",flexWrap:"wrap",gap:"10px 24px"}}>
+                          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,textTransform:"uppercase",color:"#002d6e",width:"100%",marginBottom:4}}>Season Totals</div>
+                          {[["AVG",avg],["AB",tot.ab],["H",tot.h],["R",tot.r],["RBI",tot.rbi],["2B",tot.doubles],["3B",tot.triples],["HR",tot.hr],["BB",tot.bb],["K",tot.k],["SB",tot.sb]].map(([lbl,val]) => (
+                            <div key={lbl} style={{textAlign:"center"}}>
+                              <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,45,0.5)",textTransform:"uppercase"}}>{lbl}</div>
+                              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e"}}>{val}</div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BATTING TABLE */}
+        {tab === 0 && !loading && (
+          <Card>
+            <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase"}}>Batting Leaderboard</div>
+              <div style={{fontSize:12,color:"rgba(0,0,0,0.4)"}}>{filteredBat.length} players · click a name for game log</div>
+            </div>
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:700}}>
+                <thead>
+                  <tr style={{background:"#f8f9fb",position:"sticky",top:0}}>
+                    <th style={{padding:"10px 14px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)",minWidth:140}}>#  Player</th>
+                    <th style={{padding:"10px 8px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>Team</th>
+                    {batColumns.map(c => (
+                      <th key={c} style={{padding:"10px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:["AVG","OBP","SLG"].includes(c)?"#002d6e":"rgba(0,0,0,0.45)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredBat.map((p, i) => (
+                    <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa",transition:"background .1s",cursor:"pointer"}}
+                      onMouseEnter={e => e.currentTarget.style.background="#f0f4ff"}
+                      onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}
+                      onClick={() => loadPlayer(p.player_name, p.team)}>
+                      <td style={{padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap"}}>
+                        <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",marginRight:8,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>{i+1}</span>
+                        {p.player_name}
+                      </td>
+                      <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
+                        <span style={{background:`${TEAM_COLOR(p.team)}18`,color:TEAM_COLOR(p.team),border:`1px solid ${TEAM_COLOR(p.team)}40`,borderRadius:4,padding:"2px 6px",fontSize:11,fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase"}}>{p.team}</span>
+                      </td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.gp}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.ab}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",fontWeight:600}}>{p.h}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",fontWeight:800,color:"#002d6e",fontSize:15,fontFamily:"'Barlow Condensed',sans-serif"}}>{p.avg}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",color:"#002d6e",fontWeight:600}}>{p.obp}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",color:"#002d6e",fontWeight:600}}>{p.slg}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.r}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",fontWeight:600}}>{p.rbi}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.doubles||0}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.triples||0}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",fontWeight:p.hr>0?700:400,color:p.hr>0?"#c8102e":"inherit"}}>{p.hr||0}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.bb||0}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.k||0}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.sb||0}</td>
+                    </tr>
+                  ))}
+                  {filteredBat.length === 0 && !loading && (
+                    <tr><td colSpan={16} style={{padding:"40px",textAlign:"center",color:"rgba(0,0,0,0.35)"}}>No players found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
+        {/* PITCHING TABLE */}
+        {tab === 1 && !loading && (
+          <Card>
+            <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase"}}>Pitching Leaderboard</div>
+              <div style={{fontSize:12,color:"rgba(0,0,0,0.4)"}}>{filteredPit.length} pitchers · sorted by ERA</div>
+            </div>
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
+                <thead>
+                  <tr style={{background:"#f8f9fb"}}>
+                    <th style={{padding:"10px 14px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)",minWidth:140}}>#  Pitcher</th>
+                    <th style={{padding:"10px 8px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>Team</th>
+                    {pitColumns.map(c => (
+                      <th key={c} style={{padding:"10px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:["ERA","WHIP"].includes(c)?"#002d6e":"rgba(0,0,0,0.45)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPit.map((p, i) => (
+                    <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
+                      <td style={{padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap"}}>
+                        <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",marginRight:8,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>{i+1}</span>
+                        {p.player_name}
+                      </td>
+                      <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
+                        <span style={{background:`${TEAM_COLOR(p.team)}18`,color:TEAM_COLOR(p.team),border:`1px solid ${TEAM_COLOR(p.team)}40`,borderRadius:4,padding:"2px 6px",fontSize:11,fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase"}}>{p.team}</span>
+                      </td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.app}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",fontWeight:600}}>{p.ipDisplay}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",fontWeight:p.w>0?700:400,color:p.w>0?"#166534":"inherit"}}>{p.w}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",fontWeight:p.l>0?700:400,color:p.l>0?"#991b1b":"inherit"}}>{p.l}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.sv||0}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",fontWeight:800,color:"#002d6e",fontSize:15,fontFamily:"'Barlow Condensed',sans-serif"}}>{p.era}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center",color:"#002d6e",fontWeight:600}}>{p.whip}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.h}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.r}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.er}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.bb}</td>
+                      <td style={{padding:"9px 8px",textAlign:"center"}}>{p.k}</td>
+                    </tr>
+                  ))}
+                  {filteredPit.length === 0 && !loading && (
+                    <tr><td colSpan={14} style={{padding:"40px",textAlign:"center",color:"rgba(0,0,0,0.35)"}}>No pitchers found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
+        <div style={{marginTop:16,fontSize:12,color:"rgba(0,0,0,0.35)",textAlign:"center"}}>
+          Stats pulled live from database · Fall/Winter 2025-26 · {batting.length} batters, {pitching.length} pitchers logged
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── APP ────────────────────────────────────────────────────────────────── */
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -1571,6 +1897,7 @@ export default function App() {
       {tab==="standings" && <StandingsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && !teamDetail && <TeamsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} onBack={() => { setTeamDetail(null); window.scrollTo(0,0); }} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
+      {tab==="stats"     && <StatsPage />}
       {tab==="subs"      && <SubBoardPage />}
       {tab==="admin"     && <AdminPage />}
       {tab==="rules"     && <RulesPage />}
