@@ -934,11 +934,11 @@ function ScoresPage({ setTab, setTeamDetail }) {
     if (!isFW) return;
     setFwLoading(true);
     setFwError(null);
-    sbFetch("seasons?select=id&name=eq.Fall%2FWinter%202025-26&limit=1")
-      .then(ss => {
-        if (!ss.length) throw new Error("Season 'Fall/Winter 2025-26' not found in database");
-        const sid = ss[0].id;
-        return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,venue,headline&season_id=eq.${sid}&order=game_date.desc&limit=200`);
+    sbFetch("seasons?select=id,name&limit=20")
+      .then(allSeasons => {
+        const found = allSeasons.find(s => s.name === "Fall/Winter 2025-26");
+        if (!found) throw new Error("Season 'Fall/Winter 2025-26' not found. Seasons in DB: " + allSeasons.map(s=>s.name).join(", "));
+        return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,venue,headline&season_id=eq.${found.id}&order=game_date.desc&limit=200`);
       })
       .then(games => {
         const weekMap = {};
@@ -1856,10 +1856,11 @@ function StatsPage() {
     setLoading(true); setError(null);
 
     // Get season ID first, then game IDs, then lines — avoids PostgREST join-filter bug
-    sbFetch(`seasons?select=id&name=eq.${encodeURIComponent(season)}&limit=1`)
-      .then(ss => {
-        if (!ss.length) throw new Error("Season not found");
-        const seasonId = ss[0].id;
+    sbFetch(`seasons?select=id,name&limit=20`)
+      .then(allSeasons => {
+        const found = allSeasons.find(s => s.name === season);
+        if (!found) throw new Error(`Season not found: ${season}`);
+        const seasonId = found.id;
         return sbFetch(`games?select=id&season_id=eq.${seasonId}&limit=200`)
           .then(gs => {
             if (!gs.length) return Promise.resolve([[],[]]);
@@ -1939,10 +1940,11 @@ function StatsPage() {
   const loadPlayer = (playerName, team) => {
     setSelectedPlayer({ playerName, team });
     setPlayerLoading(true);
-    sbFetch(`seasons?select=id&name=eq.${encodeURIComponent(season)}&limit=1`)
-      .then(ss => {
-        if (!ss.length) return [];
-        const seasonId = ss[0].id;
+    sbFetch(`seasons?select=id,name&limit=20`)
+      .then(allSeasons => {
+        const found = allSeasons.find(s => s.name === season);
+        if (!found) return [];
+        const seasonId = found.id;
         return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score&season_id=eq.${seasonId}&limit=200`)
           .then(gs => {
             if (!gs.length) return [];
