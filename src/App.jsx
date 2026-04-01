@@ -900,28 +900,45 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
           </div>
         </div>
       )}
-      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column",width:"100%"}}>
-        <div style={{padding:"8px 10px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(0,0,0,0.25)"}}>FINAL</span>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            {game.headline && <span style={{fontSize:9,fontWeight:700,color:"#dc2626",textTransform:"uppercase"}}>{game.headline}</span>}
+      {game.status === "PPD" ? (
+        <div style={{background:"#f5f5f5",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #999",borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column",width:"100%",opacity:0.7}}>
+          <div style={{padding:"8px 10px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>POSTPONED</span>
+          </div>
+          <div style={{padding:"6px 10px 10px"}}>
+            {[game.away_team, game.home_team].map((name,i)=>(
+              <div key={i} onClick={()=>onTeamClick?.(name)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:i===0?6:0,cursor:"pointer",width:"100%"}}>
+                <TLogo name={name} size={80} />
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600,fontSize:18,textTransform:"uppercase",color:"rgba(0,0,0,0.35)",lineHeight:1,flex:1}}>{name}</div>
+                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"rgba(0,0,0,0.35)",letterSpacing:".1em"}}>PPD</span>
+              </div>
+            ))}
           </div>
         </div>
-        <div style={{padding:"6px 10px 10px"}}>
-          {[{name:game.away_team,score:game.away_score,won:aWin},{name:game.home_team,score:game.home_score,won:hWin}].map((s,i)=>(
-            <div key={i} onClick={()=>onTeamClick?.(s.name)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:i===0?6:0,cursor:"pointer",width:"100%"}}>
-              <TLogo name={s.name} size={80} />
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:s.won?900:600,fontSize:18,textTransform:"uppercase",color:s.won?"#111":"rgba(0,0,0,0.28)",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{s.name}</div>
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:s.won?900:400,fontSize:36,lineHeight:1,color:s.won?"#111":"rgba(0,0,0,0.22)",flexShrink:0,minWidth:32,textAlign:"right"}}>{s.score}</span>
+      ) : (
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column",width:"100%"}}>
+          <div style={{padding:"8px 10px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(0,0,0,0.25)"}}>FINAL</span>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              {game.headline && <span style={{fontSize:9,fontWeight:700,color:"#dc2626",textTransform:"uppercase"}}>{game.headline}</span>}
             </div>
-          ))}
+          </div>
+          <div style={{padding:"6px 10px 10px"}}>
+            {[{name:game.away_team,score:game.away_score,won:aWin},{name:game.home_team,score:game.home_score,won:hWin}].map((s,i)=>(
+              <div key={i} onClick={()=>onTeamClick?.(s.name)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:i===0?6:0,cursor:"pointer",width:"100%"}}>
+                <TLogo name={s.name} size={80} />
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:s.won?900:600,fontSize:18,textTransform:"uppercase",color:s.won?"#111":"rgba(0,0,0,0.28)",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{s.name}</div>
+                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:s.won?900:400,fontSize:36,lineHeight:1,color:s.won?"#111":"rgba(0,0,0,0.22)",flexShrink:0,minWidth:32,textAlign:"right"}}>{s.score}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{height:1,background:"rgba(0,0,0,0.05)"}} />
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
+            <div onClick={handleRecap} style={{padding:"10px",background:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,letterSpacing:".06em",textTransform:"uppercase",color:"#fff",textAlign:"center",cursor:"pointer",borderRight:"1px solid rgba(255,255,255,0.15)"}}>📰 RECAP</div>
+            <div onClick={handleBoxScore} style={{padding:"10px",background:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,letterSpacing:".06em",textTransform:"uppercase",color:"#FFD700",textAlign:"center",cursor:"pointer"}}>📊 BOX SCORE</div>
+          </div>
         </div>
-        <div style={{height:1,background:"rgba(0,0,0,0.05)"}} />
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
-          <div onClick={handleRecap} style={{padding:"10px",background:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,letterSpacing:".06em",textTransform:"uppercase",color:"#fff",textAlign:"center",cursor:"pointer",borderRight:"1px solid rgba(255,255,255,0.15)"}}>📰 RECAP</div>
-          <div onClick={handleBoxScore} style={{padding:"10px",background:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,letterSpacing:".06em",textTransform:"uppercase",color:"#FFD700",textAlign:"center",cursor:"pointer"}}>📊 BOX SCORE</div>
-        </div>
-      </div>
+      )}
     </>
   );
 }
