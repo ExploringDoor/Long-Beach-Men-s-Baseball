@@ -1,7 +1,6 @@
 """
-LBDC Score Checker - Final Version
+LBDC Score Checker
 Runs hourly on Saturdays via GitHub Actions.
-Checks LeagueLineup for new final scores and loads box scores into Supabase.
 """
 
 import os
@@ -25,8 +24,6 @@ TEAMS = ["Tribe", "Dodgers", "Pirates", "Titans", "Brooklyn", "Generals", "Black
 DIVISION_IDS = ["1064043", "1061488"]
 
 
-# ── Supabase helpers ──────────────────────────────────────────────────────────
-
 def sb_get(path):
     r = requests.get(f"{SUPABASE_URL}/rest/v1/{path}", headers=HEADERS)
     r.raise_for_status()
@@ -39,41 +36,29 @@ def sb_insert(table, data):
         return None
     return r.json()
 
-
-# ── Get known game IDs ────────────────────────────────────────────────────────
-
 def get_known_game_ids():
     data = sb_get("games?select=ll_game_id&ll_game_id=not.is.null&limit=500")
     return {str(row["ll_game_id"]) for row in data}
 
-
-# ── Get season ID ─────────────────────────────────────────────────────────────
-
 def get_season_id(div_id):
-    seasons = sb_get("seasons?select=id,name,ll_division_id&order=id.desc&limit=20")
+    seasons = sb_get("seasons?select=id,ll_division_id&order=id.desc&limit=20")
     for s in seasons:
         if str(s.get("ll_division_id")) == str(div_id):
             return s["id"]
     return seasons[0]["id"] if seasons else 1
 
-
-# ── Scrape games list for IDs + dates ────────────────────────────────────────
-
 def get_ll_games():
     results = []
     seen = set()
-
     for div_id in DIVISION_IDS:
         url = f"{LL_BASE}/games.asp?url=lbdc&divisionid={div_id}"
         try:
             r = requests.get(url, timeout=15)
             soup = BeautifulSoup(r.text, "html.parser")
-
             for row in soup.find_all("tr"):
                 cells = row.find_all(["td", "th"])
                 if len(cells) < 3:
                     continue
-
                 game_id = None
                 for cell in cells:
                     for a in cell.find_all("a", href=True):
@@ -84,13 +69,10 @@ def get_ll_games():
                                 break
                     if game_id:
                         break
-
                 if not game_id or game_id in seen:
                     continue
-
-                # Date is typically in second cell as "Sat 3/28/2026"
                 date_str = None
-                for cell in cells[:3]:
+                for cell in cells[:4]:
                     text = cell.get_text(strip=True)
                     m = re.search(r"(\d{1,2}/\d{1,2}/\d{4})", text)
                     if m:
@@ -99,26 +81,18 @@ def get_ll_games():
                         except ValueError:
                             pass
                         break
-
                 seen.add(game_id)
                 results.append((game_id, date_str, div_id))
-
             print(f"  Division {div_id}: {len([x for x in results if x[2] == div_id])} games found")
-
         except Exception as e:
             print(f"  ⚠️  Error checking division {div_id}: {e}")
-
     return results
-
-
-# ── Parse box score ───────────────────────────────────────────────────────────
 
 def parse_game(game_id, season_id, fallback_date=None):
     url = f"{LL_BASE}/gamesum_baseball.asp?url=lbdc&GameID={game_id}"
     r = requests.get(url, timeout=15)
     soup = BeautifulSoup(r.text, "html.parser")
-    full_text = soup.get_text(separator="\n")
-    lines = [l.strip() for l in full_text.split("\n") if l.strip()]
+    lines = [l.strip() for l in soup.get_text(separator="\n").split("\n") if l.strip()]
 
     game = {
         "ll_game_id": str(game_id),
@@ -136,106 +110,88 @@ def parse_game(game_id, season_id, fallback_date=None):
         "pitching": [],
     }
 
-    # ── Date / Time / Venue ───────────────────────────────────────────────────
-    # Line looks like: "Date: March 28, 2026     Time: 10:00am      Venue: Clark Field-Long Beach"
+    # Date / Time / Venue — all on one line
     for line in lines:
-        if "Date:" in line and "Time:" in line:
-            # Extract date
+        if "Date:" in line:
             dm = re.search(r"Date:\s*([A-Za-z]+ \d+,\s*\d{4})", line)
             if dm:
                 try:
                     game["game_date"] = datetime.strptime(dm.group(1).strip(), "%B %d, %Y").strftime("%Y-%m-%d")
                 except ValueError:
                     pass
-            # Extract time
             tm = re.search(r"Time:\s*(\d+:\d+(?:am|pm))", line)
             if tm:
                 game["game_time"] = tm.group(1)
-            # Extract venue
             vm = re.search(r"Venue:\s*(.+?)(?:\s{2,}|$)", line)
             if vm:
                 game["field"] = vm.group(1).strip()
             break
 
-    # ── Headline ─────────────────────────────────────────────────────────────
+    # Headline
     for line in lines:
         if (15 < len(line) < 200 and
                 any(x in line for x in ["!", "Champ", "clinch", "shutout",
-                                         "defeats", "wins", "Edges", "Cruises", "Congratulations"])):
+                                         "defeats", "wins", "Edges", "Cruises",
+                                         "Congratulations", "advances"])):
             game["headline"] = line
             break
 
-    # ── Scores from BOX SCORE table ──────────────────────────────────────────
-    # The box score table has rows like:
-    # Generals | 2 | 0 | 1 | 2 | 0 | 2 | 0 | 3 | 0 | 10 | 0 | 0
-    # Where last 3 cols are R, H, E (regardless of extra innings)
+    # ── SCORES: parse box score table cell by cell ────────────────────────────
+    # Each row looks like: [TeamName][inn1][inn2]...[innN][R][H][E]
+    # R is always the 3rd from last cell, regardless of innings count
     for table in soup.find_all("table"):
-        rows = table.find_all("tr")
-        team_rows = []
-        for row in rows:
-            cells = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
-            if cells and cells[0] in TEAMS:
-                team_rows.append(cells)
-
-        if len(team_rows) >= 2:
-            for cells in team_rows[:2]:  # only first two team rows = away and home
-                # Get all numeric values after team name
-                nums = []
-                for c in cells[1:]:
-                    if c.isdigit() or (c == "" ):
-                        nums.append(int(c) if c.isdigit() else 0)
-                    elif c in ["-", "X", "x"]:
-                        nums.append(0)
+        score_rows = []
+        for row in table.find_all("tr"):
+            tds = row.find_all(["td", "th"])
+            if not tds:
+                continue
+            first_cell = tds[0].get_text(strip=True)
+            if first_cell in TEAMS:
+                # Get numeric values from each td individually
+                vals = []
+                for td in tds[1:]:
+                    txt = td.get_text(strip=True)
+                    if txt.lstrip("-").isdigit():
+                        vals.append(int(txt))
+                    elif txt in ["X", "x", ""]:
+                        vals.append(0)
                     else:
                         break
+                if len(vals) >= 3:
+                    # R = third from last (after all innings, before H and E)
+                    runs = vals[-3]
+                    score_rows.append((first_cell, runs))
 
-                if len(nums) >= 3:
-                    # Last 3 are R, H, E
-                    runs = nums[-3]
-                    team = cells[0]
-                    if game["away_team"] is None:
-                        game["away_team"] = team
-                        game["away_score"] = runs
-                    elif game["home_team"] is None:
-                        game["home_team"] = team
-                        game["home_score"] = runs
-            break  # found the box score table, stop looking
+        if len(score_rows) >= 2:
+            game["away_team"] = score_rows[0][0]
+            game["away_score"] = score_rows[0][1]
+            game["home_team"] = score_rows[1][0]
+            game["home_score"] = score_rows[1][1]
+            print(f"    📊 Scores: {game['away_team']} {game['away_score']}, {game['home_team']} {game['home_score']}")
+            break
 
-    # ── Batting + Pitching ────────────────────────────────────────────────────
-    # The page has TWO sections with player stats:
-    # 1) BOX SCORE (just totals) - we SKIP this
-    # 2) Detailed stats section with "Hitters" header - we USE this
-    #
-    # Strategy: find all tables that have a "Hitters" header row,
-    # and only parse those (not the box score inning table).
-
-    batting_done = set()   # track (player_name, team) to avoid duplicates
-    pitching_done = set()
-
-    current_team = None
-    in_pitching = False
-    in_stats_section = False
+    # ── BATTING + PITCHING: only from tables containing "Hitters" header ─────
+    batting_seen = set()
+    pitching_seen = set()
 
     for table in soup.find_all("table"):
-        rows = table.find_all("tr")
-        table_text = table.get_text()
-
-        # Only process tables that contain "Hitters" — these are the stats tables
-        if "Hitters" not in table_text and "Pitchers" not in table_text:
+        if "Hitters" not in table.get_text():
             continue
 
-        for row in rows:
-            cells = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
+        current_team = None
+        in_pitching = False
+
+        for row in table.find_all("tr"):
+            tds = row.find_all(["td", "th"])
+            cells = [td.get_text(strip=True) for td in tds]
             if not cells:
                 continue
 
-            # Team name row
             if len(cells) == 1 and cells[0] in TEAMS:
                 current_team = cells[0]
                 in_pitching = False
                 continue
 
-            # Section headers
             if cells[0] == "Hitters":
                 in_pitching = False
                 continue
@@ -244,65 +200,59 @@ def parse_game(game_id, season_id, fallback_date=None):
                 continue
             if cells[0] in ["Totals", "TOTALS", ""]:
                 continue
-
             if not current_team:
                 continue
 
-            # Batting line: Name | AB | R | H | RBI | BB | K
+            name = cells[0]
+            if not name or name in TEAMS or name.startswith("2B") or name.startswith("3B"):
+                continue
+
             if not in_pitching and len(cells) >= 7:
+                key = (name, current_team)
+                if key in batting_seen:
+                    continue
                 try:
-                    name = cells[0]
-                    key = (name, current_team)
-                    if key in batting_done or not name or name in TEAMS:
-                        continue
-                    ab  = int(cells[1])
-                    r   = int(cells[2])
-                    h   = int(cells[3])
-                    rbi = int(cells[4])
-                    bb  = int(cells[5])
-                    k   = int(cells[6])
                     game["batting"].append({
                         "player_name": name,
                         "team": current_team,
-                        "ab": ab, "r": r, "h": h,
-                        "rbi": rbi, "bb": bb, "k": k,
+                        "ab":  int(cells[1]),
+                        "r":   int(cells[2]),
+                        "h":   int(cells[3]),
+                        "rbi": int(cells[4]),
+                        "bb":  int(cells[5]),
+                        "k":   int(cells[6]),
                     })
-                    batting_done.add(key)
+                    batting_seen.add(key)
                 except (ValueError, IndexError):
                     pass
 
-            # Pitching line: Name | IP | H | R | ER | BB | K
             if in_pitching and len(cells) >= 7:
+                key = (name, current_team)
+                if key in pitching_seen:
+                    continue
                 try:
-                    name = cells[0]
-                    key = (name, current_team)
-                    if key in pitching_done or not name or name in TEAMS:
-                        continue
-                    ip = float(cells[1])
                     decision = None
+                    clean_name = name
                     for dec, letter in [("(W)", "W"), ("(L)", "L"), ("(S)", "S")]:
-                        if dec in name:
+                        if dec in clean_name:
                             decision = letter
-                            name = name.replace(dec, "").strip()
+                            clean_name = clean_name.replace(dec, "").strip()
                     game["pitching"].append({
-                        "player_name": name,
+                        "player_name": clean_name,
                         "team": current_team,
-                        "ip": ip,
-                        "h":  int(cells[2]) if cells[2].isdigit() else 0,
-                        "r":  int(cells[3]) if cells[3].isdigit() else 0,
-                        "er": int(cells[4]) if cells[4].isdigit() else 0,
-                        "bb": int(cells[5]) if cells[5].isdigit() else 0,
-                        "k":  int(cells[6]) if cells[6].isdigit() else 0,
+                        "ip":  float(cells[1]),
+                        "h":   int(cells[2]) if cells[2].isdigit() else 0,
+                        "r":   int(cells[3]) if cells[3].isdigit() else 0,
+                        "er":  int(cells[4]) if cells[4].isdigit() else 0,
+                        "bb":  int(cells[5]) if cells[5].isdigit() else 0,
+                        "k":   int(cells[6]) if cells[6].isdigit() else 0,
                         "decision": decision,
                     })
-                    pitching_done.add(key)
+                    pitching_seen.add(key)
                 except (ValueError, IndexError):
                     pass
 
     return game
-
-
-# ── Load into Supabase ────────────────────────────────────────────────────────
 
 def load_game(game):
     if not game["away_team"] or not game["home_team"]:
@@ -310,6 +260,9 @@ def load_game(game):
         return False
     if not game["game_date"]:
         print(f"  ⚠️  Skipping {game['ll_game_id']} — missing date")
+        return False
+    if game["away_score"] is None or game["home_score"] is None:
+        print(f"  ⚠️  Skipping {game['ll_game_id']} — missing scores")
         return False
 
     game_row = {
@@ -347,9 +300,6 @@ def load_game(game):
 
     return True
 
-
-# ── Main ──────────────────────────────────────────────────────────────────────
-
 def main():
     print("🔍 Checking LeagueLineup for new scores...")
 
@@ -378,7 +328,6 @@ def main():
             print(f"  ❌ Error on game {gid}: {e}")
 
     print(f"\n🎉 Done! Loaded {loaded}/{len(new_games)} new games.")
-
 
 if __name__ == "__main__":
     main()
