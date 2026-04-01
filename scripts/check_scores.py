@@ -45,22 +45,29 @@ def get_known_game_ids():
 # ── Scrape LeagueLineup games page for final scores ───────────────────────────
 
 def get_ll_finals():
-    url = f"{LL_BASE}/games.asp?url=lbdc"
-    r = requests.get(url, timeout=15)
-    soup = BeautifulSoup(r.text, "html.parser")
-    finals = []
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if "gamesum_baseball.asp" in href and "GameID=" in href:
-            match = re.search(r"GameID=(\d+)", href)
-            if match:
-                game_id = match.group(1)
-                # Check it's a final score link (has score text like "10-6")
-                text = a.get_text(strip=True)
-                if re.match(r"^\d+-\d+$", text):
-                    finals.append(game_id)
-    return finals
-
+    # Check both divisions: Spring/Summer 2026 (1064043) and Fall/Winter (1061488)
+    division_ids = ["1064043", "1061488"]
+    all_finals = []
+    seen = set()
+    for div_id in division_ids:
+        url = f"{LL_BASE}/games.asp?url=lbdc&divisionid={div_id}"
+        try:
+            r = requests.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if "gamesum_baseball.asp" in href and "GameID=" in href:
+                    match = re.search(r"GameID=(\d+)", href)
+                    if match:
+                        game_id = match.group(1)
+                        text = a.get_text(strip=True)
+                        # Match score links like "10-6" or playoff "10-6 *"
+                        if re.match(r"^\d+-\d+", text) and game_id not in seen:
+                            all_finals.append(game_id)
+                            seen.add(game_id)
+        except Exception as e:
+            print(f"  ⚠️  Error checking division {div_id}: {e}")
+    return all_finals
 
 # ── Parse a single game box score ─────────────────────────────────────────────
 
