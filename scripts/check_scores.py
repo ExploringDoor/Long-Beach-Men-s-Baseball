@@ -118,7 +118,12 @@ def parse_game(game_id):
             # Convert "December 13, 2025" → "2025-12-13"
             try:
                 from datetime import datetime
-                result["game_date"] = datetime.strptime(raw, "%B %d, %Y").strftime("%Y-%m-%d")
+                for fmt in ["%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"]:
+                try:
+                    result["game_date"] = datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
+                    break
+                except:
+                    continue
             except Exception:
                 result["game_date"] = raw
         if line.startswith("Time:"):
@@ -223,6 +228,9 @@ def get_current_season_id():
 def load_game(game, season_id):
     if not game["away_team"] or not game["home_team"]:
         print(f"  ⚠️  Skipping {game['ll_game_id']} — could not parse teams")
+        return
+    if not game["game_date"]:
+        print(f"  ⚠️  Skipping {game['ll_game_id']} — could not parse date")
         return
 
     # Insert game
