@@ -89,18 +89,20 @@ def get_ll_games():
                         status = txt
                         break
 
-                # Skip postponed, cancelled games
-                if status in ["PPD", "CAN", "N/R", ""]:
+                # Skip cancelled and no-score games
+                if status in ["CAN", "N/R", ""]:
                     continue
 
                 seen.add(game_id)
-                results.append((game_id, date_str, div_id))
+                # Store status so we know if it's PPD
+                is_ppd = status == "PPD"
+                results.append((game_id, date_str, div_id, is_ppd))
             print(f"  Division {div_id}: {len([x for x in results if x[2] == div_id])} games found")
         except Exception as e:
             print(f"  ⚠️  Error checking division {div_id}: {e}")
     return results
 
-def parse_game(game_id, season_id, fallback_date=None):
+def parse_game(game_id, season_id, fallback_date=None, is_ppd=False):
     url = f"{LL_BASE}/gamesum_baseball.asp?url=lbdc&GameID={game_id}"
     r = requests.get(url, timeout=15)
     soup = BeautifulSoup(r.text, "html.parser")
@@ -117,7 +119,7 @@ def parse_game(game_id, season_id, fallback_date=None):
         "away_score": None,
         "home_score": None,
         "headline": None,
-        "status": "F",
+        "status": "PPD" if is_ppd else "F",
         "batting": [],
         "pitching": [],
     }
@@ -273,7 +275,7 @@ def load_game(game):
     if not game["game_date"]:
         print(f"  ⚠️  Skipping {game['ll_game_id']} — missing date")
         return False
-    if game["away_score"] is None or game["home_score"] is None:
+    if game["status"] != "PPD" and (game["away_score"] is None or game["home_score"] is None):
         print(f"  ⚠️  Skipping {game['ll_game_id']} — missing scores")
         return False
 
@@ -321,7 +323,7 @@ def main():
     all_games = get_ll_games()
     print(f"  Found on LeagueLineup: {len(all_games)} games total")
 
-    new_games = [(gid, date, div) for gid, date, div in all_games if gid not in known_ids]
+    new_games = [(gid, date, div, ppd) for gid, date, div, ppd in all_games if gid not in known_ids]
     print(f"  New games to load: {len(new_games)}")
 
     if not new_games:
@@ -329,11 +331,11 @@ def main():
         return
 
     loaded = 0
-    for gid, date_str, div_id in new_games:
+    for gid, date_str, div_id, is_ppd in new_games:
         print(f"\n📋 Loading game {gid}...")
         try:
             season_id = get_season_id(div_id)
-            game = parse_game(gid, season_id, fallback_date=date_str)
+            game = parse_game(gid, season_id, fallback_date=date_str, is_ppd=is_ppd)
             if load_game(game):
                 loaded += 1
         except Exception as e:
