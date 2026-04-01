@@ -63,26 +63,48 @@ def get_season_id():
 # ── Scrape LeagueLineup for game IDs ─────────────────────────────────────────
 
 def get_ll_game_ids():
+    """Returns list of game IDs AND a dict mapping game_id -> date"""
     found = []
     seen = set()
+    date_map = {}  # game_id -> date string
+
     for div_id in DIVISION_IDS:
         url = f"{LL_BASE}/games.asp?url=lbdc&divisionid={div_id}"
         try:
             r = requests.get(url, timeout=15)
             soup = BeautifulSoup(r.text, "html.parser")
-            links = [a for a in soup.find_all("a", href=True)
-                     if "gamesum_baseball.asp" in a["href"] and "GameID=" in a["href"]]
-            print(f"  Division {div_id}: {len(links)} game links found")
-            for a in links:
-                m = re.search(r"GameID=(\d+)", a["href"])
-                if m:
-                    gid = m.group(1)
-                    if gid not in seen:
-                        found.append(gid)
-                        seen.add(gid)
+
+            # Find all table rows - each row has date + game link
+            for row in soup.find_all("tr"):
+                cells = row.find_all(["td", "th"])
+                if not cells:
+                    continue
+                # Look for rows with a game link
+                game_link = None
+                for cell in cells:
+                    for a in cell.find_all("a", href=True):
+                        if "gamesum_baseball.asp" in a["href"] and "GameID=" in a["href"]:
+                            game_link = a
+                            break
+
+                if game_link:
+                    m = re.search(r"GameID=(\d+)", game_link["href"])
+                    if m:
+                        gid = m.group(1)
+                        # Try to get date from first cell of row
+                        date_text = cells[0].get_text(strip=True) if cells else ""
+                        parsed_date = parse_date(date_text)
+                        if parsed_date:
+                            date_map[gid] = parsed_date
+                        if gid not in seen:
+                            found.append(gid)
+                            seen.add(gid)
+
+            print(f"  Division {div_id}: {len([g for g in found if g in date_map])} games with dates found")
         except Exception as e:
             print(f"  ⚠️  Error checking division {div_id}: {e}")
-    return found
+
+    return found, date_map
 
 
 # ── Parse date from LeagueLineup box score ────────────────────────────────────
@@ -289,7 +311,7 @@ def main():
     known_ids = get_known_game_ids()
     print(f"  Already in database: {len(known_ids)} games")
 
-    all_ids = get_ll_game_ids()
+    all_ids, date_map = get_ll_game_ids()
     print(f"  Found on LeagueLineup: {len(all_ids)} games total")
 
     new_ids = [gid for gid in all_ids if gid not in known_ids]
@@ -307,6 +329,10 @@ def main():
         print(f"\n📋 Loading game {gid}...")
         try:
             game = parse_game(gid, season_id)
+            # Use date from schedule page if box score didn't have it
+            if not game["game_date"] and gid in date_map:
+                game["game_date"] = date_map[gid]
+                print(f"    📅 Date from schedule: {game['game_date']}")
             if load_game(game):
                 loaded += 1
         except Exception as e:
