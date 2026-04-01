@@ -61,8 +61,8 @@ def get_ll_finals():
                     if match:
                         game_id = match.group(1)
                         text = a.get_text(strip=True)
-                        # Match score links like "10-6" or playoff "10-6 *"
-                        if re.search(r"\d+-\d+", text) and game_id not in seen:
+                        # Match score links like "10-6", "10-6 *", or "Generals 10  Dodgers 6"
+                        if (re.match(r"^\d+-\d+", text) or re.search(r"\d+\s+\w+\s+\d+", text)) and game_id not in seen:
                             all_finals.append(game_id)
                             seen.add(game_id)
         except Exception as e:
