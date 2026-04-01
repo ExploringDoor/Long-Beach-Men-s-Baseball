@@ -35,14 +35,12 @@ def sb_post(path, data):
     return r.json()
 
 def sb_upsert(table, data):
-    # Try insert first, if conflict just return existing
-    h = {**HEADERS, "Prefer": "return=representation,resolution=ignore-duplicates"}
-    r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}?on_conflict=ll_game_id", headers=h, json=data)
-    if r.status_code == 400:
-        # Fall back to plain insert without on_conflict
-        h2 = {**HEADERS, "Prefer": "return=representation"}
-        r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=h2, json=data)
-    r.raise_for_status()
+    # Simple insert - we already filter out known game IDs before calling this
+    h = {**HEADERS, "Prefer": "return=representation"}
+    r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=h, json=data)
+    if not r.ok:
+        print(f"  ❌ Supabase error {r.status_code}: {r.text[:300]}")
+        r.raise_for_status()
     return r.json()
 
 
@@ -228,6 +226,7 @@ def load_game(game, season_id):
         return
 
     # Insert game
+    import json as json_lib
     game_row = {
         "season_id": season_id,
         "ll_game_id": game["ll_game_id"],
@@ -240,6 +239,7 @@ def load_game(game, season_id):
         "home_score": game["home_score"],
         "headline": game["headline"],
         "status": game["status"],
+        "innings": json_lib.dumps({}),
     }
 
     try:
