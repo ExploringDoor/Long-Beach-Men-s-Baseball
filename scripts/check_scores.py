@@ -34,6 +34,12 @@ def sb_post(path, data):
     r.raise_for_status()
     return r.json()
 
+def sb_upsert(table, data):
+    h = {**HEADERS, "Prefer": "resolution=merge-duplicates,return=representation"}
+    r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}?on_conflict=ll_game_id", headers=h, json=data)
+    r.raise_for_status()
+    return r.json()
+
 
 # ── Get already-loaded game IDs from Supabase ─────────────────────────────────
 
@@ -231,7 +237,7 @@ def load_game(game, season_id):
         "status": game["status"],
     }
 
-    inserted = sb_post("games?on_conflict=ll_game_id", game_row)
+    inserted = sb_upsert("games", game_row)
     if not inserted:
         print(f"  ⚠️  Game insert failed for {game['ll_game_id']}")
         return
