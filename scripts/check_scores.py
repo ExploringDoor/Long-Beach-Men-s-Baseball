@@ -35,8 +35,13 @@ def sb_post(path, data):
     return r.json()
 
 def sb_upsert(table, data):
-    h = {**HEADERS, "Prefer": "resolution=merge-duplicates,return=representation"}
+    # Try insert first, if conflict just return existing
+    h = {**HEADERS, "Prefer": "return=representation,resolution=ignore-duplicates"}
     r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}?on_conflict=ll_game_id", headers=h, json=data)
+    if r.status_code == 400:
+        # Fall back to plain insert without on_conflict
+        h2 = {**HEADERS, "Prefer": "return=representation"}
+        r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=h2, json=data)
     r.raise_for_status()
     return r.json()
 
