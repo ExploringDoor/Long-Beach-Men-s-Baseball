@@ -242,7 +242,15 @@ def load_game(game, season_id):
         "status": game["status"],
     }
 
-    inserted = sb_upsert("games", game_row)
+    try:
+        inserted = sb_upsert("games", game_row)
+    except Exception as e:
+        import requests as req_lib
+        # Try plain insert and print full error
+        h2 = {**HEADERS, "Prefer": "return=representation"}
+        r = req_lib.post(f"{SUPABASE_URL}/rest/v1/games", headers=h2, json=game_row)
+        print(f"  ❌ Insert error {r.status_code}: {r.text}")
+        return
     if not inserted:
         print(f"  ⚠️  Game insert failed for {game['ll_game_id']}")
         return
