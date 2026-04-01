@@ -54,17 +54,18 @@ def get_ll_finals():
         try:
             r = requests.get(url, timeout=15)
             soup = BeautifulSoup(r.text, "html.parser")
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                if "gamesum_baseball.asp" in href and "GameID=" in href:
-                    match = re.search(r"GameID=(\d+)", href)
-                    if match:
-                        game_id = match.group(1)
-                        text = a.get_text(strip=True)
-                        # Match score links like "10-6", "10-6 *", or "Generals 10  Dodgers 6"
-                        if (re.match(r"^\d+-\d+", text) or re.search(r"\d+\s+\w+\s+\d+", text)) and game_id not in seen:
-                            all_finals.append(game_id)
-                            seen.add(game_id)
+            game_links = [(a, a["href"]) for a in soup.find_all("a", href=True) if "gamesum_baseball.asp" in a["href"] and "GameID=" in a["href"]]
+            print(f"  Division {div_id}: found {len(game_links)} gamesum links")
+            for a, href in game_links:
+                match = re.search(r"GameID=(\d+)", href)
+                if match:
+                    game_id = match.group(1)
+                    text = a.get_text(strip=True)
+                    print(f"    GameID={game_id} text='{text}'")
+                    # Match any link with a score in it
+                    if game_id not in seen:
+                        all_finals.append(game_id)
+                        seen.add(game_id)
         except Exception as e:
             print(f"  ⚠️  Error checking division {div_id}: {e}")
     return all_finals
