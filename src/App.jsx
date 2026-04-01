@@ -645,8 +645,14 @@ function Navbar({ tab, setTab }) {
 function HomePage({ setTab, setTeamDetail }) {
   const topTeams = [...ALL_TEAMS].sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8);
   const nextGames = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g,field:f.name}))).slice(0,5);
-  const recent = SCORES[1].weeks[0].games;
+  const [recentGames, setRecentGames] = useState([]);
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
+
+  useEffect(() => {
+    sbFetch("games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&status=neq.PPD&status=neq.CAN&away_score=not.is.null&order=game_date.desc&limit=6")
+      .then(data => setRecentGames(data))
+      .catch(() => {});
+  }, []);
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {/* HERO */}
@@ -666,7 +672,10 @@ function HomePage({ setTab, setTeamDetail }) {
                 <span onClick={() => setTab("scores")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>All Scores →</span>
               </div>
               <div className="scores-grid" style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,gridAutoRows:"1fr"}}>
-                {recent.slice(0,6).map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)}
+                {recentGames.length > 0
+                  ? recentGames.map((g,i) => <LiveBoxScoreFinalCard key={i} game={g} onTeamClick={goTeam} />)
+                  : SCORES[1].weeks[0].games.slice(0,6).map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)
+                }
               </div>
             </div>
             <div>
