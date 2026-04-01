@@ -81,6 +81,18 @@ def get_ll_games():
                         except ValueError:
                             pass
                         break
+                # Check status — only load Final games (F or F*)
+                status = ""
+                for cell in cells:
+                    txt = cell.get_text(strip=True)
+                    if txt.startswith("F") or txt in ["PPD", "CAN", "FFT"]:
+                        status = txt
+                        break
+
+                # Skip postponed, cancelled games
+                if status in ["PPD", "CAN", "N/R", ""]:
+                    continue
+
                 seen.add(game_id)
                 results.append((game_id, date_str, div_id))
             print(f"  Division {div_id}: {len([x for x in results if x[2] == div_id])} games found")
