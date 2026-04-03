@@ -2430,9 +2430,15 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   const toISODate = (str) => {
     if(!str) return null;
     if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // already ISO
-    const withYear = /\d{4}/.test(str) ? str : `${str}, 2026`;
-    const d = new Date(`${withYear}T12:00:00`);
-    return isNaN(d.getTime()) ? null : d.toISOString().split("T")[0];
+    const MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+    const m = str.match(/([A-Za-z]+)\s+(\d{1,2})/);
+    if(!m) return null;
+    const month = MON[m[1].slice(0,3).toLowerCase()];
+    const day   = parseInt(m[2]);
+    const yearM = str.match(/(\d{4})/);
+    const year  = yearM ? parseInt(yearM[1]) : 2026;
+    if(!month || !day) return null;
+    return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
   };
 
   // ── Save handler ──
