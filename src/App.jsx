@@ -657,7 +657,7 @@ function HomePage({ setTab, setTeamDetail }) {
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {/* HERO */}
       <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
-        <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" style={{display:"block"}} />
+        <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" fetchpriority="high" loading="eager" style={{display:"block"}} />
       </div>
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
@@ -1791,92 +1791,144 @@ function SubBoardPage() {
 /* ─── ADMIN PAGE ─────────────────────────────────────────────────────────── */
 function ManageSchedulePage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
-  const [customGames, setCustomGames] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("lbdc_custom_games") || "[]"); } catch(e) { return []; }
-  });
-  const [form, setForm] = useState({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
-  const [showAdd, setShowAdd] = useState(false);
 
-  const saveGames = (games) => {
-    setCustomGames(games);
-    localStorage.setItem("lbdc_custom_games", JSON.stringify(games));
+  // Build initial editable list from SCHED + any stored overrides/additions
+  const buildInitial = () => {
+    try {
+      const stored = localStorage.getItem("lbdc_full_schedule");
+      if (stored) return JSON.parse(stored);
+    } catch(e) {}
+    // First time: flatten SCHED into editable rows
+    return SCHED.flatMap(week =>
+      week.fields.flatMap(f =>
+        f.games.map(g => ({
+          id: Math.random().toString(36).slice(2),
+          date: week.label,
+          time: g.time,
+          field: f.name,
+          away: g.away,
+          home: g.home,
+          source: "sched",
+        }))
+      )
+    );
   };
+
+  const [games, setGames] = useState(buildInitial);
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
+
+  const persist = (list) => {
+    setGames(list);
+    localStorage.setItem("lbdc_full_schedule", JSON.stringify(list));
+  };
+
+  const startEdit = (g) => { setEditId(g.id); setEditForm({date:g.date,time:g.time,field:g.field,away:g.away,home:g.home}); };
+  const saveEdit = () => {
+    persist(games.map(g => g.id===editId ? {...g,...editForm} : g));
+    setEditId(null);
+  };
+  const deleteGame = (id) => persist(games.filter(g=>g.id!==id));
   const addGame = () => {
-    if(!form.date||!form.away||!form.home) return;
-    saveGames([...customGames, {...form}]);
-    setForm({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
+    if(!addForm.date) return;
+    persist([...games, {...addForm, id:Math.random().toString(36).slice(2), source:"custom"}]);
+    setAddForm({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
     setShowAdd(false);
   };
-  const removeGame = (i) => saveGames(customGames.filter((_,j)=>j!==i));
+
+  // Group by date for display
+  const byDate = {};
+  games.forEach(g => { if(!byDate[g.date]) byDate[g.date]=[]; byDate[g.date].push(g); });
+
+  const inputStyle = {padding:"6px 8px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
+  const selStyle = {...inputStyle};
 
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
         <button type="button" onClick={onBack} style={{padding:"6px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>← Back</button>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Manage Schedule</div>
-        <button type="button" onClick={()=>setShowAdd(s=>!s)} style={{marginLeft:"auto",padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Game</button>
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          <button type="button" onClick={()=>{ if(window.confirm("Reset schedule back to original?")){ localStorage.removeItem("lbdc_full_schedule"); setGames(buildInitial()); }}}
+            style={{padding:"7px 14px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Reset</button>
+          <button type="button" onClick={()=>setShowAdd(s=>!s)}
+            style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Game</button>
+        </div>
       </div>
 
       {showAdd && (
-        <div style={{background:"#fff",border:"2px solid #002d6e",borderRadius:12,padding:"20px",marginBottom:16}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:14,color:"#002d6e"}}>New Game</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-            {[["Date","date","e.g. Apr 19, 2026"],["Time","time","9:00 AM"],["Field","field","Clark Field"]].map(([l,k,ph])=>(
-              <div key={k}>
-                <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:4}}>{l}</label>
-                <input value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={ph}
-                  style={{width:"100%",padding:"8px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
-              </div>
+        <div style={{background:"#fff",border:"2px solid #002d6e",borderRadius:12,padding:"18px",marginBottom:16}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12,color:"#002d6e"}}>New Game</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+            {[["Date","date","Apr 19, 2026"],["Time","time","9:00 AM"],["Field","field","Clark Field"]].map(([l,k,ph])=>(
+              <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
+                <input value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} placeholder={ph} style={inputStyle}/></div>
             ))}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-            {[["Away Team","away"],["Home Team","home"]].map(([l,k])=>(
-              <div key={k}>
-                <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:4}}>{l}</label>
-                <select value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}
-                  style={{width:"100%",padding:"8px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            {[["Away","away"],["Home","home"]].map(([l,k])=>(
+              <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
+                <select value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={selStyle}>
                   {TEAMS.map(t=><option key={t}>{t}</option>)}
-                </select>
-              </div>
+                </select></div>
             ))}
           </div>
           <div style={{display:"flex",gap:8}}>
-            <button type="button" onClick={addGame} style={{padding:"10px 24px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>Save Game</button>
-            <button type="button" onClick={()=>setShowAdd(false)} style={{padding:"10px 16px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
+            <button type="button" onClick={addGame} style={{padding:"9px 22px",background:"#002d6e",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>Save</button>
+            <button type="button" onClick={()=>setShowAdd(false)} style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
           </div>
-        </div>
-      )}
-
-      {customGames.length > 0 && (
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",marginBottom:16}}>
-          <div style={{background:"#002d6e",padding:"10px 18px"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>Added Games</div>
-          </div>
-          {customGames.map((g,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 18px",borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
-              <div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away} @ {g.home}</div>
-                <div style={{fontSize:12,color:"#888",marginTop:2}}>{g.date} · {g.time} · {g.field}</div>
-              </div>
-              <button type="button" onClick={()=>removeGame(i)} style={{padding:"4px 10px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontSize:12,fontWeight:700,cursor:"pointer"}}>Remove</button>
-            </div>
-          ))}
         </div>
       )}
 
       <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
         <div style={{background:"#001a3e",padding:"12px 18px"}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>Spring/Summer 2026 — Full Schedule</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>
+            Spring/Summer 2026 — {games.length} Games · Click any game to edit
+          </div>
         </div>
-        {SCHED.map((week,wi)=>(
-          <div key={wi} style={{borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
-            <div style={{padding:"10px 18px",background:"#f8f9fb",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",color:"#555",letterSpacing:".06em"}}>{week.label}</div>
-            {week.fields.flatMap(f=>f.games.map((g,gi)=>(
-              <div key={gi} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 20px",borderBottom:"1px solid rgba(0,0,0,0.04)"}}>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away} <span style={{color:"#ccc",fontWeight:400}}>@</span> {g.home}</div>
-                <div style={{fontSize:12,color:"#888"}}>{g.time} · {f.name}</div>
+        {Object.entries(byDate).map(([date, dateGames]) => (
+          <div key={date} style={{borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+            <div style={{padding:"8px 18px",background:"#f8f9fb",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:"#555",letterSpacing:".06em"}}>{date}</div>
+            {dateGames.map(g => (
+              <div key={g.id}>
+                {editId === g.id ? (
+                  <div style={{padding:"14px 18px",background:"#eff6ff",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                      {[["Date","date"],["Time","time"],["Field","field"]].map(([l,k])=>(
+                        <div key={k}><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>{l}</label>
+                          <input value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/></div>
+                      ))}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                      {[["Away Team","away"],["Home Team","home"]].map(([l,k])=>(
+                        <div key={k}><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>{l}</label>
+                          <select value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={selStyle}>
+                            {TEAMS.map(t=><option key={t}>{t}</option>)}
+                          </select></div>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button type="button" onClick={saveEdit} style={{padding:"7px 18px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>Save</button>
+                      <button type="button" onClick={()=>setEditId(null)} style={{padding:"7px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                      <button type="button" onClick={()=>deleteGame(g.id)} style={{marginLeft:"auto",padding:"7px 12px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Delete</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div onClick={()=>startEdit(g)}
+                    style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 20px",borderBottom:"1px solid rgba(0,0,0,0.04)",cursor:"pointer",transition:"background .1s"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#f0f4ff"}
+                    onMouseLeave={e=>e.currentTarget.style.background=""}>
+                    <div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away} <span style={{color:"#ccc",fontWeight:400}}>@</span> {g.home}</div>
+                      <div style={{fontSize:11,color:"#888",marginTop:1}}>{g.time} · {g.field}</div>
+                    </div>
+                    <div style={{fontSize:11,color:"#002d6e",fontWeight:700,flexShrink:0}}>✏️ Edit</div>
+                  </div>
+                )}
               </div>
-            )))}
+            ))}
           </div>
         ))}
       </div>
@@ -2318,6 +2370,22 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
 
+  // ── Auto-calculate score / H / E from batting stats ──
+  useEffect(() => {
+    const active = awayBat.filter(p=>p.on);
+    if(!active.length) return;
+    setAwayScore(String(active.reduce((s,p)=>s+(+p.r||0),0)));
+    setAwayH(String(active.reduce((s,p)=>s+(+p.h||0),0)));
+    setAwayE(String(active.reduce((s,p)=>s+(+p.e||0),0)));
+  }, [awayBat]);
+  useEffect(() => {
+    const active = homeBat.filter(p=>p.on);
+    if(!active.length) return;
+    setHomeScore(String(active.reduce((s,p)=>s+(+p.r||0),0)));
+    setHomeH(String(active.reduce((s,p)=>s+(+p.h||0),0)));
+    setHomeE(String(active.reduce((s,p)=>s+(+p.e||0),0)));
+  }, [homeBat]);
+
   const selectGame = (g) => {
     setGame(g);
     setAwayBat(initBatters(g.away));
@@ -2651,7 +2719,7 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:16,alignItems:"center",marginBottom:14}}>
           <div style={{textAlign:"center"}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
-              textTransform:"uppercase",color:"#555",marginBottom:6,letterSpacing:".06em"}}>{game.away}</div>
+              textTransform:"uppercase",color:"#555",marginBottom:6,letterSpacing:".06em"}}>{game.away} <span style={{fontSize:10,fontWeight:400,color:"#aaa",textTransform:"none"}}>(auto)</span></div>
             <input type="number" min="0" value={awayScore} onChange={e=>setAwayScore(e.target.value)} placeholder="0"
               style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",borderRadius:10,
                 fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,color:"#002d6e",outline:"none"}}/>
@@ -2659,7 +2727,7 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#ccc",textAlign:"center"}}>vs</div>
           <div style={{textAlign:"center"}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
-              textTransform:"uppercase",color:"#555",marginBottom:6,letterSpacing:".06em"}}>{game.home}</div>
+              textTransform:"uppercase",color:"#555",marginBottom:6,letterSpacing:".06em"}}>{game.home} <span style={{fontSize:10,fontWeight:400,color:"#aaa",textTransform:"none"}}>(auto)</span></div>
             <input type="number" min="0" value={homeScore} onChange={e=>setHomeScore(e.target.value)} placeholder="0"
               style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",borderRadius:10,
                 fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,color:"#002d6e",outline:"none"}}/>
