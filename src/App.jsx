@@ -2398,7 +2398,16 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   };
 
   // ── Helpers ──
-  const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
+  const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>{
+    if(j!==i) return r;
+    const u={...r,[f]:v};
+    // 2B / 3B / HR are hits — bump H up automatically if needed
+    if(["doubles","triples","hr"].includes(f)){
+      const minH=(+u.doubles||0)+(+u.triples||0)+(+u.hr||0);
+      if((+u.h||0)<minH) u.h=minH;
+    }
+    return u;
+  }));
   const updPit = (setter,i,f,v) => setter(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
   const moveBat = (setter, i, dir) => setter(prev => {
     const arr = [...prev]; const to = i+dir;
@@ -2417,6 +2426,15 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
         borderRadius:4,fontSize:13,background:"#f8f9fb",fontFamily:"inherit"}}/>
   );
 
+  // ── Convert "Apr 11" / "Apr 11, 2026" → "2026-04-11" for Supabase ──
+  const toISODate = (str) => {
+    if(!str) return null;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // already ISO
+    const withYear = /\d{4}/.test(str) ? str : `${str}, 2026`;
+    const d = new Date(`${withYear}T12:00:00`);
+    return isNaN(d.getTime()) ? null : d.toISOString().split("T")[0];
+  };
+
   // ── Save handler ──
   const handleSave = async () => {
     if(!game){setSaveMsg({ok:false,text:"Select a game first."});return;}
@@ -2427,7 +2445,7 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
       if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
       const submitterTag = captainTeam ? ` [submitted: ${captainTeam}]` : "";
       const [newGame] = await sbPost("games",[{
-        season_id:season.id, game_date:game.date, game_time:game.time, field:game.field,
+        season_id:season.id, game_date:toISODate(game.date), game_time:game.time, field:game.field,
         away_team:game.away, home_team:game.home,
         away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
         headline:(headline||"")+submitterTag || null, status:gameStatus,
