@@ -1664,6 +1664,28 @@ function RulesPage() {
 }
 
 /* ─── HISTORY PAGE ──────────────────────────────────────────────────────── */
+// Seasons that have box score data in Supabase (scraped or entered manually)
+const SEASONS_WITH_BOX_SCORES = new Set([
+  "2025 Spring/Summer Season",
+  "2025 NABA AZ World Series 50's",
+  "2025 NABA Father/Son",
+  "2025 NABA Las Vegas World Series 60's",
+  "2025 4th of July-NABA",
+  "2025 Memorial Weekend Tournament-Las Vegas",
+  "2025 NABA Great Park Tournament",
+  "2025 NABA MLK Tournament",
+  "2024/2025 Fall Winter Season",
+  "2024 Spring/Summer Season",
+  "2024 4th of July-NABA",
+  "2024 Father/Son NABA",
+  "2024 MG Turkey Bowl Tournament",
+  "2024 MLK-NABA",
+  "2024 NABA LAS VEGAS World Series - 60+",
+  "2024 NABA World Series - 65+",
+  "2023 Thanksgiving Turkey Bowl",
+  "2026 Fall/Winter Season (Season #10)",
+]);
+
 function HistoryPage() {
   // Group seasons by category
   const LBDC_REGULAR = [
@@ -1689,6 +1711,31 @@ function HistoryPage() {
   const [selectedSeason, setSelectedSeason] = useState(null);
   const [gameFilter, setGameFilter] = useState("all"); // "all" | "Final" | "Playoff"
   const [search, setSearch] = useState("");
+  const [boxModal, setBoxModal] = useState(null); // {game, batting, pitching} or "loading"
+
+  const openBoxScore = async (seasonName, g) => {
+    setBoxModal("loading");
+    try {
+      // Find season in Supabase by name
+      const seasons = await sbFetch(`seasons?select=id,name&limit=50`);
+      const sb = seasons.find(s => s.name === seasonName);
+      if (!sb) { setBoxModal(null); alert("Box score data not found for this season."); return; }
+      // Find game by date + teams
+      const isoDate = g.date.split("/").reduce((acc,p,i)=>i===2?`${p}-${acc}`:i===0?p.padStart(2,"0"):`${acc}-${p.padStart(2,"0")}`,"");
+      // Convert M/D/YYYY → YYYY-MM-DD
+      const [mo,dy,yr] = g.date.split("/");
+      const gameDate = `${yr}-${mo.padStart(2,"0")}-${dy.padStart(2,"0")}`;
+      const games = await sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${sb.id}&game_date=eq.${gameDate}&away_team=eq.${encodeURIComponent(g.away_team)}&limit=5`);
+      const game = games[0];
+      if (!game) { setBoxModal(null); alert("No box score found for this game."); return; }
+      const [batting, pitching] = await Promise.all([
+        sbFetch(`batting_lines?select=*&game_id=eq.${game.id}&limit=100`),
+        sbFetch(`pitching_lines?select=*&game_id=eq.${game.id}&limit=50`),
+      ]);
+      if (batting.length === 0 && pitching.length === 0) { setBoxModal(null); alert("No player stats available for this game."); return; }
+      setBoxModal({ game, batting, pitching });
+    } catch(e) { setBoxModal(null); alert("Error loading box score: " + e.message); }
+  };
 
   const categorySeasons = HISTORY_DATA.filter(
     CATEGORIES.find(c => c.key === activeCategory).filter
@@ -1711,9 +1758,20 @@ function HistoryPage() {
   });
 
   const totalGames = HISTORY_DATA.reduce((s,d) => s + d.games.length, 0);
+  const hasBoxScores = season && SEASONS_WITH_BOX_SCORES.has(season.name);
 
   return (
     <div style={{maxWidth:1200,margin:"0 auto",padding:"32px clamp(12px,3vw,32px)"}}>
+      {/* Box score loading overlay */}
+      {boxModal === "loading" && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"32px 48px",fontSize:16,fontWeight:600,color:"#002d6e"}}>Loading box score…</div>
+        </div>
+      )}
+      {/* Box score modal */}
+      {boxModal && boxModal !== "loading" && (
+        <BoxScoreModal game={boxModal.game} batting={boxModal.batting} pitching={boxModal.pitching} onClose={()=>setBoxModal(null)} />
+      )}
       {/* Header */}
       <div style={{marginBottom:28}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:38,
@@ -1776,8 +1834,9 @@ function HistoryPage() {
                   color:"#FFD700",textTransform:"uppercase",letterSpacing:".04em"}}>
                   {season.name}
                 </div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:3}}>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:3,display:"flex",alignItems:"center",gap:10}}>
                   {season.games.length} games played · {season.standings.length} teams
+                  {hasBoxScores && <span style={{background:"rgba(255,215,0,0.2)",color:"#FFD700",borderRadius:4,padding:"2px 7px",fontSize:11,fontWeight:700,letterSpacing:".04em"}}>📊 Click any game for box score</span>}
                 </div>
               </div>
             </div>
@@ -1867,7 +1926,8 @@ function HistoryPage() {
                         padding:"10px 12px",borderRadius:8,
                         background:g.status==="Playoff"?"rgba(255,215,0,0.06)":"#f8f9fb",
                         border:`1px solid ${g.status==="Playoff"?"rgba(255,215,0,0.3)":"rgba(0,0,0,0.06)"}`,
-                        flexWrap:"wrap"}}>
+                        flexWrap:"wrap",cursor:hasBoxScores?"pointer":"default"}}
+                        onClick={hasBoxScores ? ()=>openBoxScore(season.name, g) : undefined}>
                         <div style={{fontSize:11,color:"#999",minWidth:75,fontWeight:500}}>{g.date}</div>
                         {g.status==="Playoff" && (
                           <span style={{fontSize:10,fontWeight:700,color:"#b45309",background:"rgba(255,215,0,0.2)",
