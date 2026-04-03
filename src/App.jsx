@@ -1692,6 +1692,7 @@ const SEASONS_WITH_BOX_SCORES = new Set([
   "2021 Fall/Winter Season",
   "2021 50+",
   "Summer 2019",
+  "2026 NABA MLK 55+ Division",
 ]);
 
 function HistoryPage() {

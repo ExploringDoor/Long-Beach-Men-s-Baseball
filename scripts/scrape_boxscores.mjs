@@ -9,16 +9,16 @@ const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
 const LL_BASE = "https://www.leaguelineup.com";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0";
 
-// Remaining seasons — 2023 back to 2019
+// Remaining seasons — 2026 in-progress + missed 2024/2021
 const TARGET_SEASONS = [
-  { name: "2023 Fall/Winter Season",                 divisionId: "1040472" },
-  { name: "NABA World Series-LAS VEGAS 2023",        divisionId: "1041039" },
-  { name: "2023 Spring/Summer Season",               divisionId: "1032266" },
-  { name: "2022 Fall/Winter Season",                 divisionId: "1022573" },
-  { name: "2022 Summer Season",                      divisionId: "1015858" },
-  { name: "2021 Fall/Winter Season",                 divisionId: "1009695" },
-  { name: "2021 50+",                                divisionId: "997284"  },
-  { name: "Summer 2019",                             divisionId: "850923"  },
+  { name: "2026 BOOMERS 60/70 Division",              divisionId: "1064571" },
+  { name: "2026 Diamond Classics Memorial",            divisionId: "1065143" },
+  { name: "2026 Las Vegas 60's World Series",          divisionId: "1065193" },
+  { name: "Spring/Summer 2026 Diamond Classics Saturdays", divisionId: "1064043" },
+  { name: "2026 NABA MLK 55+ Division",               divisionId: "1062824" },
+  { name: "2024 NABA World Series - 50+",              divisionId: "1042133" },
+  { name: "2024 60's Mid-Week Division",               divisionId: "1044619" },
+  { name: "2021 All Star Game",                        divisionId: "1009514" },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
