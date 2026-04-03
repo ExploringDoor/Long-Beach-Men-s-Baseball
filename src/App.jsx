@@ -3393,10 +3393,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               onDragStart={e=>handleDragStart(e,side,i)}
               onDragEnd={handleDragEnd}
               style={{fontSize:16,color:"#aaa",flexShrink:0,userSelect:"none",cursor:"grab",padding:"0 3px",touchAction:"none"}}>⠿</div>
-            {/* editable batting order number */}
+            {/* editable batting order number — hidden on mobile, use ▲▼ buttons instead */}
             <input
               type="number" min={1} max={batters.length} value={i+1}
               onChange={e=>{const n=parseInt(e.target.value);if(!isNaN(n)&&n>=1&&n<=batters.length)moveTo(setter,batters,i,n);}}
+              className="bs-order-num"
               style={{width:28,padding:"3px 2px",textAlign:"center",border:"1px solid rgba(0,45,110,0.25)",
                 borderRadius:4,fontSize:12,fontWeight:700,color:"#002d6e",background:"rgba(0,45,110,0.05)",
                 fontFamily:"inherit",flexShrink:0}}/>
@@ -4277,13 +4278,16 @@ export default function App() {
           .hamburger{display:flex!important;}
           .mobile-standings{display:block!important;}
           .desktop-standings{display:none!important;}
+          /* Prevent iOS zoom on focus — ALL inputs must be >= 16px */
+          input, select, textarea { font-size: 16px!important; }
           /* Box score entry mobile */
           .bs-two-col{grid-template-columns:1fr!important;}
-          .bs-stat-input{min-width:52px!important;height:40px!important;font-size:16px!important;}
+          .bs-stat-input{min-width:52px!important;height:40px!important;}
           .bs-stat-label{font-size:11px!important;}
-          .bs-name-input{font-size:15px!important;height:36px!important;}
           .bs-score-input{width:90px!important;font-size:42px!important;}
-          .bs-inn-input{width:38px!important;height:34px!important;font-size:14px!important;}
+          .bs-inn-input{width:38px!important;height:34px!important;}
+          /* Hide order-number input on mobile — use ▲▼ buttons instead */
+          .bs-order-num{display:none!important;}
         }
       `}</style>
       <div style={{position:"relative",zIndex:200,overflow:"hidden",width:"100%"}}><Ticker setTab={handleSetTab} /></div>
