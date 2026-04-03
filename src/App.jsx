@@ -750,6 +750,7 @@ function HomePage({ setTab, setTeamDetail }) {
 
 /* ─── SCORES PAGE ─────────────────────────────────────────────────────────  */
 function BoxScoreModal({ game, batting, pitching, onClose }) {
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const awayBat = batting.filter(b => b.team === game.away_team);
   const homeBat = batting.filter(b => b.team === game.home_team);
   const awayPit = pitching.filter(p => p.team === game.away_team);
@@ -784,7 +785,9 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
             <tbody>
               {rows.map((r,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{r.player_name}</td>
+                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>
+                    <button type="button" onClick={()=>setSelectedPlayer(r.player_name)} style={{background:"none",border:"none",padding:0,fontWeight:600,cursor:"pointer",color:"#002d6e",textDecoration:"underline",textDecorationStyle:"dotted",fontSize:"inherit",fontFamily:"inherit",whiteSpace:"nowrap"}}>{r.player_name}</button>
+                  </td>
                   {[r.ab,r.r,r.h,r.rbi,r.bb,r.k].map((v,j)=>(
                     <td key={j} style={{padding:"5px 8px",textAlign:"center",
                       fontWeight:v>0&&[1,2,3].includes(j)?700:400}}>{v||0}</td>
@@ -835,7 +838,9 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
             <tbody>
               {rows.map((r,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{r.player_name}</td>
+                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>
+                    <button type="button" onClick={()=>setSelectedPlayer(r.player_name)} style={{background:"none",border:"none",padding:0,fontWeight:600,cursor:"pointer",color:"#002d6e",textDecoration:"underline",textDecorationStyle:"dotted",fontSize:"inherit",fontFamily:"inherit",whiteSpace:"nowrap"}}>{r.player_name}</button>
+                  </td>
                   <td style={{padding:"5px 8px",textAlign:"center"}}>{r.ip}</td>
                   {[r.h,r.r,r.er,r.bb,r.k,r.hr||0].map((v,j)=><td key={j} style={{padding:"5px 8px",textAlign:"center"}}>{v||0}</td>)}
                 </tr>
@@ -863,6 +868,8 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
     );
   };
   return (
+    <>
+    {selectedPlayer && <PlayerStatsModal playerName={selectedPlayer} onClose={()=>setSelectedPlayer(null)} />}
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px",overflowY:"auto"}} onClick={onClose}>
       <div style={{background:"#fff",borderRadius:14,maxWidth:680,width:"100%",overflow:"hidden",marginTop:20,marginBottom:20}} onClick={e=>e.stopPropagation()}>
         <div style={{background:"#002d6e",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -895,6 +902,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -4211,23 +4219,16 @@ export default function App() {
     }
   }, []);
 
-  // Browser back button + in-app back button support for team detail pages
-  useEffect(() => {
-    const onPop = (e) => {
-      setTeamDetail(null);
-      if (e.state && e.state.prevTab) setTab(e.state.prevTab);
-      window.scrollTo(0, 0);
-    };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-
-  const handleSetTab = (t) => { setTab(t); setTeamDetail(null); };
+  const handleSetTab = (t) => { setTab(t); setTeamDetail(null); window.scrollTo(0,0); };
   const handleTeamDetail = (name) => {
     setPrevTab(tab);
     setTeamDetail(name);
     setTab("teams");
-    window.history.pushState({ team: name, prevTab: tab }, "", window.location.pathname);
+    window.scrollTo(0,0);
+  };
+  const handleBackFromTeam = () => {
+    setTeamDetail(null);
+    window.scrollTo(0,0);
   };
 
   return (
@@ -4278,7 +4279,7 @@ export default function App() {
       {tab==="schedule"  && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="standings" && <StandingsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && !teamDetail && <TeamsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
-      {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={() => { setTeamDetail(null); window.scrollTo(0,0); }} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
+      {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={handleBackFromTeam} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="stats"     && <StatsPage />}
       {tab==="subs"      && <SubBoardPage />}
       {tab==="admin"     && <AdminPage onAlertChange={setActiveAlert} />}
