@@ -3218,13 +3218,18 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   // ── Stat input ──
   // onWheel blur prevents the page from scrolling when mouse wheel hits a focused number input
-  const N = (val, onChange, w=38) => (
-    <input type="number" min="0" value={val}
-      onChange={e=>onChange(Math.max(0,parseInt(e.target.value)||0))}
-      onWheel={e=>e.target.blur()}
-      style={{width:w,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(0,0,0,0.15)",
-        borderRadius:4,fontSize:13,background:"#f8f9fb",fontFamily:"inherit"}}/>
-  );
+  const N = (val, onChange, opts={}) => {
+    const w = opts.w || 38;
+    const cls = opts.className || "";
+    return (
+      <input type="number" min="0" inputMode="numeric" pattern="[0-9]*" value={val}
+        onChange={e=>onChange(Math.max(0,parseInt(e.target.value)||0))}
+        onWheel={e=>e.target.blur()}
+        className={cls}
+        style={{width:w,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(0,0,0,0.15)",
+          borderRadius:4,fontSize:13,background:"#f8f9fb",fontFamily:"inherit"}}/>
+    );
+  };
 
   // ── Convert "Apr 11" / "Apr 11, 2026" → "2026-04-11" for Supabase ──
   const toISODate = (str) => {
@@ -3398,6 +3403,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             {/* name */}
             <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
               onDragStart={e=>e.stopPropagation()}
+              className="bs-name-input"
               style={{flex:1,padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:13,
                 fontFamily:"inherit",minWidth:0,cursor:"text"}}/>
             {/* position */}
@@ -3427,9 +3433,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:"0 10px 9px"}}>
               {BAT_STATS.map((f,fi)=>(
                 <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",minWidth:38}}>
-                  <span style={{fontSize:9,fontWeight:700,color:"#999",letterSpacing:".05em",
+                  <span className="bs-stat-label" style={{fontSize:9,fontWeight:700,color:"#999",letterSpacing:".05em",
                     textTransform:"uppercase"}}>{BAT_LBLS[fi]}</span>
-                  {N(p[f],v=>updBat(setter,i,f,v))}
+                  {N(p[f],v=>updBat(setter,i,f,v),{className:"bs-stat-input"})}
                 </div>
               ))}
             </div>
@@ -3637,8 +3643,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               {game.away} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>{awayStatMode==="full"?"auto from R":"enter score"}</span>
             </div>
             {awayStatMode==="simple" ? (
-              <input type="number" min="0" value={awayScore} onChange={e=>setAwayScore(e.target.value)}
-                placeholder="0"
+              <input type="number" min="0" inputMode="numeric" pattern="[0-9]*" value={awayScore} onChange={e=>setAwayScore(e.target.value)}
+                placeholder="0" className="bs-score-input"
                 style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
                   borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
                   color:"#002d6e",background:"#fff",display:"block",margin:"0 auto",boxSizing:"border-box"}}/>
@@ -3657,8 +3663,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               {game.home} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>{homeStatMode==="full"?"auto from R":"enter score"}</span>
             </div>
             {homeStatMode==="simple" ? (
-              <input type="number" min="0" value={homeScore} onChange={e=>setHomeScore(e.target.value)}
-                placeholder="0"
+              <input type="number" min="0" inputMode="numeric" pattern="[0-9]*" value={homeScore} onChange={e=>setHomeScore(e.target.value)}
+                placeholder="0" className="bs-score-input"
                 style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
                   borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
                   color:"#002d6e",background:"#fff",display:"block",margin:"0 auto",boxSizing:"border-box"}}/>
@@ -3712,7 +3718,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                     textTransform:"uppercase",letterSpacing:".04em"}}>{name}</td>
                   {inn.map((x,i)=>(
                     <td key={i} style={{padding:"3px 2px",textAlign:"center"}}>
-                      <input type="number" min="0" value={x.r} onChange={e=>updInn(setInn,i,e.target.value)}
+                      <input type="number" min="0" inputMode="numeric" pattern="[0-9]*" value={x.r} onChange={e=>updInn(setInn,i,e.target.value)}
+                        className="bs-inn-input"
                         style={{width:32,padding:"3px 1px",textAlign:"center",border:"1px solid #ddd",
                           borderRadius:4,fontSize:13,fontWeight:700,background:"#fff",fontFamily:"inherit"}}/>
                     </td>
@@ -3744,7 +3751,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       {/* Batting */}
       <BSCrd>
         <BSH2 n="3" title="Batting Lineups" sub="Drag ⠿ handle to reorder · edit # to jump position · toggle off players not playing"/>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        <div className="bs-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           {renderBats(`${game.away} Batting`,"away",awayBat,setAwayBat,addAwayName,setAddAwayName,awayStatMode,setAwayStatMode)}
           {renderBats(`${game.home} Batting`,"home",homeBat,setHomeBat,addHomeName,setAddHomeName,homeStatMode,setHomeStatMode)}
         </div>
@@ -3753,7 +3760,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       {/* Pitching */}
       <BSCrd>
         <BSH2 n="4" title="Pitching" sub="Enter IP as innings.outs (e.g. 6.2 = 6 innings 2 outs)"/>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        <div className="bs-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           {renderPit(`${game.away} Pitching`,awayPit,setAwayPit)}
           {renderPit(`${game.home} Pitching`,homePit,setHomePit)}
         </div>
@@ -4270,6 +4277,13 @@ export default function App() {
           .hamburger{display:flex!important;}
           .mobile-standings{display:block!important;}
           .desktop-standings{display:none!important;}
+          /* Box score entry mobile */
+          .bs-two-col{grid-template-columns:1fr!important;}
+          .bs-stat-input{min-width:52px!important;height:40px!important;font-size:16px!important;}
+          .bs-stat-label{font-size:11px!important;}
+          .bs-name-input{font-size:15px!important;height:36px!important;}
+          .bs-score-input{width:90px!important;font-size:42px!important;}
+          .bs-inn-input{width:38px!important;height:34px!important;font-size:14px!important;}
         }
       `}</style>
       <div style={{position:"relative",zIndex:200,overflow:"hidden",width:"100%"}}><Ticker setTab={handleSetTab} /></div>
