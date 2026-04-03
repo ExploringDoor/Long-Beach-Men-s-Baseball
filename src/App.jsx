@@ -726,34 +726,48 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
   const homeBat = batting.filter(b => b.team === game.home_team);
   const awayPit = pitching.filter(p => p.team === game.away_team);
   const homePit = pitching.filter(p => p.team === game.home_team);
-  const BatTable = ({ rows, team }) => (
-    <div style={{marginBottom:16}}>
-      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:6,padding:"6px 10px",background:"#f0f4ff",borderRadius:6}}>{team} — Batting</div>
-      <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead><tr style={{background:"#f8f9fb"}}>
-            {["Player","AB","R","H","RBI","BB","K","2B","HR"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
-          </tr></thead>
-          <tbody>
-            {rows.map((r,i)=>(
-              <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{r.player_name}</td>
-                {[r.ab,r.r,r.h,r.rbi,r.bb,r.k,r.doubles||0,r.hr||0].map((v,j)=>(
-                  <td key={j} style={{padding:"5px 8px",textAlign:"center",fontWeight:v>0&&[2,3,6,7].includes(j)?700:400,color:v>0&&j===7?"#c8102e":"inherit"}}>{v||0}</td>
+  const BatTable = ({ rows, team }) => {
+    const withSingles = rows.map(r=>({...r, singles:Math.max(0,(r.h||0)-(r.doubles||0)-(r.triples||0)-(r.hr||0))}));
+    const note2B = withSingles.filter(r=>r.doubles>0).map(r=>`${r.player_name}${r.doubles>1?` (${r.doubles})`:""}`).join(", ");
+    const note3B = withSingles.filter(r=>r.triples>0).map(r=>`${r.player_name}${r.triples>1?` (${r.triples})`:""}`).join(", ");
+    const noteHR = withSingles.filter(r=>r.hr>0).map(r=>`${r.player_name}${r.hr>1?` (${r.hr})`:""}`).join(", ");
+    const notes = [note2B&&`2B: ${note2B}`, note3B&&`3B: ${note3B}`, noteHR&&`HR: ${noteHR}`].filter(Boolean);
+    return (
+      <div style={{marginBottom:16}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:6,padding:"6px 10px",background:"#f0f4ff",borderRadius:6}}>{team} — Batting</div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{background:"#f8f9fb"}}>
+              {["Player","AB","R","1B","2B","3B","HR","RBI","BB","K"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
+            </tr></thead>
+            <tbody>
+              {withSingles.map((r,i)=>(
+                <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
+                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{r.player_name}</td>
+                  {[r.ab,r.r,r.singles,r.doubles,r.triples,r.hr,r.rbi,r.bb,r.k].map((v,j)=>(
+                    <td key={j} style={{padding:"5px 8px",textAlign:"center",
+                      fontWeight:v>0&&[2,3,4,5,6].includes(j)?700:400,
+                      color:v>0&&j===5?"#c8102e":v>0&&j===4?"#1d4ed8":"inherit"}}>{v||0}</td>
+                  ))}
+                </tr>
+              ))}
+              <tr style={{borderTop:"2px solid rgba(0,0,0,0.1)",background:"#f8f9fb",fontWeight:700}}>
+                <td style={{padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:11}}>Totals</td>
+                {["ab","r","singles","doubles","triples","hr","rbi","bb","k"].map(f=>(
+                  <td key={f} style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{withSingles.reduce((s,r)=>s+(r[f]||0),0)}</td>
                 ))}
               </tr>
-            ))}
-            <tr style={{borderTop:"2px solid rgba(0,0,0,0.1)",background:"#f8f9fb",fontWeight:700}}>
-              <td style={{padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:11}}>Totals</td>
-              {["ab","r","h","rbi","bb","k","doubles","hr"].map(f=>(
-                <td key={f} style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{rows.reduce((s,r)=>s+(r[f]||0),0)}</td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
+        {notes.length > 0 && (
+          <div style={{marginTop:6,padding:"6px 10px",background:"#f8f9fb",borderRadius:6,fontSize:11,color:"#444",lineHeight:1.7}}>
+            {notes.map((n,i)=><span key={i} style={{marginRight:16}}><strong>{n.split(":")[0]}:</strong>{n.slice(n.indexOf(":")+ 1)}</span>)}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
   const PitTable = ({ rows, team }) => rows.length === 0 ? null : (
     <div style={{marginBottom:12}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#374151",marginBottom:6,padding:"6px 10px",background:"#f8f9fb",borderRadius:6}}>{team} — Pitching</div>
@@ -2410,11 +2424,11 @@ function BSCrd({children,style={}}) {
 function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
   const POSITIONS = ["","P","C","1B","2B","3B","SS","LF","CF","RF","DH","PH","PR"];
-  const BAT_STATS = ["ab","r","h","doubles","triples","hr","rbi","bb","k","sb","e"];
-  const BAT_LBLS  = ["AB","R","H","2B","3B","HR","RBI","BB","K","SB","E"];
+  const BAT_STATS = ["ab","r","singles","doubles","triples","hr","rbi","bb","k","sb","e"];
+  const BAT_LBLS  = ["AB","R","1B","2B","3B","HR","RBI","BB","K","SB","E"];
 
   let _bid = 0;
-  const blankBatter = (name="") => ({ _id:++_bid, name, on:true, ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,e:0, pos:"" });
+  const blankBatter = (name="") => ({ _id:++_bid, name, on:true, ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,e:0, pos:"" });
   const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0, decision:"ND" });
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).filter(p=>p!=="TBD").map(blankBatter);
 
@@ -2442,6 +2456,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const [awayBat, setAwayBat] = useState([]);
   const [homeBat, setHomeBat] = useState([]);
   const [addAwayName, setAddAwayName] = useState(""); const [addHomeName, setAddHomeName] = useState("");
+  const [awayStatMode, setAwayStatMode] = useState("simple"); // "simple" | "full"
+  const [homeStatMode, setHomeStatMode] = useState("simple");
 
   // ── Pitching ──
   const [awayPit, setAwayPit] = useState([blankPitcher()]);
@@ -2464,21 +2480,24 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
 
-  // ── Auto-calculate score / H / E from batting stats ──
+  // ── Auto-calculate score / H / E from batting stats (only in "full" mode) ──
+  const totalH = (rows) => rows.reduce((s,p)=>s+(+p.singles||0)+(+p.doubles||0)+(+p.triples||0)+(+p.hr||0),0);
   useEffect(() => {
+    if(awayStatMode !== "full") return;
     const active = awayBat.filter(p=>p.on);
     if(!active.length) return;
     setAwayScore(String(active.reduce((s,p)=>s+(+p.r||0),0)));
-    setAwayH(String(active.reduce((s,p)=>s+(+p.h||0),0)));
+    setAwayH(String(totalH(active)));
     setAwayE(String(active.reduce((s,p)=>s+(+p.e||0),0)));
-  }, [awayBat]);
+  }, [awayBat, awayStatMode]);
   useEffect(() => {
+    if(homeStatMode !== "full") return;
     const active = homeBat.filter(p=>p.on);
     if(!active.length) return;
     setHomeScore(String(active.reduce((s,p)=>s+(+p.r||0),0)));
-    setHomeH(String(active.reduce((s,p)=>s+(+p.h||0),0)));
+    setHomeH(String(totalH(active)));
     setHomeE(String(active.reduce((s,p)=>s+(+p.e||0),0)));
-  }, [homeBat]);
+  }, [homeBat, homeStatMode]);
 
   // ── Edit mode (loading a previously saved game) ──
   const [editGameId, setEditGameId] = useState(null);
@@ -2513,12 +2532,15 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         sbFetch(`batting_lines?select=*&game_id=eq.${g.id}&limit=100`),
         sbFetch(`pitching_lines?select=*&game_id=eq.${g.id}&limit=50`),
       ]);
-      const toB = (b,bid=Math.random()) => ({
-        _id:bid, name:b.player_name, on:true,
-        ab:+b.ab||0, r:+b.r||0, h:+b.h||0,
-        doubles:+b.doubles||0, triples:+b.triples||0, hr:+b.hr||0,
-        rbi:+b.rbi||0, bb:+b.bb||0, k:+b.k||0, sb:+b.sb||0, e:0, pos:"",
-      });
+      const toB = (b,bid=Math.random()) => {
+        const d=+b.doubles||0, t=+b.triples||0, hr=+b.hr||0;
+        return {
+          _id:bid, name:b.player_name, on:true,
+          ab:+b.ab||0, r:+b.r||0,
+          singles:Math.max(0,(+b.h||0)-d-t-hr), doubles:d, triples:t, hr,
+          rbi:+b.rbi||0, bb:+b.bb||0, k:+b.k||0, sb:+b.sb||0, e:0, pos:"",
+        };
+      };
       const toP = (p) => ({
         name:p.player_name, ip:fromIP(p.ip),
         h:+p.h||0, r:+p.r||0, er:+p.er||0, bb:+p.bb||0, k:+p.k||0,
@@ -2537,6 +2559,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setHomeBat(homeB.length?homeB.map(toB):initBatters(g.home_team));
       setAwayPit(awayP.length?awayP.map(toP):[blankPitcher()]);
       setHomePit(homeP.length?homeP.map(toP):[blankPitcher()]);
+      setAwayStatMode(awayB.length ? "full" : "simple");
+      setHomeStatMode(homeB.length ? "full" : "simple");
       setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
       setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
       setSaveMsg(null); setEditMode(false);
@@ -2552,6 +2576,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     setAwayScore(""); setHomeScore(""); setHeadline(""); setRecap("");
     setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
     setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
+    setAwayStatMode("simple"); setHomeStatMode("simple");
     setSaveMsg(null);
   };
 
@@ -2560,22 +2585,6 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     if(j!==i) return r;
     const vn = Math.max(0, +v||0);
     const u = {...r, [f]:vn};
-
-    // ── XBH (2B/3B/HR) changes → delta-track H in both directions ──
-    // Adding a double/triple/HR always adds 1 hit.
-    // Removing one always removes 1 hit. H can never go below total XBH or 0.
-    if(["doubles","triples","hr"].includes(f)){
-      const delta   = vn - (+r[f]||0);          // how many XBH changed (+/-)
-      const newH    = (+r.h||0) + delta;         // apply delta to old H
-      const minH    = (+u.doubles||0)+(+u.triples||0)+(+u.hr||0); // can't be < XBH total
-      u.h = Math.max(0, Math.max(newH, minH));
-    }
-
-    // ── H directly edited → clamp so H can never be less than total XBH ──
-    if(f==="h"){
-      const minH = (+u.doubles||0)+(+u.triples||0)+(+u.hr||0);
-      if(vn < minH) u.h = minH;
-    }
 
     // ── HR changes → delta-track R and RBI in BOTH directions ──
     // Each HR = 1 R (batter scores) + 1 RBI (at minimum). Works for adds AND removes.
@@ -2654,11 +2663,13 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         gid = newGame.id;
       }
       const batRows = [
-        ...awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})),
-        ...homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})),
-      ].map(({name,_t,ab,r,h,doubles,triples,hr,rbi,bb,k,sb,e})=>({
+        ...(awayStatMode==="full" ? awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
+        ...(homeStatMode==="full" ? homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})) : []),
+      ].map(({name,_t,ab,r,singles,doubles,triples,hr,rbi,bb,k,sb,e})=>({
         game_id:gid,player_name:name,team:_t,
-        ab:+ab||0,r:+r||0,h:+h||0,doubles:+doubles||0,triples:+triples||0,
+        ab:+ab||0,r:+r||0,
+        h:(+singles||0)+(+doubles||0)+(+triples||0)+(+hr||0),
+        doubles:+doubles||0,triples:+triples||0,
         hr:+hr||0,rbi:+rbi||0,bb:+bb||0,k:+k||0,sb:+sb||0,hbp:0,sf:0,
       }));
       if(batRows.length) await sbPost("batting_lines",batRows);
@@ -2722,19 +2733,36 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   // ── Batting section — called as a function, NOT as <BatSection/>, so React never
   //    unmounts/remounts it on re-render (which caused scroll-to-top + broken drag) ──
-  const renderBats = (label,side,batters,setter,addName,setAddName) => (
+  const renderBats = (label,side,batters,setter,addName,setAddName,statMode,setStatMode) => (
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
-      <div style={{fontSize:10,color:"#999",marginBottom:4}}>
-        Edit the # to change order · drag handle to drag · toggle off players not playing
+      {/* Mode toggle */}
+      <div style={{display:"flex",gap:4,marginBottom:10,background:"rgba(0,45,110,0.05)",borderRadius:8,padding:4}}>
+        {[["simple","Score Only"],["full","Full Stats"]].map(([m,lbl])=>(
+          <button key={m} type="button" onClick={()=>setStatMode(m)}
+            style={{flex:1,padding:"6px 8px",borderRadius:6,border:"none",cursor:"pointer",
+              fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
+              textTransform:"uppercase",transition:"background .15s, color .15s",
+              background:statMode===m?"#002d6e":"transparent",
+              color:statMode===m?"#fff":"#666"}}>
+            {lbl}
+          </button>
+        ))}
       </div>
-      <div style={{background:"rgba(0,45,110,0.04)",border:"1px solid rgba(0,45,110,0.12)",borderRadius:6,
-        padding:"5px 10px",fontSize:10,color:"#555",marginBottom:8,lineHeight:1.5}}>
-        💡 <strong>Auto-stats:</strong> 2B/3B/HR → adds 1 H · HR → also adds 1 R + 1 RBI · removing any of these reverses it.
-        RBI ≠ R (a batter's RBI drives in <em>other</em> players — enter each player's R separately).
-      </div>
-      {batters.map((p,i)=>(
+      {statMode==="full" && (
+        <>
+          <div style={{fontSize:10,color:"#999",marginBottom:4}}>
+            Edit the # to change order · drag handle to drag · toggle off players not playing
+          </div>
+          <div style={{background:"rgba(0,45,110,0.04)",border:"1px solid rgba(0,45,110,0.12)",borderRadius:6,
+            padding:"5px 10px",fontSize:10,color:"#555",marginBottom:8,lineHeight:1.5}}>
+            💡 <strong>Auto-stats:</strong> 2B/3B/HR → adds 1 H · HR → also adds 1 R + 1 RBI · removing any of these reverses it.
+            RBI ≠ R (a batter's RBI drives in <em>other</em> players — enter each player's R separately).
+          </div>
+        </>
+      )}
+      {statMode==="full" && batters.map((p,i)=>(
         <div key={p._id||i}
           onDragOver={e=>e.preventDefault()}
           onDrop={e=>handleDrop(e,side,setter,i)}
@@ -2796,14 +2824,16 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           )}
         </div>
       ))}
-      <div style={{display:"flex",gap:6,marginTop:6}}>
-        <input type="text" value={addName} onChange={e=>setAddName(e.target.value)}
-          placeholder="Add player..." onKeyDown={e=>{if(e.key==="Enter"&&addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
-          style={{flex:1,padding:"6px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
-        <button onClick={()=>{if(addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
-          style={{padding:"6px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",
-            borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add</button>
-      </div>
+      {statMode==="full" && (
+        <div style={{display:"flex",gap:6,marginTop:6}}>
+          <input type="text" value={addName} onChange={e=>setAddName(e.target.value)}
+            placeholder="Add player..." onKeyDown={e=>{if(e.key==="Enter"&&addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
+            style={{flex:1,padding:"6px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+          <button onClick={()=>{if(addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
+            style={{padding:"6px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",
+              borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add</button>
+        </div>
+      )}
     </div>
   );
 
@@ -2992,25 +3022,41 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           <div style={{textAlign:"center"}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
               textTransform:"uppercase",color:"#888",marginBottom:6,letterSpacing:".06em"}}>
-              {game.away} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>auto from R</span>
+              {game.away} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>{awayStatMode==="full"?"auto from R":"enter score"}</span>
             </div>
-            <div style={{width:80,margin:"0 auto",padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
-              borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
-              color:"#002d6e",background:"rgba(0,45,110,0.04)"}}>
-              {awayScore||0}
-            </div>
+            {awayStatMode==="simple" ? (
+              <input type="number" min="0" value={awayScore} onChange={e=>setAwayScore(e.target.value)}
+                placeholder="0"
+                style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
+                  borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+                  color:"#002d6e",background:"#fff",display:"block",margin:"0 auto",boxSizing:"border-box"}}/>
+            ) : (
+              <div style={{width:80,margin:"0 auto",padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
+                borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+                color:"#002d6e",background:"rgba(0,45,110,0.04)"}}>
+                {awayScore||0}
+              </div>
+            )}
           </div>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#ccc",textAlign:"center"}}>vs</div>
           <div style={{textAlign:"center"}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
               textTransform:"uppercase",color:"#888",marginBottom:6,letterSpacing:".06em"}}>
-              {game.home} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>auto from R</span>
+              {game.home} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>{homeStatMode==="full"?"auto from R":"enter score"}</span>
             </div>
-            <div style={{width:80,margin:"0 auto",padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
-              borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
-              color:"#002d6e",background:"rgba(0,45,110,0.04)"}}>
-              {homeScore||0}
-            </div>
+            {homeStatMode==="simple" ? (
+              <input type="number" min="0" value={homeScore} onChange={e=>setHomeScore(e.target.value)}
+                placeholder="0"
+                style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
+                  borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+                  color:"#002d6e",background:"#fff",display:"block",margin:"0 auto",boxSizing:"border-box"}}/>
+            ) : (
+              <div style={{width:80,margin:"0 auto",padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
+                borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+                color:"#002d6e",background:"rgba(0,45,110,0.04)"}}>
+                {homeScore||0}
+              </div>
+            )}
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10}}>
@@ -3087,8 +3133,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       <BSCrd>
         <BSH2 n="3" title="Batting Lineups" sub="Drag ⠿ handle to reorder · edit # to jump position · toggle off players not playing"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-          {renderBats(`${game.away} Batting`,"away",awayBat,setAwayBat,addAwayName,setAddAwayName)}
-          {renderBats(`${game.home} Batting`,"home",homeBat,setHomeBat,addHomeName,setAddHomeName)}
+          {renderBats(`${game.away} Batting`,"away",awayBat,setAwayBat,addAwayName,setAddAwayName,awayStatMode,setAwayStatMode)}
+          {renderBats(`${game.home} Batting`,"home",homeBat,setHomeBat,addHomeName,setAddHomeName,homeStatMode,setHomeStatMode)}
         </div>
       </BSCrd>
 
