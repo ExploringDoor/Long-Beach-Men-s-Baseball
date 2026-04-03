@@ -2290,6 +2290,30 @@ async function sbPost(path, body) {
   return r.json();
 }
 
+async function sbPatch(path, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    method: "PATCH",
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) { const text = await r.text().catch(()=>""); throw new Error(`Supabase ${r.status}: ${text}`); }
+  return r.json();
+}
+
+async function sbDelete(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    method: "DELETE",
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Accept: "application/json" },
+  });
+  if (!r.ok) { const text = await r.text().catch(()=>""); throw new Error(`Supabase ${r.status}: ${text}`); }
+}
+
 function parseIP(str) {
   const s = String(str || "0");
   const [whole, frac] = s.split(".");
@@ -2386,6 +2410,70 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
     setHomeE(String(active.reduce((s,p)=>s+(+p.e||0),0)));
   }, [homeBat]);
 
+  // ── Edit mode (loading a previously saved game) ──
+  const [editGameId, setEditGameId] = useState(null);
+  const [savedGames, setSavedGames] = useState([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false); // true = showing saved games list
+
+  // Convert stored decimal IP back to "6.2" format for display
+  const fromIP = (val) => {
+    if(!val && val!==0) return "";
+    const v=+val; if(isNaN(v)) return "";
+    const whole=Math.floor(v), outs=Math.round((v-whole)*3);
+    return outs===0?`${whole}.0`:`${whole}.${outs}`;
+  };
+
+  const loadSavedGames = () => {
+    setSavedLoading(true);
+    sbFetch("seasons?select=id,name&limit=20")
+      .then(seasons => {
+        const s=seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
+        if(!s) return [];
+        return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&away_score=not.is.null&order=game_date.desc&limit=50`);
+      })
+      .then(games=>{ setSavedGames(games||[]); setSavedLoading(false); })
+      .catch(()=>setSavedLoading(false));
+  };
+
+  const selectSavedGame = async (g) => {
+    setSavedLoading(true);
+    try {
+      const [batLines, pitLines] = await Promise.all([
+        sbFetch(`batting_lines?select=*&game_id=eq.${g.id}&limit=100`),
+        sbFetch(`pitching_lines?select=*&game_id=eq.${g.id}&limit=50`),
+      ]);
+      const toB = (b,bid=Math.random()) => ({
+        _id:bid, name:b.player_name, on:true,
+        ab:+b.ab||0, r:+b.r||0, h:+b.h||0,
+        doubles:+b.doubles||0, triples:+b.triples||0, hr:+b.hr||0,
+        rbi:+b.rbi||0, bb:+b.bb||0, k:+b.k||0, sb:+b.sb||0, e:0, pos:"",
+      });
+      const toP = (p) => ({
+        name:p.player_name, ip:fromIP(p.ip),
+        h:+p.h||0, r:+p.r||0, er:+p.er||0, bb:+p.bb||0, k:+p.k||0,
+        decision:p.decision||"ND",
+      });
+      const awayB=batLines.filter(b=>b.team===g.away_team);
+      const homeB=batLines.filter(b=>b.team===g.home_team);
+      const awayP=pitLines.filter(p=>p.team===g.away_team);
+      const homeP=pitLines.filter(p=>p.team===g.home_team);
+      setEditGameId(g.id);
+      setGame({date:g.game_date, time:g.game_time||"", field:g.field||"", away:g.away_team, home:g.home_team});
+      setAwayScore(String(g.away_score??"")); setHomeScore(String(g.home_score??""));
+      setHeadline((g.headline||"").replace(/\s*\[submitted:.*?\]\s*$/,""));
+      setGameStatus(g.status||"Final");
+      setAwayBat(awayB.length?awayB.map(toB):initBatters(g.away_team));
+      setHomeBat(homeB.length?homeB.map(toB):initBatters(g.home_team));
+      setAwayPit(awayP.length?awayP.map(toP):[blankPitcher()]);
+      setHomePit(homeP.length?homeP.map(toP):[blankPitcher()]);
+      setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
+      setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
+      setSaveMsg(null); setEditMode(false);
+    } catch(err){ setSaveMsg({ok:false,text:`❌ ${err.message}`}); }
+    setSavedLoading(false);
+  };
+
   const selectGame = (g) => {
     setGame(g);
     setAwayBat(initBatters(g.away));
@@ -2401,10 +2489,15 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>{
     if(j!==i) return r;
     const u={...r,[f]:v};
-    // 2B / 3B / HR are hits — bump H up automatically if needed
+    // Extra-base hits → auto-bump H
     if(["doubles","triples","hr"].includes(f)){
       const minH=(+u.doubles||0)+(+u.triples||0)+(+u.hr||0);
       if((+u.h||0)<minH) u.h=minH;
+    }
+    // HR → also auto-bump R and RBI (each HR = 1 run scored + 1 RBI minimum)
+    if(f==="hr"){
+      if((+u.r||0)<(+u.hr||0)) u.r=+u.hr;
+      if((+u.rbi||0)<(+u.hr||0)) u.rbi=+u.hr;
     }
     return u;
   }));
@@ -2446,17 +2539,34 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
     if(!game){setSaveMsg({ok:false,text:"Select a game first."});return;}
     setSaving(true); setSaveMsg(null);
     try {
-      const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
-      let season = allSeasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
-      if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
       const submitterTag = captainTeam ? ` [submitted: ${captainTeam}]` : "";
-      const [newGame] = await sbPost("games",[{
-        season_id:season.id, game_date:toISODate(game.date), game_time:game.time, field:game.field,
-        away_team:game.away, home_team:game.home,
-        away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
-        headline:(headline||"")+submitterTag || null, status:gameStatus,
-      }]);
-      const gid = newGame.id;
+      const headlineVal = (headline||"")+submitterTag || null;
+      let gid;
+      if(editGameId) {
+        // UPDATE existing game
+        await sbPatch(`games?id=eq.${editGameId}`, {
+          game_date:toISODate(game.date), game_time:game.time, field:game.field,
+          away_team:game.away, home_team:game.home,
+          away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
+          headline:headlineVal, status:gameStatus,
+        });
+        // Delete old lines then reinsert fresh
+        await sbDelete(`batting_lines?game_id=eq.${editGameId}`);
+        await sbDelete(`pitching_lines?game_id=eq.${editGameId}`);
+        gid = editGameId;
+      } else {
+        // INSERT new game
+        const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
+        let season = allSeasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
+        if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
+        const [newGame] = await sbPost("games",[{
+          season_id:season.id, game_date:toISODate(game.date), game_time:game.time, field:game.field,
+          away_team:game.away, home_team:game.home,
+          away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
+          headline:headlineVal, status:gameStatus,
+        }]);
+        gid = newGame.id;
+      }
       const batRows = [
         ...awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})),
         ...homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})),
@@ -2475,7 +2585,7 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
         decision:decision==="ND"?null:decision,
       }));
       if(pitRows.length) await sbPost("pitching_lines",pitRows);
-      setSaveMsg({ok:true,text:`✅ Box score saved for ${game.away} vs ${game.home}!`});
+      setSaveMsg({ok:true,text:`✅ Box score ${editGameId?"updated":"saved"} for ${game.away} vs ${game.home}!`});
     } catch(err){setSaveMsg({ok:false,text:`❌ ${err.message}`});}
     setSaving(false);
   };
@@ -2655,19 +2765,46 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   // ── GAME NOT SELECTED YET ──
   if(!game) return (
     <div>
-      <div style={{display:"flex",gap:8,marginBottom:14}}>
-        <button onClick={()=>setCustomMode(false)}
+      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+        <button type="button" onClick={()=>{setCustomMode(false);setEditMode(false);}}
           style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,
-            fontSize:13,background:!customMode?"#002d6e":"rgba(0,0,0,0.07)",
-            color:!customMode?"#fff":"#555",fontFamily:"'Barlow Condensed',sans-serif",
+            fontSize:13,background:(!customMode&&!editMode)?"#002d6e":"rgba(0,0,0,0.07)",
+            color:(!customMode&&!editMode)?"#fff":"#555",fontFamily:"'Barlow Condensed',sans-serif",
             textTransform:"uppercase"}}>From Schedule</button>
-        <button onClick={()=>setCustomMode(true)}
+        <button type="button" onClick={()=>{setEditMode(true);setCustomMode(false);loadSavedGames();}}
+          style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,
+            fontSize:13,background:editMode?"#2d6a4f":"rgba(0,0,0,0.07)",
+            color:editMode?"#fff":"#555",fontFamily:"'Barlow Condensed',sans-serif",
+            textTransform:"uppercase"}}>✏️ Edit Saved Game</button>
+        <button type="button" onClick={()=>{setCustomMode(true);setEditMode(false);}}
           style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,
             fontSize:13,background:customMode?"#002d6e":"rgba(0,0,0,0.07)",
             color:customMode?"#fff":"#555",fontFamily:"'Barlow Condensed',sans-serif",
             textTransform:"uppercase"}}>Custom Game</button>
       </div>
-      {!customMode ? (
+      {editMode ? (
+        <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:420,overflowY:"auto"}}>
+          {savedLoading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading saved games…</div>}
+          {!savedLoading && savedGames.length===0 && <div style={{textAlign:"center",padding:30,color:"#888"}}>No saved games found.</div>}
+          {savedGames.map((g,i)=>(
+            <div key={i} onClick={()=>selectSavedGame(g)}
+              style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:9,
+                padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",
+                justifyContent:"space-between",borderLeft:"3px solid #2d6a4f"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor="#2d6a4f"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(0,0,0,0.09)"}>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,
+                  textTransform:"uppercase"}}>{g.away_team} <span style={{color:"#ccc"}}>@</span> {g.home_team}</div>
+                <div style={{fontSize:11,color:"#888",marginTop:2}}>
+                  {g.game_date} · <strong style={{color:"#2d6a4f"}}>{g.away_score} – {g.home_score}</strong> · {g.status||"Final"}
+                </div>
+              </div>
+              <div style={{fontSize:12,color:"#2d6a4f",fontWeight:700}}>Edit →</div>
+            </div>
+          ))}
+        </div>
+      ) : !customMode ? (
         <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:420,overflowY:"auto"}}>
           {allGames.map((g,i)=>(
             <div key={i} onClick={()=>selectGame(g)}
@@ -2722,6 +2859,13 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   // ── FULL BOX SCORE FORM ──
   return (
     <div>
+      {/* Editing banner */}
+      {editGameId && (
+        <div style={{background:"#1b4332",borderRadius:8,padding:"8px 16px",marginBottom:10,fontSize:13,color:"#d1fae5",display:"flex",alignItems:"center",gap:8}}>
+          ✏️ <strong>Edit Mode</strong> — changes will overwrite the saved box score for this game.
+          <button type="button" onClick={()=>{setEditGameId(null);setGame(null);}} style={{marginLeft:"auto",padding:"3px 10px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:5,color:"#fff",fontSize:12,cursor:"pointer"}}>Cancel Edit</button>
+        </div>
+      )}
       {/* Game banner */}
       <div style={{background:"#001a3e",borderRadius:10,padding:"12px 18px",marginBottom:14,
         display:"flex",alignItems:"center",justifyContent:"space-between"}}>
