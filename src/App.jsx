@@ -729,6 +729,12 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
   const homePit = pitching.filter(p => p.team === game.home_team);
   const BatTable = ({ rows: rawRows, team }) => {
     const rows = rawRows.filter(r => !/^totals?$/i.test(r.player_name));
+    if (rows.length === 0) return (
+      <div style={{marginBottom:16}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:6,padding:"6px 10px",background:"#f0f4ff",borderRadius:6}}>{team} — Batting</div>
+        <div style={{padding:"12px 10px",color:"#aaa",fontSize:12,fontStyle:"italic"}}>No stats recorded</div>
+      </div>
+    );
     const note2B = rows.filter(r=>r.doubles>0).map(r=>`${r.player_name}${r.doubles>1?` (${r.doubles})`:""}`).join(", ");
     const note3B = rows.filter(r=>r.triples>0).map(r=>`${r.player_name}${r.triples>1?` (${r.triples})`:""}`).join(", ");
     const noteHR = rows.filter(r=>r.hr>0).map(r=>`${r.player_name}${r.hr>1?` (${r.hr})`:""}`).join(", ");
