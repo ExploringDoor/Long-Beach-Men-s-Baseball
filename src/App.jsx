@@ -38,11 +38,38 @@ const TEAM_COLORS = {
 
 const TEAM_ROSTERS = {
   "Tribe": [],
-  "Dodgers": ["Jerry Lehman","Jamie Macek","Duane Welty","Rich Glavas","Tony Scimeca"],
-  "Pirates": ["Aamer Khan","J.R. Rodriguez","Eric Powers","Nick Carranza","Ken Breding","Joey Paschal","Justin Vaz","Jose Andrade","Kevin Hitt","Edwin Soto","John Larson","Terrence Herren","Ron Arbolida"],
-  "Titans": ["Tony Carrillo","John Blanchard","John Petrocelli","Mike McCann","Tommy Bennett","Gabreal Carabello","Gabby Pool","Lee Pool","Oscar Pool"],
-  "Brooklyn": [],
-  "Generals": ["Kyle Yamamoto","Greg Ferris","John Lane","Paul Potvin","Mike Liang","Joe Cervantes","Arnold Chavez","David Maciel","Dennis Clancy","Jess Whitehill","Antone Henley","Mike Pedotte"],
+  "Dodgers": [],
+  "Pirates": [
+    {number:"",  name:"Ron Arbolida"},
+    {number:"",  name:"Terrence Herren"},
+    {number:"",  name:"Kevin Johnson"},
+    {number:"",  name:"Luis Luna"},
+    {number:"",  name:"JR Rodriguez"},
+    {number:"",  name:"Joe Sandoval"},
+    {number:"",  name:"Dylan Smith"},
+  ],
+  "Titans": [],
+  "Brooklyn": [
+    {number:"34", name:"Alan Acosta"},
+    {number:"8",  name:"Joe Barrett"},
+    {number:"26", name:"JD Campbell"},
+    {number:"23", name:"Marty Campbell"},
+    {number:"7",  name:"Johnny Fennel"},
+    {number:"44", name:"Tony Garcia"},
+    {number:"66", name:"Jose Gomez"},
+    {number:"22", name:"Daniel Gutierrez"},
+    {number:"33", name:"Marshall Landry"},
+    {number:"27", name:"Ryan Lieberman"},
+    {number:"4",  name:"Mooch Machado"},
+    {number:"",   name:"Kurt Mascio"},
+    {number:"6",  name:"Craig McKendall"},
+    {number:"29", name:"Mark Newman"},
+    {number:"",   name:"John Perkins"},
+    {number:"21", name:"Eddie Rosas"},
+    {number:"3",  name:"John Sosa"},
+    {number:"5",  name:"Brian Stoltz"},
+  ],
+  "Generals": [],
   "Black Sox": [],
 };
 
@@ -1402,9 +1429,105 @@ function StandingsPage({ setTab, setTeamDetail }) {
 }
 
 /* ─── TEAM DETAIL PAGE ────────────────────────────────────────────────────── */
+/* ─── PLAYER STATS MODAL ──────────────────────────────────────────────── */
+function PlayerStatsModal({ playerName, onClose }) {
+  const [rows, setRows] = React.useState(null);
+  const [totals, setTotals] = React.useState(null);
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const enc = encodeURIComponent(`*${playerName}*`);
+        const lines = await sbFetch(`batting_lines?player_name=ilike.${enc}&select=game_id,ab,r,h,doubles,triples,hr,rbi,bb,k&order=game_id.asc&limit=500`);
+        if (!Array.isArray(lines) || lines.length === 0) { setRows([]); setTotals(null); return; }
+
+        const gameIds = [...new Set(lines.map(l => l.game_id))];
+        const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,game_date,season_id,away_team,home_team&order=game_date.asc`);
+        const seasonIds = [...new Set(games.map(g => g.season_id))];
+        const seasons = await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name`);
+        const seasonMap = Object.fromEntries(seasons.map(s => [s.id, s.name]));
+        const gameMap = Object.fromEntries(games.map(g => [g.id, g]));
+
+        const enriched = lines.map(l => ({ ...l, game: gameMap[l.game_id], seasonName: gameMap[l.game_id] ? seasonMap[gameMap[l.game_id].season_id] : "—" }));
+        const tot = enriched.reduce((a,l) => ({
+          ab: a.ab+(l.ab||0), r: a.r+(l.r||0), h: a.h+(l.h||0),
+          doubles: a.doubles+(l.doubles||0), triples: a.triples+(l.triples||0),
+          hr: a.hr+(l.hr||0), rbi: a.rbi+(l.rbi||0), bb: a.bb+(l.bb||0), k: a.k+(l.k||0),
+        }), {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0});
+        setRows(enriched);
+        setTotals(tot);
+      } catch(e) { setRows([]); setTotals(null); }
+    }
+    load();
+  }, [playerName]);
+
+  const fmtAvg = (h, ab) => ab > 0 ? (h/ab).toFixed(3).replace(/^0/,"") : ".000";
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:820,maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{position:"sticky",top:0,background:"#002d6e",padding:"16px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+          <div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#fff",lineHeight:1}}>{playerName}</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:3,letterSpacing:".1em",textTransform:"uppercase"}}>Career Stats</div>
+          </div>
+          <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontSize:20,width:32,height:32,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+        </div>
+
+        {rows === null ? (
+          <div style={{padding:40,textAlign:"center",color:"#999",fontSize:14}}>Loading stats…</div>
+        ) : rows.length === 0 ? (
+          <div style={{padding:40,textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>No recorded stats found for {playerName}.</div>
+        ) : (
+          <div style={{padding:20}}>
+            {totals && (
+              <div style={{marginBottom:24}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#999",marginBottom:10}}>Career Totals — {rows.length} games</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(72px,1fr))",gap:8}}>
+                  {[["AVG",fmtAvg(totals.h,totals.ab)],["AB",totals.ab],["R",totals.r],["H",totals.h],["2B",totals.doubles],["3B",totals.triples],["HR",totals.hr],["RBI",totals.rbi],["BB",totals.bb],["K",totals.k]].map(([lbl,val])=>(
+                    <div key={lbl} style={{background:"#f2f4f8",borderRadius:8,padding:"10px 6px",textAlign:"center"}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"#999",textTransform:"uppercase",letterSpacing:".08em"}}>{lbl}</div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e",lineHeight:1.1}}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#999",marginBottom:8}}>Game Log</div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:600}}>
+                <thead>
+                  <tr style={{background:"#f2f4f8"}}>
+                    {["Date","Season","AB","R","H","2B","3B","HR","RBI","BB","K","AVG"].map(h=>(
+                      <th key={h} style={{padding:"7px 10px",textAlign:h==="Season"?"left":"center",fontWeight:700,fontSize:10,textTransform:"uppercase",color:"#666",letterSpacing:".07em",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r,i)=>(
+                    <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"transparent":"rgba(0,0,0,0.015)"}}>
+                      <td style={{padding:"7px 10px",textAlign:"center",whiteSpace:"nowrap",color:"#555"}}>{r.game?.game_date?.slice(0,10)||"—"}</td>
+                      <td style={{padding:"7px 10px",fontSize:11,color:"#777",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.seasonName}</td>
+                      {[r.ab,r.r,r.h,r.doubles,r.triples,r.hr,r.rbi,r.bb,r.k].map((v,j)=>(
+                        <td key={j} style={{padding:"7px 10px",textAlign:"center",color:"#333"}}>{v||0}</td>
+                      ))}
+                      <td style={{padding:"7px 10px",textAlign:"center",fontWeight:700,color:"#002d6e"}}>{fmtAvg(r.h,r.ab)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
   const team = ALL_TEAMS.find(t => t.name === teamName);
   const roster = TEAM_ROSTERS[teamName] || [];
+  const [selectedPlayer, setSelectedPlayer] = React.useState(null);
   if (!team) return null;
   const color = TEAM_COLORS[teamName] || "#002d6e";
   const teamGames = SCORES.flatMap(s => s.weeks.flatMap(w => w.games)).filter(g => g.away===teamName||g.home===teamName).slice(0,5);
@@ -1426,9 +1549,10 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
   );
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      {selectedPlayer && <PlayerStatsModal playerName={selectedPlayer} onClose={()=>setSelectedPlayer(null)} />}
       <div style={{background:`linear-gradient(135deg, ${color}15 0%, #fff 60%)`,borderBottom:"3px solid #002d6e",padding:"32px clamp(12px,3vw,40px) 0"}}>
         <div style={{maxWidth:1400,margin:"0 auto"}}>
-          <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",color:"rgba(0,0,0,0.4)",fontSize:13,fontWeight:600,marginBottom:16,padding:0,display:"flex",alignItems:"center",gap:6}}>← All Teams</button>
+          <button onClick={onBack} style={{background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.12)",borderRadius:6,cursor:"pointer",color:"#333",fontSize:13,fontWeight:700,marginBottom:16,padding:"6px 14px",display:"inline-flex",alignItems:"center",gap:6}}>← All Teams</button>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:24,marginBottom:24}}>
             <div style={{display:"flex",alignItems:"center",gap:20}}>
               <TLogo name={teamName} size={120} />
@@ -1467,14 +1591,23 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
               <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Roster</h2>
               <Card>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))"}}>
-                  {roster.map((player,i) => (
-                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",borderRight:"1px solid rgba(0,0,0,0.04)"}}>
-                      <div style={{width:28,height:28,borderRadius:"50%",background:`${color}18`,border:`2px solid ${color}50`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:10,color}}>{i+1}</span>
-                      </div>
-                      <span style={{fontSize:14,fontWeight:500,color:"#111"}}>{player}</span>
-                    </div>
-                  ))}
+                  {roster.map((player,i) => {
+                    const name = typeof player === "string" ? player : player.name;
+                    const num  = typeof player === "string" ? "" : player.number;
+                    return (
+                      <button key={i} onClick={() => setSelectedPlayer(name)} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",borderRight:"1px solid rgba(0,0,0,0.04)",background:"none",border:"none",cursor:"pointer",textAlign:"left",width:"100%",transition:"background .12s"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.04)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <div style={{width:30,height:30,borderRadius:"50%",background:`${color}18`,border:`2px solid ${color}50`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,color}}>{num||"—"}</span>
+                        </div>
+                        <div>
+                          <span style={{fontSize:14,fontWeight:600,color:"#111"}}>{name}</span>
+                          <div style={{fontSize:10,color:color,fontWeight:700,letterSpacing:".05em",marginTop:1}}>View Stats →</div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </Card>
             </div>

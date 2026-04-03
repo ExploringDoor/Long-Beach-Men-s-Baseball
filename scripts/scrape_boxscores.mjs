@@ -9,16 +9,36 @@ const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
 const LL_BASE = "https://www.leaguelineup.com";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0";
 
-// Remaining seasons — 2026 in-progress + missed 2024/2021
+// All seasons — full re-scrape with corrected home/away
 const TARGET_SEASONS = [
-  { name: "2026 BOOMERS 60/70 Division",              divisionId: "1064571" },
-  { name: "2026 Diamond Classics Memorial",            divisionId: "1065143" },
-  { name: "2026 Las Vegas 60's World Series",          divisionId: "1065193" },
   { name: "Spring/Summer 2026 Diamond Classics Saturdays", divisionId: "1064043" },
+  { name: "2026 Fall/Winter Season (Season #10)",      divisionId: "1062218" },
   { name: "2026 NABA MLK 55+ Division",               divisionId: "1062824" },
-  { name: "2024 NABA World Series - 50+",              divisionId: "1042133" },
-  { name: "2024 60's Mid-Week Division",               divisionId: "1044619" },
-  { name: "2021 All Star Game",                        divisionId: "1009514" },
+  { name: "2025 Spring/Summer Season",                 divisionId: "1055551" },
+  { name: "2025 NABA AZ World Series 50's",            divisionId: "1056994" },
+  { name: "2025 NABA Father/Son",                      divisionId: "1058100" },
+  { name: "2025 NABA Las Vegas World Series 60's",     divisionId: "1058098" },
+  { name: "2025 4th of July-NABA",                     divisionId: "1057192" },
+  { name: "2025 Memorial Weekend Tournament-Las Vegas", divisionId: "1056996" },
+  { name: "2025 NABA Great Park Tournament",           divisionId: "1056992" },
+  { name: "2025 NABA MLK Tournament",                  divisionId: "1054388" },
+  { name: "2024/2025 Fall Winter Season",              divisionId: "1050267" },
+  { name: "2024 Spring/Summer Season",                 divisionId: "1044295" },
+  { name: "2024 4th of July-NABA",                     divisionId: "1046194" },
+  { name: "2024 Father/Son NABA",                      divisionId: "1046196" },
+  { name: "2024 MG Turkey Bowl Tournament",            divisionId: "1049540" },
+  { name: "2024 MLK-NABA",                             divisionId: "1043538" },
+  { name: "2024 NABA LAS VEGAS World Series - 60+",   divisionId: "1046190" },
+  { name: "2024 NABA World Series - 65+",              divisionId: "1046192" },
+  { name: "2023 Thanksgiving Turkey Bowl",             divisionId: "1042571" },
+  { name: "2023 Fall/Winter Season",                   divisionId: "1040472" },
+  { name: "NABA World Series-LAS VEGAS 2023",          divisionId: "1041039" },
+  { name: "2023 Spring/Summer Season",                 divisionId: "1032266" },
+  { name: "2022 Fall/Winter Season",                   divisionId: "1022573" },
+  { name: "2022 Summer Season",                        divisionId: "1015858" },
+  { name: "2021 Fall/Winter Season",                   divisionId: "1009695" },
+  { name: "2021 50+",                                  divisionId: "997284"  },
+  { name: "Summer 2019",                               divisionId: "850923"  },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -61,6 +81,20 @@ async function sbPost(path, body) {
   return r.json();
 }
 
+async function sbDelete(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    method: "DELETE", headers: SB_HEADERS,
+  });
+  if (!r.ok) throw new Error(`DELETE ${path} → ${r.status}: ${await r.text()}`);
+}
+
+async function sbPatch(path, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    method: "PATCH", headers: { ...SB_HEADERS, "Prefer": "return=minimal" }, body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`PATCH ${path} → ${r.status}: ${await r.text()}`);
+}
+
 // ── Parse games list page → [{date, status, away, home, awayScore, homeScore, headline, gameId}] ──
 
 function parseGamesWithIds(html) {
@@ -88,12 +122,13 @@ function parseGamesWithIds(html) {
 
     const scoreMatches = [...resultTd.matchAll(/<font[^>]+COLOR[^>]+BLUE[^>]*>(\d+)/gi)];
     if (scoreMatches.length < 2) continue;
-    const awayScore = parseInt(scoreMatches[0][1]);
-    const homeScore = parseInt(scoreMatches[1][1]);
+    // leaguelineup lists HOME team first, AWAY team second
+    const homeScore = parseInt(scoreMatches[0][1]);
+    const awayScore = parseInt(scoreMatches[1][1]);
 
     const parts = resultTd.split(/<font[^>]+COLOR[^>]+BLUE[^>]*>\d+/i);
-    const awayTeam = clean(parts[0]).trim();
-    const homeTeam = parts[1] ? clean(parts[1]).trim() : "";
+    const homeTeam = clean(parts[0]).trim();
+    const awayTeam = parts[1] ? clean(parts[1]).trim() : "";
     if (!awayTeam || !homeTeam) continue;
 
     const headline = tdMatches[3] ? clean(tdMatches[3][1]).replace(/\s+/g, " ").trim() : "";
@@ -226,11 +261,28 @@ async function main() {
       console.log(`  ♻️  Season already exists id=${sbSeason.id}`);
     }
 
-    // Load existing game IDs for this season to skip duplicates
+    // Load existing games for this season
     const existingGames = await sbGet(
       `games?select=id,game_date,away_team,home_team&season_id=eq.${sbSeason.id}&limit=200`
     );
-    const existingKeys = new Set(existingGames.map(g => `${g.game_date}|${g.away_team}|${g.home_team}`));
+
+    // Delete all existing batting + pitching lines for this season's games
+    if (existingGames.length > 0) {
+      const ids = existingGames.map(g => g.id);
+      // Delete in chunks of 50
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+        const inFilter = `(${chunk.join(",")})`;
+        await sbDelete(`batting_lines?game_id=in.${inFilter}`);
+        await sbDelete(`pitching_lines?game_id=in.${inFilter}`);
+      }
+      // Delete existing game records
+      for (let i = 0; i < ids.length; i += 50) {
+        const chunk = ids.slice(i, i + 50);
+        await sbDelete(`games?id=in.(${chunk.join(",")})`);
+      }
+      console.log(`  🗑️  Cleared ${existingGames.length} old games + stats`);
+    }
 
     // Scrape games list
     const gamesHtml = await get(`${LL_BASE}/games.asp?url=lbdc&divisionid=${season.divisionId}&teamid=99999`);
@@ -240,12 +292,6 @@ async function main() {
     let seasonInserted = 0;
     for (const game of games) {
       const isoDate = toISO(game.date);
-      const key = `${isoDate}|${game.away_team}|${game.home_team}`;
-
-      if (existingKeys.has(key)) {
-        totalSkipped++;
-        continue;
-      }
 
       // Skip if no GameID (no box score available)
       if (!game.gameId) {
