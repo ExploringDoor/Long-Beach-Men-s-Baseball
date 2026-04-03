@@ -1904,508 +1904,479 @@ function parseIP(str) {
 /* ─── BOX SCORE ENTRY ────────────────────────────────────────────────────── */
 function BoxScoreEntry({ onClose }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
-  const BAT_FIELDS = ["ab","r","h","doubles","triples","hr","rbi","bb","k","sb","hbp","sf"];
-  const BAT_LABELS = ["AB","R","H","2B","3B","HR","RBI","BB","K","SB","HBP","SF"];
-  const STEPS = ["Game","Score","Away Batting","Home Batting","Pitching","Review & Save"];
+  const POSITIONS = ["","P","C","1B","2B","3B","SS","LF","CF","RF","DH","PH","PR"];
+  const BAT_STATS = ["ab","r","h","doubles","triples","hr","rbi","bb","k","sb","e"];
+  const BAT_LBLS  = ["AB","R","H","2B","3B","HR","RBI","BB","K","SB","E"];
 
-  const [step, setStep] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState(null);
+  const blankBatter = (name="") => ({ name, on:true, ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,e:0, pos:"" });
+  const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0, decision:"ND" });
+  const initBatters = (team) => (TEAM_ROSTERS[team]||[]).filter(p=>p!=="TBD").map(blankBatter);
 
-  // Step 0 — game selection
-  const allSchedGames = SCHED.flatMap(week =>
-    week.fields.flatMap(field =>
-      field.games.map(g => ({ date: week.label, field: field.name, time: g.time, away: g.away, home: g.home }))
-    )
-  );
+  // ── Game selection ──
+  const allGames = SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home }))));
+  const [game, setGame] = useState(null);
   const [customMode, setCustomMode] = useState(false);
-  const [selectedGame, setSelectedGame] = useState(null);
-  const [custom, setCustom] = useState({ date:"", time:"", field:"", away: TEAMS[0], home: TEAMS[1] });
+  const [custom, setCustom] = useState({ date:"", time:"", field:"", away:TEAMS[0], home:TEAMS[1] });
 
-  // Step 1 — score
+  // ── Score & info ──
   const [awayScore, setAwayScore] = useState("");
   const [homeScore, setHomeScore] = useState("");
   const [headline, setHeadline] = useState("");
   const [gameStatus, setGameStatus] = useState("Final");
 
-  // Steps 2-3 — batting
+  // ── Linescore (9 innings) ──
+  const emptyInnings = () => Array(9).fill(0).map(()=>({r:""}));
+  const [awayInn, setAwayInn] = useState(emptyInnings());
+  const [homeInn, setHomeInn] = useState(emptyInnings());
+  const [awayH, setAwayH] = useState(""); const [awayE, setAwayE] = useState("");
+  const [homeH, setHomeH] = useState(""); const [homeE, setHomeE] = useState("");
+
+  // ── Batting ──
   const [awayBat, setAwayBat] = useState([]);
   const [homeBat, setHomeBat] = useState([]);
+  const [addAwayName, setAddAwayName] = useState(""); const [addHomeName, setAddHomeName] = useState("");
 
-  // Step 4 — pitching
-  const [awayPit, setAwayPit] = useState([]);
-  const [homePit, setHomePit] = useState([]);
+  // ── Pitching ──
+  const [awayPit, setAwayPit] = useState([blankPitcher()]);
+  const [homePit, setHomePit] = useState([blankPitcher()]);
 
-  const game = customMode ? custom : selectedGame;
+  // ── Recap ──
+  const [recap, setRecap] = useState("");
 
-  const blankBatter = () => ({ name:"", included:true, ab:0, r:0, h:0, doubles:0, triples:0, hr:0, rbi:0, bb:0, k:0, sb:0, hbp:0, sf:0 });
-  const blankPitcher = () => ({ name:"", ip:"", h:0, r:0, er:0, bb:0, k:0, decision:"ND" });
+  // ── Save ──
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState(null);
 
-  const initBat = (teamName) =>
-    (TEAM_ROSTERS[teamName] || []).filter(p => p !== "TBD").map(name => ({ ...blankBatter(), name }));
-
-  const confirmGame = (g) => {
-    setAwayBat(initBat(g.away));
-    setHomeBat(initBat(g.home));
-    setAwayPit([blankPitcher()]);
-    setHomePit([blankPitcher()]);
-    setStep(1);
+  const selectGame = (g) => {
+    setGame(g);
+    setAwayBat(initBatters(g.away));
+    setHomeBat(initBatters(g.home));
+    setAwayPit([blankPitcher()]); setHomePit([blankPitcher()]);
+    setAwayScore(""); setHomeScore(""); setHeadline(""); setRecap("");
+    setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
+    setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
+    setSaveMsg(null);
   };
 
-  const updBat = (setter, idx, field, val) =>
-    setter(prev => prev.map((p, i) => i === idx ? { ...p, [field]: val } : p));
-  const updPit = (setter, idx, field, val) =>
-    setter(prev => prev.map((p, i) => i === idx ? { ...p, [field]: val } : p));
+  // ── Helpers ──
+  const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
+  const updPit = (setter,i,f,v) => setter(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
+  const moveBat = (setter, i, dir) => setter(prev => {
+    const arr = [...prev]; const to = i+dir;
+    if(to<0||to>=arr.length) return arr;
+    [arr[i],arr[to]]=[arr[to],arr[i]]; return arr;
+  });
+  const updInn = (setter, i, v) => setter(prev => prev.map((inn,j)=>j===i?{r:v}:inn));
 
-  const handleSave = async () => {
-    setSaving(true); setSaveMsg(null);
-    try {
-      const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
-      let season = allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
-      if (!season) {
-        const res = await sbPost("seasons", [{ name: "Spring/Summer 2026" }]);
-        season = res[0];
-      }
-      const [newGame] = await sbPost("games", [{
-        season_id: season.id,
-        game_date: game.date,
-        game_time: game.time,
-        field: game.field,
-        away_team: game.away,
-        home_team: game.home,
-        away_score: parseInt(awayScore) || 0,
-        home_score: parseInt(homeScore) || 0,
-        headline: headline || null,
-        status: gameStatus,
-      }]);
-      const gid = newGame.id;
-      const batRows = [
-        ...awayBat.filter(p => p.included && p.name).map(p => ({ ...p, _team: game.away })),
-        ...homeBat.filter(p => p.included && p.name).map(p => ({ ...p, _team: game.home })),
-      ].map(({ name, _team, ab, r, h, doubles, triples, hr, rbi, bb, k, sb, hbp, sf }) => ({
-        game_id: gid, player_name: name, team: _team,
-        ab:+ab||0, r:+r||0, h:+h||0, doubles:+doubles||0, triples:+triples||0,
-        hr:+hr||0, rbi:+rbi||0, bb:+bb||0, k:+k||0, sb:+sb||0, hbp:+hbp||0, sf:+sf||0,
-      }));
-      if (batRows.length) await sbPost("batting_lines", batRows);
-      const pitRows = [
-        ...awayPit.filter(p => p.name).map(p => ({ ...p, _team: game.away })),
-        ...homePit.filter(p => p.name).map(p => ({ ...p, _team: game.home })),
-      ].map(({ name, _team, ip, h, r, er, bb, k, decision }) => ({
-        game_id: gid, player_name: name, team: _team,
-        ip: parseIP(ip), h:+h||0, r:+r||0, er:+er||0, bb:+bb||0, k:+k||0,
-        decision: decision === "ND" ? null : decision,
-      }));
-      if (pitRows.length) await sbPost("pitching_lines", pitRows);
-      setSaveMsg({ ok: true, text: `✅ Box score saved! (Game ID: ${gid})` });
-    } catch (err) {
-      setSaveMsg({ ok: false, text: `❌ ${err.message}` });
-    }
-    setSaving(false);
-  };
-
-  const inp = (val, onChange, w=50, type="number") => (
-    <input type={type} value={val} min={type==="number"?0:undefined}
-      onChange={e => onChange(type==="number" ? Math.max(0, parseInt(e.target.value)||0) : e.target.value)}
-      style={{ width:w, padding:"5px 4px", textAlign:"center", border:"1px solid #ddd",
-        borderRadius:5, fontSize:13, background:"#fff", fontFamily:"'Barlow',sans-serif" }} />
+  // ── Stat input ──
+  const N = (val, onChange, w=38) => (
+    <input type="number" min="0" value={val}
+      onChange={e=>onChange(Math.max(0,parseInt(e.target.value)||0))}
+      style={{width:w,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(0,0,0,0.15)",
+        borderRadius:4,fontSize:13,background:"#f8f9fb",fontFamily:"inherit"}}/>
   );
 
-  const navStyle = (active) => ({
-    padding:"8px 16px", borderRadius:6, border:"none", cursor:"pointer",
-    fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:14,
-    textTransform:"uppercase", letterSpacing:".04em",
-    background: active ? "#002d6e" : "rgba(0,0,0,0.07)",
-    color: active ? "#fff" : "#555",
-  });
-
-  const sectionHead = (title, team) => (
-    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-      <div style={{ width:4, height:28, background:"#002d6e", borderRadius:2 }} />
-      <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:22,
-        textTransform:"uppercase", color:"#111" }}>{title}</div>
-      {team && <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:16,
-        color:"#002d6e", background:"rgba(0,45,110,0.08)", padding:"2px 10px", borderRadius:12 }}>{team}</div>}
+  // ── Section header ──
+  const H2 = ({n,title,sub}) => (
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+      <div style={{width:26,height:26,borderRadius:"50%",background:"#FFD700",color:"#001a3e",
+        fontSize:12,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n}</div>
+      <div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,
+          textTransform:"uppercase",color:"#111",lineHeight:1}}>{title}</div>
+        {sub&&<div style={{fontSize:11,color:"#888",marginTop:1}}>{sub}</div>}
+      </div>
     </div>
   );
 
-  // ── STEP 0: Game selection ──────────────────────────────────────────────
-  if (step === 0) return (
-    <div>
-      {sectionHead("Select Game")}
-      <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-        <button style={navStyle(!customMode)} onClick={() => setCustomMode(false)}>From Schedule</button>
-        <button style={navStyle(customMode)} onClick={() => setCustomMode(true)}>Custom Game</button>
-      </div>
+  // ── Card ──
+  const Crd = ({children,style={}}) => (
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,
+      padding:"18px 20px",marginBottom:14,...style}}>{children}</div>
+  );
 
-      {!customMode ? (
-        <div style={{ display:"flex", flexDirection:"column", gap:8, maxHeight:480, overflowY:"auto" }}>
-          {allSchedGames.map((g, i) => (
-            <div key={i} onClick={() => { setSelectedGame(g); confirmGame(g); }}
-              style={{ background:"#fff", border:`2px solid ${selectedGame===g?"#002d6e":"rgba(0,0,0,0.09)"}`,
-                borderRadius:10, padding:"14px 18px", cursor:"pointer", display:"flex",
-                alignItems:"center", justifyContent:"space-between",
-                transition:"border-color .15s, box-shadow .15s" }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow="0 2px 10px rgba(0,45,110,0.15)"}
-              onMouseLeave={e => e.currentTarget.style.boxShadow="none"}>
-              <div>
-                <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:18,
-                  textTransform:"uppercase", color:"#111" }}>{g.away} <span style={{color:"#999"}}>@</span> {g.home}</div>
-                <div style={{ fontSize:12, color:"#777", marginTop:2 }}>{g.date} · {g.time} · {g.field}</div>
+  // ── Save handler ──
+  const handleSave = async () => {
+    if(!game){setSaveMsg({ok:false,text:"Select a game first."});return;}
+    setSaving(true); setSaveMsg(null);
+    try {
+      const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
+      let season = allSeasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
+      if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
+      const [newGame] = await sbPost("games",[{
+        season_id:season.id, game_date:game.date, game_time:game.time, field:game.field,
+        away_team:game.away, home_team:game.home,
+        away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
+        headline:headline||null, status:gameStatus,
+      }]);
+      const gid = newGame.id;
+      const batRows = [
+        ...awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})),
+        ...homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})),
+      ].map(({name,_t,ab,r,h,doubles,triples,hr,rbi,bb,k,sb,e})=>({
+        game_id:gid,player_name:name,team:_t,
+        ab:+ab||0,r:+r||0,h:+h||0,doubles:+doubles||0,triples:+triples||0,
+        hr:+hr||0,rbi:+rbi||0,bb:+bb||0,k:+k||0,sb:+sb||0,hbp:0,sf:0,
+      }));
+      if(batRows.length) await sbPost("batting_lines",batRows);
+      const pitRows = [
+        ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
+        ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
+      ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
+        game_id:gid,player_name:name,team:_t,
+        ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
+        decision:decision==="ND"?null:decision,
+      }));
+      if(pitRows.length) await sbPost("pitching_lines",pitRows);
+      setSaveMsg({ok:true,text:`✅ Box score saved for ${game.away} vs ${game.home}!`});
+    } catch(err){setSaveMsg({ok:false,text:`❌ ${err.message}`});}
+    setSaving(false);
+  };
+
+  // ── Batting section ──
+  const BatSection = ({label,batters,setter,addName,setAddName}) => (
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
+        textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
+      <div style={{fontSize:10,color:"#999",marginBottom:8}}>Toggle off players not playing · ↑↓ to reorder batting order</div>
+      {batters.map((p,i)=>(
+        <div key={i} style={{background:p.on?"#f8f9fb":"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.09)",
+          borderRadius:8,marginBottom:5,opacity:p.on?1:0.4}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px"}}>
+            {/* batting order badge */}
+            <div style={{width:20,height:20,borderRadius:"50%",background:"rgba(0,45,110,0.1)",
+              color:"#002d6e",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",
+              justifyContent:"center",flexShrink:0}}>{i+1}</div>
+            {/* reorder */}
+            <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
+              <button onClick={()=>moveBat(setter,i,-1)} style={{border:"none",background:"none",
+                cursor:"pointer",fontSize:10,lineHeight:1,color:"#999",padding:"1px 3px"}}>▲</button>
+              <button onClick={()=>moveBat(setter,i,1)} style={{border:"none",background:"none",
+                cursor:"pointer",fontSize:10,lineHeight:1,color:"#999",padding:"1px 3px"}}>▼</button>
+            </div>
+            {/* name */}
+            <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
+              style={{flex:1,padding:"4px 7px",border:"1px solid #ddd",borderRadius:5,fontSize:13,
+                fontFamily:"inherit",minWidth:0}}/>
+            {/* position */}
+            <select value={p.pos} onChange={e=>updBat(setter,i,"pos",e.target.value)}
+              style={{width:52,padding:"4px 3px",border:"1px solid #ddd",borderRadius:5,fontSize:12,
+                fontFamily:"inherit"}}>
+              {POSITIONS.map(pos=><option key={pos} value={pos}>{pos||"Pos"}</option>)}
+            </select>
+            {/* toggle */}
+            <button onClick={()=>updBat(setter,i,"on",!p.on)}
+              style={{width:34,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",
+                flexShrink:0,background:p.on?"#22c55e":"rgba(0,0,0,0.15)",transition:"background .15s"}}>
+              <span style={{position:"absolute",width:14,height:14,borderRadius:"50%",background:"#fff",
+                top:3,left:p.on?17:3,transition:"left .15s"}}/>
+            </button>
+          </div>
+          {p.on && (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(11,1fr)",gap:3,padding:"0 8px 8px"}}>
+              {BAT_STATS.map((f,fi)=>(
+                <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center"}}>
+                  <span style={{fontSize:9,fontWeight:700,color:"#999",letterSpacing:".05em",
+                    textTransform:"uppercase"}}>{BAT_LBLS[fi]}</span>
+                  {N(p[f],v=>updBat(setter,i,f,v))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      <div style={{display:"flex",gap:6,marginTop:6}}>
+        <input type="text" value={addName} onChange={e=>setAddName(e.target.value)}
+          placeholder="Add player..." onKeyDown={e=>{if(e.key==="Enter"&&addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
+          style={{flex:1,padding:"6px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+        <button onClick={()=>{if(addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
+          style={{padding:"6px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",
+            borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add</button>
+      </div>
+    </div>
+  );
+
+  // ── Pitching section ──
+  const PitSection = ({label,pit,setter}) => (
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
+        textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
+      {pit.map((p,i)=>(
+        <div key={i} style={{background:"rgba(96,165,250,0.05)",border:"1px solid rgba(96,165,250,0.2)",
+          borderRadius:8,padding:"10px",marginBottom:6}}>
+          <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:8}}>
+            <input type="text" value={p.name} onChange={e=>updPit(setter,i,"name",e.target.value)}
+              placeholder="Pitcher name"
+              style={{flex:1,padding:"6px 10px",border:"1px solid rgba(96,165,250,0.3)",borderRadius:6,
+                fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
+            {pit.length>1&&<button onClick={()=>setter(p=>p.filter((_,j)=>j!==i))}
+              style={{padding:"4px 8px",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",
+                borderRadius:5,color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>✕</button>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+            {[["IP","ip",true],["H","h"],["R","r"],["ER","er"],["BB","bb"],["K","k"]].map(([lbl,f,isText])=>(
+              <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center"}}>
+                <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>{lbl}</span>
+                {isText
+                  ? <input type="text" value={p[f]} placeholder="6.0" onChange={e=>updPit(setter,i,f,e.target.value)}
+                      style={{width:38,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
+                        borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
+                  : N(p[f],v=>updPit(setter,i,f,v))
+                }
               </div>
-              <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13,
-                color:"#002d6e", background:"rgba(0,45,110,0.08)", padding:"4px 12px", borderRadius:8 }}>Select →</div>
+            ))}
+            <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center"}}>
+              <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>Dec.</span>
+              <select value={p.decision} onChange={e=>updPit(setter,i,"decision",e.target.value)}
+                style={{width:46,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
+                  borderRadius:4,fontSize:12,background:"#fff",fontFamily:"inherit"}}>
+                {["ND","W","L","S"].map(d=><option key={d}>{d}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+      ))}
+      <button onClick={()=>setter(p=>[...p,blankPitcher()])}
+        style={{padding:"6px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",
+          borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer",marginTop:4}}>+ Add Pitcher</button>
+    </div>
+  );
+
+  // ── GAME NOT SELECTED YET ──
+  if(!game) return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        <button onClick={()=>setCustomMode(false)}
+          style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,
+            fontSize:13,background:!customMode?"#002d6e":"rgba(0,0,0,0.07)",
+            color:!customMode?"#fff":"#555",fontFamily:"'Barlow Condensed',sans-serif",
+            textTransform:"uppercase"}}>From Schedule</button>
+        <button onClick={()=>setCustomMode(true)}
+          style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,
+            fontSize:13,background:customMode?"#002d6e":"rgba(0,0,0,0.07)",
+            color:customMode?"#fff":"#555",fontFamily:"'Barlow Condensed',sans-serif",
+            textTransform:"uppercase"}}>Custom Game</button>
+      </div>
+      {!customMode ? (
+        <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:420,overflowY:"auto"}}>
+          {allGames.map((g,i)=>(
+            <div key={i} onClick={()=>selectGame(g)}
+              style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:9,
+                padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",
+                justifyContent:"space-between"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor="#002d6e"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(0,0,0,0.09)"}>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,
+                  textTransform:"uppercase"}}>{g.away} <span style={{color:"#ccc"}}>@</span> {g.home}</div>
+                <div style={{fontSize:11,color:"#888",marginTop:2}}>{g.date} · {g.time} · {g.field}</div>
+              </div>
+              <div style={{fontSize:12,color:"#002d6e",fontWeight:700}}>Select →</div>
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ background:"#fff", border:"1px solid rgba(0,0,0,0.09)", borderRadius:10, padding:20,
-          display:"flex", flexDirection:"column", gap:14 }}>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            {[["Date","date","text","e.g. Apr 11"],["Time","time","text","e.g. 9:00 AM"],
-              ["Field","field","text","e.g. Clark Field"]].map(([label, key, type, ph]) => (
-              <div key={key} style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                <label style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase",
-                  letterSpacing:".06em" }}>{label}</label>
-                <input type={type} placeholder={ph} value={custom[key]}
-                  onChange={e => setCustom(c => ({...c, [key]: e.target.value}))}
-                  style={{ padding:"9px 12px", border:"1px solid #ddd", borderRadius:7, fontSize:14,
-                    fontFamily:"'Barlow',sans-serif" }} />
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+            {[["Date","date","Apr 11"],["Time","time","9:00 AM"],["Field","field","Clark Field"]].map(([l,k,ph])=>(
+              <div key={k} style={{display:"flex",flexDirection:"column",gap:4}}>
+                <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>{l}</label>
+                <input value={custom[k]} onChange={e=>setCustom(c=>({...c,[k]:e.target.value}))}
+                  placeholder={ph} style={{padding:"8px 10px",border:"1px solid #ddd",borderRadius:6,
+                    fontSize:13,fontFamily:"inherit"}}/>
               </div>
             ))}
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            {[["Away Team","away"],["Home Team","home"]].map(([label, key]) => (
-              <div key={key} style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                <label style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase",
-                  letterSpacing:".06em" }}>{label}</label>
-                <select value={custom[key]} onChange={e => setCustom(c => ({...c, [key]: e.target.value}))}
-                  style={{ padding:"9px 12px", border:"1px solid #ddd", borderRadius:7, fontSize:14,
-                    fontFamily:"'Barlow',sans-serif" }}>
-                  {TEAMS.map(t => <option key={t} value={t}>{t}</option>)}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[["Away Team","away"],["Home Team","home"]].map(([l,k])=>(
+              <div key={k} style={{display:"flex",flexDirection:"column",gap:4}}>
+                <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>{l}</label>
+                <select value={custom[k]} onChange={e=>setCustom(c=>({...c,[k]:e.target.value}))}
+                  style={{padding:"8px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}>
+                  {TEAMS.map(t=><option key={t}>{t}</option>)}
                 </select>
               </div>
             ))}
           </div>
-          <button onClick={() => confirmGame(custom)}
-            disabled={!custom.date || !custom.away || !custom.home}
-            style={{ padding:"12px", background:"#002d6e", border:"none", borderRadius:8, color:"#fff",
-              fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:16,
-              textTransform:"uppercase", cursor:"pointer", opacity:(!custom.date||!custom.away||!custom.home)?0.4:1 }}>
-            Continue →
+          <button onClick={()=>selectGame(custom)} disabled={!custom.date}
+            style={{padding:"11px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",
+              fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
+              textTransform:"uppercase",cursor:"pointer",opacity:!custom.date?0.4:1}}>
+            Load Rosters & Continue →
           </button>
         </div>
       )}
     </div>
   );
 
-  // ── STEP 1: Score ───────────────────────────────────────────────────────
-  if (step === 1) return (
+  // ── FULL BOX SCORE FORM ──
+  return (
     <div>
-      {sectionHead("Game Score")}
-      <div style={{ background:"#fff", border:"1px solid rgba(0,0,0,0.09)", borderRadius:10, padding:20,
-        display:"flex", flexDirection:"column", gap:16 }}>
-        <div style={{ textAlign:"center", fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700,
-          fontSize:15, color:"#555", textTransform:"uppercase", letterSpacing:".05em" }}>
-          {game.away} @ {game.home} · {game.date} · {game.field}
+      {/* Game banner */}
+      <div style={{background:"#001a3e",borderRadius:10,padding:"12px 18px",marginBottom:14,
+        display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,
+            color:"#FFD700",textTransform:"uppercase",letterSpacing:".04em"}}>
+            {game.away} <span style={{color:"rgba(255,255,255,0.3)"}}>@</span> {game.home}
+          </div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginTop:2}}>{game.date} · {game.time} · {game.field}</div>
         </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:20, padding:"16px 0" }}>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
-            <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:18,
-              textTransform:"uppercase", color:"#111" }}>{game.away}</div>
-            <input type="number" min="0" value={awayScore} onChange={e => setAwayScore(e.target.value)}
-              placeholder="0"
-              style={{ width:80, padding:"12px 8px", textAlign:"center", border:"2px solid #002d6e",
-                borderRadius:10, fontSize:32, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900,
-                color:"#002d6e", outline:"none" }} />
+        <button onClick={()=>setGame(null)}
+          style={{padding:"5px 12px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",
+            borderRadius:6,color:"rgba(255,255,255,0.6)",fontSize:12,cursor:"pointer"}}>← Change Game</button>
+      </div>
+
+      {/* Score */}
+      <Crd>
+        <H2 n="1" title="Score & Game Info"/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:16,alignItems:"center",marginBottom:14}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
+              textTransform:"uppercase",color:"#555",marginBottom:6,letterSpacing:".06em"}}>{game.away}</div>
+            <input type="number" min="0" value={awayScore} onChange={e=>setAwayScore(e.target.value)} placeholder="0"
+              style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",borderRadius:10,
+                fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,color:"#002d6e",outline:"none"}}/>
           </div>
-          <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:24, color:"#ccc" }}>VS</div>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
-            <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:18,
-              textTransform:"uppercase", color:"#111" }}>{game.home}</div>
-            <input type="number" min="0" value={homeScore} onChange={e => setHomeScore(e.target.value)}
-              placeholder="0"
-              style={{ width:80, padding:"12px 8px", textAlign:"center", border:"2px solid #002d6e",
-                borderRadius:10, fontSize:32, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900,
-                color:"#002d6e", outline:"none" }} />
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#ccc",textAlign:"center"}}>vs</div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
+              textTransform:"uppercase",color:"#555",marginBottom:6,letterSpacing:".06em"}}>{game.home}</div>
+            <input type="number" min="0" value={homeScore} onChange={e=>setHomeScore(e.target.value)} placeholder="0"
+              style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",borderRadius:10,
+                fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,color:"#002d6e",outline:"none"}}/>
           </div>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:12 }}>
-          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-            <label style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase",
-              letterSpacing:".06em" }}>Headline (optional)</label>
-            <input type="text" value={headline} onChange={e => setHeadline(e.target.value)}
-              placeholder="e.g. Tribe Walk Off in 9th!"
-              style={{ padding:"9px 12px", border:"1px solid #ddd", borderRadius:7, fontSize:14,
-                fontFamily:"'Barlow',sans-serif" }} />
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>Headline (optional)</label>
+            <input value={headline} onChange={e=>setHeadline(e.target.value)} placeholder="e.g. Tribe Walk Off in 9th!"
+              style={{padding:"8px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
           </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-            <label style={{ fontSize:11, fontWeight:700, color:"#888", textTransform:"uppercase",
-              letterSpacing:".06em" }}>Status</label>
-            <select value={gameStatus} onChange={e => setGameStatus(e.target.value)}
-              style={{ padding:"9px 12px", border:"1px solid #ddd", borderRadius:7, fontSize:14,
-                fontFamily:"'Barlow',sans-serif" }}>
-              <option>Final</option>
-              <option>Forfeit</option>
-              <option>Tie</option>
-              <option>Postponed</option>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>Status</label>
+            <select value={gameStatus} onChange={e=>setGameStatus(e.target.value)}
+              style={{padding:"8px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}>
+              {["Final","Forfeit","Tie","Postponed"].map(s=><option key={s}>{s}</option>)}
             </select>
           </div>
         </div>
-        <button onClick={() => setStep(2)} disabled={awayScore===""||homeScore===""}
-          style={{ padding:"12px", background:"#002d6e", border:"none", borderRadius:8, color:"#fff",
-            fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:16,
-            textTransform:"uppercase", cursor:"pointer",
-            opacity:(awayScore===""||homeScore==="")?0.4:1 }}>
-          Enter Away Batting →
-        </button>
+      </Crd>
+
+      {/* Linescore */}
+      <Crd>
+        <H2 n="2" title="Linescore" sub="Inning-by-inning runs · R = total · H = hits · E = errors"/>
+        <div style={{overflowX:"auto"}}>
+          <table style={{borderCollapse:"collapse",fontSize:13,width:"100%"}}>
+            <thead>
+              <tr style={{background:"#001a3e"}}>
+                <th style={{padding:"6px 10px",textAlign:"left",color:"rgba(255,255,255,0.5)",fontSize:11,minWidth:70}}></th>
+                {[1,2,3,4,5,6,7,8,9].map(n=>(
+                  <th key={n} style={{padding:"6px 5px",color:"rgba(255,255,255,0.6)",fontSize:11,
+                    fontWeight:700,textAlign:"center",width:36}}>{n}</th>
+                ))}
+                <th style={{padding:"6px 5px",color:"#FFD700",fontSize:11,fontWeight:700,textAlign:"center",width:36}}>R</th>
+                <th style={{padding:"6px 5px",color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:700,textAlign:"center",width:36}}>H</th>
+                <th style={{padding:"6px 5px",color:"rgba(239,68,68,0.8)",fontSize:11,fontWeight:700,textAlign:"center",width:36}}>E</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[[game.away,awayInn,setAwayInn,awayScore,awayH,setAwayH,awayE,setAwayE],
+                [game.home,homeInn,setHomeInn,homeScore,homeH,setHomeH,homeE,setHomeE]].map(([name,inn,setInn,tot,h,setH,e,setE])=>(
+                <tr key={name} style={{background:"#f8f9fb"}}>
+                  <td style={{padding:"4px 10px",fontWeight:700,fontSize:13,fontFamily:"'Barlow Condensed',sans-serif",
+                    textTransform:"uppercase",letterSpacing:".04em"}}>{name}</td>
+                  {inn.map((x,i)=>(
+                    <td key={i} style={{padding:"3px 2px",textAlign:"center"}}>
+                      <input type="number" min="0" value={x.r} onChange={e=>updInn(setInn,i,e.target.value)}
+                        style={{width:32,padding:"3px 1px",textAlign:"center",border:"1px solid #ddd",
+                          borderRadius:4,fontSize:13,fontWeight:700,background:"#fff",fontFamily:"inherit"}}/>
+                    </td>
+                  ))}
+                  <td style={{padding:"3px 2px",textAlign:"center"}}>
+                    <input type="number" min="0" value={tot} readOnly
+                      style={{width:34,padding:"3px 1px",textAlign:"center",border:"1px solid rgba(255,200,0,0.4)",
+                        borderRadius:4,fontSize:13,fontWeight:900,background:"rgba(255,200,0,0.07)",
+                        color:"#b45309",fontFamily:"inherit"}}/>
+                  </td>
+                  <td style={{padding:"3px 2px",textAlign:"center"}}>
+                    <input type="number" min="0" value={h} onChange={e=>setH(e.target.value)}
+                      style={{width:32,padding:"3px 1px",textAlign:"center",border:"1px solid #ddd",
+                        borderRadius:4,fontSize:13,fontWeight:700,background:"#fff",fontFamily:"inherit"}}/>
+                  </td>
+                  <td style={{padding:"3px 2px",textAlign:"center"}}>
+                    <input type="number" min="0" value={e} onChange={e=>setE(e.target.value)}
+                      style={{width:32,padding:"3px 1px",textAlign:"center",border:"1px solid rgba(239,68,68,0.3)",
+                        borderRadius:4,fontSize:13,fontWeight:700,background:"rgba(239,68,68,0.04)",
+                        color:"#dc2626",fontFamily:"inherit"}}/>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Crd>
+
+      {/* Batting */}
+      <Crd>
+        <H2 n="3" title="Batting Lineups" sub="Toggle off players not in lineup · ↑↓ to set batting order"/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+          <BatSection label={`${game.away} Batting`} batters={awayBat} setter={setAwayBat}
+            addName={addAwayName} setAddName={setAddAwayName}/>
+          <BatSection label={`${game.home} Batting`} batters={homeBat} setter={setHomeBat}
+            addName={addHomeName} setAddName={setAddHomeName}/>
+        </div>
+      </Crd>
+
+      {/* Pitching */}
+      <Crd>
+        <H2 n="4" title="Pitching" sub="Enter IP as innings.outs (e.g. 6.2 = 6 innings 2 outs)"/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+          <PitSection label={`${game.away} Pitching`} pit={awayPit} setter={setAwayPit}/>
+          <PitSection label={`${game.home} Pitching`} pit={homePit} setter={setHomePit}/>
+        </div>
+      </Crd>
+
+      {/* Recap */}
+      <Crd>
+        <H2 n="5" title="Game Recap" sub="Optional · shown on game cards"/>
+        <textarea value={recap} onChange={e=>setRecap(e.target.value)} rows={3}
+          placeholder="Write a quick recap..."
+          style={{width:"100%",padding:"10px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:13,
+            fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
+      </Crd>
+
+      {/* Save */}
+      {saveMsg && (
+        <div style={{padding:"12px 16px",borderRadius:8,marginBottom:12,fontWeight:600,
+          background:saveMsg.ok?"#f0fdf4":"#fef2f2",
+          border:`1px solid ${saveMsg.ok?"#bbf7d0":"#fecaca"}`,
+          color:saveMsg.ok?"#166534":"#991b1b"}}>{saveMsg.text}</div>
+      )}
+      <div style={{display:"flex",gap:10}}>
+        {!saveMsg?.ok && (
+          <button onClick={handleSave} disabled={saving}
+            style={{flex:1,padding:"14px",background:saving?"#888":"#002d6e",border:"none",borderRadius:10,
+              color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:17,
+              textTransform:"uppercase",letterSpacing:".06em",cursor:saving?"wait":"pointer"}}>
+            {saving?"Saving...":"⚾ Save Box Score to Database"}
+          </button>
+        )}
+        {saveMsg?.ok && (
+          <>
+            <button onClick={()=>{setGame(null);setSaveMsg(null);}}
+              style={{padding:"14px 20px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:10,
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
+                textTransform:"uppercase",cursor:"pointer"}}>+ Enter Another</button>
+            <button onClick={onClose}
+              style={{flex:1,padding:"14px",background:"#15803d",border:"none",borderRadius:10,
+                color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:17,
+                textTransform:"uppercase",cursor:"pointer"}}>✓ Done</button>
+          </>
+        )}
       </div>
     </div>
   );
-
-  // ── STEPS 2-3: Batting ──────────────────────────────────────────────────
-  const isBatStep = step === 2 || step === 3;
-  if (isBatStep) {
-    const isAway = step === 2;
-    const teamName = isAway ? game.away : game.home;
-    const batters = isAway ? awayBat : homeBat;
-    const setter = isAway ? setAwayBat : setHomeBat;
-    const nextLabel = isAway ? "Enter Home Batting →" : "Enter Pitching →";
-    const nextStep = isAway ? 3 : 4;
-
-    return (
-      <div>
-        {sectionHead("Batting", teamName)}
-        <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, minWidth:700 }}>
-            <thead>
-              <tr style={{ background:"#001a3e" }}>
-                <th style={{ width:28, padding:"8px 4px", color:"rgba(255,255,255,0.5)", fontSize:11 }}>✓</th>
-                <th style={{ padding:"8px 12px", textAlign:"left", color:"#FFD700",
-                  fontFamily:"'Barlow Condensed',sans-serif", fontSize:13, letterSpacing:".06em",
-                  textTransform:"uppercase", minWidth:140 }}>Player</th>
-                {BAT_LABELS.map(l => (
-                  <th key={l} style={{ padding:"8px 6px", color:"rgba(255,255,255,0.7)",
-                    fontFamily:"'Barlow Condensed',sans-serif", fontSize:13, textTransform:"uppercase",
-                    letterSpacing:".04em", textAlign:"center", width:50 }}>{l}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {batters.map((p, i) => (
-                <tr key={i} style={{ background: i%2===0 ? "#fff" : "#f8f9fb",
-                  opacity: p.included ? 1 : 0.35 }}>
-                  <td style={{ textAlign:"center", padding:"6px 4px" }}>
-                    <input type="checkbox" checked={p.included}
-                      onChange={e => updBat(setter, i, "included", e.target.checked)} />
-                  </td>
-                  <td style={{ padding:"6px 8px" }}>
-                    <input type="text" value={p.name} onChange={e => updBat(setter, i, "name", e.target.value)}
-                      style={{ width:130, padding:"5px 8px", border:"1px solid #ddd", borderRadius:5,
-                        fontSize:13, fontFamily:"'Barlow',sans-serif" }} />
-                  </td>
-                  {BAT_FIELDS.map(f => (
-                    <td key={f} style={{ padding:"6px 3px", textAlign:"center" }}>
-                      {inp(p[f], v => updBat(setter, i, f, v))}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <button onClick={() => setter(prev => [...prev, blankBatter()])}
-          style={{ marginTop:10, padding:"7px 16px", background:"rgba(0,45,110,0.08)",
-            border:"1px solid rgba(0,45,110,0.2)", borderRadius:6, color:"#002d6e",
-            fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13,
-            textTransform:"uppercase", cursor:"pointer" }}>+ Add Player</button>
-        <div style={{ marginTop:16, display:"flex", gap:10 }}>
-          <button onClick={() => setStep(step-1)}
-            style={{ padding:"10px 20px", background:"rgba(0,0,0,0.07)", border:"none",
-              borderRadius:8, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700,
-              fontSize:14, cursor:"pointer", textTransform:"uppercase" }}>← Back</button>
-          <button onClick={() => setStep(nextStep)}
-            style={{ flex:1, padding:"12px", background:"#002d6e", border:"none", borderRadius:8,
-              color:"#fff", fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:16,
-              textTransform:"uppercase", cursor:"pointer" }}>{nextLabel}</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── STEP 4: Pitching ────────────────────────────────────────────────────
-  if (step === 4) {
-    const PitSection = ({ teamName, pit, setter }) => (
-      <div style={{ marginBottom:24 }}>
-        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:18,
-          textTransform:"uppercase", color:"#002d6e", marginBottom:10 }}>{teamName}</div>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13, minWidth:600 }}>
-            <thead>
-              <tr style={{ background:"#001a3e" }}>
-                {["Player","IP","H","R","ER","BB","K","Dec."].map(l => (
-                  <th key={l} style={{ padding:"8px 6px", color: l==="Player"?"#FFD700":"rgba(255,255,255,0.7)",
-                    fontFamily:"'Barlow Condensed',sans-serif", fontSize:13, textTransform:"uppercase",
-                    letterSpacing:".04em", textAlign: l==="Player"?"left":"center",
-                    minWidth: l==="Player"?140:l==="Dec."?70:50 }}>{l}</th>
-                ))}
-                <th style={{ width:30 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {pit.map((p, i) => (
-                <tr key={i} style={{ background: i%2===0 ? "#fff" : "#f8f9fb" }}>
-                  <td style={{ padding:"6px 8px" }}>
-                    <input type="text" value={p.name} onChange={e => updPit(setter, i, "name", e.target.value)}
-                      style={{ width:130, padding:"5px 8px", border:"1px solid #ddd", borderRadius:5,
-                        fontSize:13, fontFamily:"'Barlow',sans-serif" }} />
-                  </td>
-                  <td style={{ padding:"6px 3px", textAlign:"center" }}>
-                    <input type="text" value={p.ip} placeholder="6.0"
-                      onChange={e => updPit(setter, i, "ip", e.target.value)}
-                      style={{ width:52, padding:"5px 4px", textAlign:"center", border:"1px solid #ddd",
-                        borderRadius:5, fontSize:13, fontFamily:"'Barlow',sans-serif" }} />
-                  </td>
-                  {["h","r","er","bb","k"].map(f => (
-                    <td key={f} style={{ padding:"6px 3px", textAlign:"center" }}>
-                      {inp(p[f], v => updPit(setter, i, f, v))}
-                    </td>
-                  ))}
-                  <td style={{ padding:"6px 3px", textAlign:"center" }}>
-                    <select value={p.decision} onChange={e => updPit(setter, i, "decision", e.target.value)}
-                      style={{ padding:"5px 4px", border:"1px solid #ddd", borderRadius:5, fontSize:13,
-                        fontFamily:"'Barlow',sans-serif", width:64 }}>
-                      {["ND","W","L","S"].map(d => <option key={d}>{d}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding:"6px 4px", textAlign:"center" }}>
-                    {pit.length > 1 && (
-                      <button onClick={() => setter(prev => prev.filter((_,j) => j!==i))}
-                        style={{ background:"none", border:"none", color:"#dc2626", cursor:"pointer",
-                          fontSize:16, lineHeight:1 }}>✕</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <button onClick={() => setter(prev => [...prev, blankPitcher()])}
-          style={{ marginTop:8, padding:"6px 14px", background:"rgba(0,45,110,0.08)",
-            border:"1px solid rgba(0,45,110,0.2)", borderRadius:6, color:"#002d6e",
-            fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:12,
-            textTransform:"uppercase", cursor:"pointer" }}>+ Add Pitcher</button>
-      </div>
-    );
-    return (
-      <div>
-        {sectionHead("Pitching")}
-        <div style={{ background:"#fff", border:"1px solid rgba(0,0,0,0.09)", borderRadius:10, padding:20 }}>
-          <PitSection teamName={game.away} pit={awayPit} setter={setAwayPit} />
-          <PitSection teamName={game.home} pit={homePit} setter={setHomePit} />
-        </div>
-        <div style={{ marginTop:16, display:"flex", gap:10 }}>
-          <button onClick={() => setStep(3)}
-            style={{ padding:"10px 20px", background:"rgba(0,0,0,0.07)", border:"none",
-              borderRadius:8, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700,
-              fontSize:14, cursor:"pointer", textTransform:"uppercase" }}>← Back</button>
-          <button onClick={() => setStep(5)}
-            style={{ flex:1, padding:"12px", background:"#002d6e", border:"none", borderRadius:8,
-              color:"#fff", fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:16,
-              textTransform:"uppercase", cursor:"pointer" }}>Review & Save →</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── STEP 5: Review & Save ───────────────────────────────────────────────
-  if (step === 5) {
-    const ReviewTable = ({ title, team, rows, fields, labels }) => (
-      <div style={{ marginBottom:16 }}>
-        <div style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:15,
-          textTransform:"uppercase", color:"#002d6e", marginBottom:6 }}>{title} — {team}</div>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-          <thead><tr style={{ background:"#f0f4ff" }}>
-            <th style={{ padding:"6px 8px", textAlign:"left", fontWeight:700, color:"#555" }}>Player</th>
-            {labels.map(l => <th key={l} style={{ padding:"6px 4px", textAlign:"center", fontWeight:700,
-              color:"#555", fontSize:11 }}>{l}</th>)}
-          </tr></thead>
-          <tbody>
-            {rows.filter(p => p.included !== false && p.name).map((p,i) => (
-              <tr key={i} style={{ background: i%2===0?"#fff":"#f8f9fb" }}>
-                <td style={{ padding:"5px 8px", fontWeight:600 }}>{p.name}</td>
-                {fields.map(f => <td key={f} style={{ padding:"5px 4px", textAlign:"center",
-                  color: (p[f]||0)>0?"#111":"#bbb" }}>{p[f]||0}</td>)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-
-    return (
-      <div>
-        {sectionHead("Review & Save")}
-        <div style={{ background:"#fff", border:"1px solid rgba(0,0,0,0.09)", borderRadius:10,
-          padding:20, marginBottom:12 }}>
-          <div style={{ display:"flex", alignItems:"baseline", gap:8, marginBottom:4 }}>
-            <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:20,
-              textTransform:"uppercase" }}>{game.away}</span>
-            <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:28,
-              color:"#002d6e" }}>{awayScore}</span>
-            <span style={{ color:"#ccc", fontWeight:700 }}>–</span>
-            <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:28,
-              color:"#002d6e" }}>{homeScore}</span>
-            <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900, fontSize:20,
-              textTransform:"uppercase" }}>{game.home}</span>
-            <span style={{ fontSize:12, color:"#888", marginLeft:8 }}>{gameStatus}</span>
-          </div>
-          {headline && <div style={{ fontSize:13, color:"#555", fontStyle:"italic" }}>"{headline}"</div>}
-          <div style={{ fontSize:12, color:"#888", marginTop:4 }}>{game.date} · {game.time} · {game.field}</div>
-        </div>
-        <div style={{ background:"#fff", border:"1px solid rgba(0,0,0,0.09)", borderRadius:10, padding:20, marginBottom:12 }}>
-          <ReviewTable title="Batting" team={game.away} rows={awayBat} fields={BAT_FIELDS} labels={BAT_LABELS} />
-          <ReviewTable title="Batting" team={game.home} rows={homeBat} fields={BAT_FIELDS} labels={BAT_LABELS} />
-        </div>
-        <div style={{ background:"#fff", border:"1px solid rgba(0,0,0,0.09)", borderRadius:10, padding:20, marginBottom:16 }}>
-          {[{team:game.away,pit:awayPit},{team:game.home,pit:homePit}].map(({team,pit}) => (
-            <ReviewTable key={team} title="Pitching" team={team} rows={pit}
-              fields={["ip","h","r","er","bb","k","decision"]}
-              labels={["IP","H","R","ER","BB","K","Dec."]} />
-          ))}
-        </div>
-        {saveMsg && (
-          <div style={{ padding:"12px 16px", borderRadius:8, marginBottom:12,
-            background: saveMsg.ok ? "#f0fdf4" : "#fef2f2",
-            border: `1px solid ${saveMsg.ok ? "#bbf7d0" : "#fecaca"}`,
-            color: saveMsg.ok ? "#166534" : "#991b1b", fontWeight:600 }}>{saveMsg.text}</div>
-        )}
-        <div style={{ display:"flex", gap:10 }}>
-          <button onClick={() => setStep(4)} disabled={saving}
-            style={{ padding:"10px 20px", background:"rgba(0,0,0,0.07)", border:"none",
-              borderRadius:8, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700,
-              fontSize:14, cursor:"pointer", textTransform:"uppercase" }}>← Back</button>
-          {!saveMsg?.ok && (
-            <button onClick={handleSave} disabled={saving}
-              style={{ flex:1, padding:"13px", background: saving ? "#888" : "#002d6e",
-                border:"none", borderRadius:8, color:"#fff",
-                fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:16,
-                textTransform:"uppercase", cursor: saving ? "wait" : "pointer" }}>
-              {saving ? "Saving..." : "⚾ Save Box Score to Database"}
-            </button>
-          )}
-          {saveMsg?.ok && (
-            <button onClick={onClose}
-              style={{ flex:1, padding:"13px", background:"#15803d", border:"none", borderRadius:8,
-                color:"#fff", fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:16,
-                textTransform:"uppercase", cursor:"pointer" }}>✓ Done — Close</button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
 }
 
 /* ─── STATS PAGE ─────────────────────────────────────────────────────────── */
