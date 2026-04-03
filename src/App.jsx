@@ -3219,15 +3219,23 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // ── Stat input ──
   // onWheel blur prevents the page from scrolling when mouse wheel hits a focused number input
   const N = (val, onChange, opts={}) => {
-    const w = opts.w || 38;
     const cls = opts.className || "";
+    const btnStyle = {
+      width:28,height:32,border:"1px solid rgba(0,0,0,0.18)",borderRadius:4,
+      background:"#eef1f7",cursor:"pointer",fontSize:16,fontWeight:700,
+      color:"#002d6e",display:"flex",alignItems:"center",justifyContent:"center",
+      flexShrink:0,lineHeight:1,userSelect:"none",WebkitUserSelect:"none",
+    };
     return (
-      <input type="number" min="0" inputMode="numeric" pattern="[0-9]*" value={val}
-        onChange={e=>onChange(Math.max(0,parseInt(e.target.value)||0))}
-        onWheel={e=>e.target.blur()}
-        className={cls}
-        style={{width:w,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(0,0,0,0.15)",
-          borderRadius:4,fontSize:13,background:"#f8f9fb",fontFamily:"inherit"}}/>
+      <div className={cls} style={{display:"flex",alignItems:"center",gap:2}}>
+        <button type="button" onPointerDown={e=>{e.preventDefault();onChange(Math.max(0,val-1));}} style={btnStyle}>−</button>
+        <input type="number" min="0" inputMode="numeric" pattern="[0-9]*" value={val}
+          onChange={e=>onChange(Math.max(0,parseInt(e.target.value)||0))}
+          onWheel={e=>e.target.blur()}
+          style={{width:32,padding:"3px 1px",textAlign:"center",border:"1px solid rgba(0,0,0,0.15)",
+            borderRadius:4,fontSize:13,background:"#f8f9fb",fontFamily:"inherit",flexShrink:0}}/>
+        <button type="button" onPointerDown={e=>{e.preventDefault();onChange(val+1);}} style={btnStyle}>+</button>
+      </div>
     );
   };
 
@@ -3393,14 +3401,19 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               onDragStart={e=>handleDragStart(e,side,i)}
               onDragEnd={handleDragEnd}
               style={{fontSize:16,color:"#aaa",flexShrink:0,userSelect:"none",cursor:"grab",padding:"0 3px",touchAction:"none"}}>⠿</div>
-            {/* editable batting order number — hidden on mobile, use ▲▼ buttons instead */}
-            <input
-              type="number" min={1} max={batters.length} value={i+1}
-              onChange={e=>{const n=parseInt(e.target.value);if(!isNaN(n)&&n>=1&&n<=batters.length)moveTo(setter,batters,i,n);}}
-              className="bs-order-num"
-              style={{width:28,padding:"3px 2px",textAlign:"center",border:"1px solid rgba(0,45,110,0.25)",
-                borderRadius:4,fontSize:12,fontWeight:700,color:"#002d6e",background:"rgba(0,45,110,0.05)",
-                fontFamily:"inherit",flexShrink:0}}/>
+            {/* batting order: up/down buttons + number display */}
+            <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0,alignItems:"center"}}>
+              <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,-1);}}
+                className="bs-order-btn"
+                style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:4,cursor:"pointer",
+                  fontSize:10,lineHeight:1,color:"#002d6e",padding:"3px 6px",fontWeight:900}}>▲</button>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,
+                color:"#002d6e",textAlign:"center",lineHeight:1,padding:"1px 0"}}>{i+1}</div>
+              <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,1);}}
+                className="bs-order-btn"
+                style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:4,cursor:"pointer",
+                  fontSize:10,lineHeight:1,color:"#002d6e",padding:"3px 6px",fontWeight:900}}>▼</button>
+            </div>
             {/* name */}
             <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
               onDragStart={e=>e.stopPropagation()}
@@ -3413,15 +3426,6 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                 fontFamily:"inherit"}}>
               {POSITIONS.map(pos=><option key={pos} value={pos}>{pos||"Pos"}</option>)}
             </select>
-            {/* up/down for mobile */}
-            <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
-              <button type="button" onClick={e=>{e.preventDefault();moveBat(setter,i,-1);}}
-                style={{border:"none",background:"rgba(0,45,110,0.07)",borderRadius:3,cursor:"pointer",
-                  fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 4px",fontWeight:700}}>▲</button>
-              <button type="button" onClick={e=>{e.preventDefault();moveBat(setter,i,1);}}
-                style={{border:"none",background:"rgba(0,45,110,0.07)",borderRadius:3,cursor:"pointer",
-                  fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 4px",fontWeight:700}}>▼</button>
-            </div>
             {/* toggle */}
             <button onClick={()=>updBat(setter,i,"on",!p.on)}
               style={{width:34,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",
@@ -4282,12 +4286,13 @@ export default function App() {
           input, select, textarea { font-size: 16px!important; }
           /* Box score entry mobile */
           .bs-two-col{grid-template-columns:1fr!important;}
-          .bs-stat-input{min-width:52px!important;height:40px!important;}
+          .bs-stat-input{min-width:72px!important;}
+          .bs-stat-input button{width:32px!important;height:36px!important;font-size:18px!important;}
+          .bs-stat-input input{height:36px!important;width:36px!important;}
           .bs-stat-label{font-size:11px!important;}
           .bs-score-input{width:90px!important;font-size:42px!important;}
-          .bs-inn-input{width:38px!important;height:34px!important;}
-          /* Hide order-number input on mobile — use ▲▼ buttons instead */
-          .bs-order-num{display:none!important;}
+          .bs-inn-input{width:38px!important;height:36px!important;}
+          .bs-order-btn{padding:5px 10px!important;font-size:13px!important;}
         }
       `}</style>
       <div style={{position:"relative",zIndex:200,overflow:"hidden",width:"100%"}}><Ticker setTab={handleSetTab} /></div>
