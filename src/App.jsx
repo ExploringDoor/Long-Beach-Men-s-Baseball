@@ -2076,7 +2076,22 @@ function AdminPage({ onAlertChange }) {
   const [captainTeam, setCaptainTeam] = useState("");
   const [alertText, setAlertText] = useState(() => localStorage.getItem("lbdc_alert") || "");
   const [showBoxScore, setShowBoxScore] = useState(false);
-  const [quickView, setQuickView] = useState(null); // null | "schedule" | "email"
+  const [quickView, setQuickView] = useState(null); // null | "schedule" | "email" | "games"
+  const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
+  const [adminGames, setAdminGames] = useState([]);
+  const [adminGamesLoading, setAdminGamesLoading] = useState(false);
+
+  const loadAdminGames = () => {
+    setAdminGamesLoading(true);
+    sbFetch("seasons?select=id,name&limit=20")
+      .then(seasons => {
+        const s = seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+        if (!s) return [];
+        return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&order=game_date.desc&limit=100`);
+      })
+      .then(games => { setAdminGames(games || []); setAdminGamesLoading(false); })
+      .catch(() => setAdminGamesLoading(false));
+  };
 
   const postAlert = () => {
     const trimmed = alertText.trim();
@@ -2213,28 +2228,77 @@ function AdminPage({ onAlertChange }) {
 
         {/* Quick Actions */}
         {quickView==="schedule" ? <ManageSchedulePage onBack={()=>setQuickView(null)}/> :
-         quickView==="email"    ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> : (
+         quickView==="email"    ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
+         quickView==="games"    ? (
+          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+              <button type="button" onClick={()=>setQuickView(null)} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>🗂️ Manage Saved Games</div>
+              <button type="button" onClick={loadAdminGames} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
+            </div>
+            <div style={{padding:"16px 20px"}}>
+              {adminGamesLoading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading…</div>}
+              {!adminGamesLoading && adminGames.length===0 && <div style={{textAlign:"center",padding:30,color:"#888"}}>No saved games found.</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {adminGames.map((g,i)=>(
+                  <div key={i} style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"4px solid #002d6e",borderRadius:8,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase"}}>
+                        {g.away_team} <span style={{color:"#aaa",fontWeight:400}}>@</span> {g.home_team}
+                      </div>
+                      <div style={{fontSize:11,color:"#888",marginTop:2}}>
+                        {g.game_date} · <strong style={{color:"#002d6e"}}>{g.away_score ?? "?"} – {g.home_score ?? "?"}</strong> · {g.status||"Final"}
+                        {g.headline && <span style={{marginLeft:6,color:"#444"}}>· {g.headline}</span>}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:8,flexShrink:0}}>
+                      <button type="button" onClick={()=>{
+                        setPreloadGame(g);
+                        setQuickView(null);
+                        setShowBoxScore(true);
+                      }} style={{padding:"6px 14px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                        ✏️ Edit
+                      </button>
+                      <button type="button" onClick={async()=>{
+                        if(!window.confirm(`Delete ${g.away_team} vs ${g.home_team} (${g.game_date})?\nThis cannot be undone.`)) return;
+                        try{
+                          await sbDelete(`batting_lines?game_id=eq.${g.id}`);
+                          await sbDelete(`pitching_lines?game_id=eq.${g.id}`);
+                          await sbDelete(`games?id=eq.${g.id}`);
+                          setAdminGames(prev=>prev.filter(x=>x.id!==g.id));
+                        }catch(err){alert("Delete failed: "+err.message);}
+                      }} style={{padding:"6px 12px",background:"rgba(220,38,38,0.09)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+         ) : (
           <>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>Quick Actions</div>
             {showBoxScore ? (
               <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
                 <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>⚾ Box Score Entry</div>
-                  <button type="button" onClick={()=>setShowBoxScore(false)} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",textTransform:"uppercase"}}>✕ Close</button>
+                  <button type="button" onClick={()=>{setShowBoxScore(false);setPreloadGame(null);}} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",textTransform:"uppercase"}}>✕ Close</button>
                 </div>
                 <div style={{padding:"20px"}}>
-                  <BoxScoreEntry onClose={()=>setShowBoxScore(false)} />
+                  <BoxScoreEntry onClose={()=>{setShowBoxScore(false);setPreloadGame(null);}} preloadGame={preloadGame} />
                 </div>
               </div>
             ) : (
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
                 {[
-                  {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",action:()=>setShowBoxScore(true)},
+                  {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",action:()=>{setPreloadGame(null);setShowBoxScore(true);}},
+                  {icon:"🗂️",title:"Manage Games",desc:"Edit or delete saved games",action:()=>{setQuickView("games");loadAdminGames();}},
                   {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",action:()=>setQuickView("email")},
                   {icon:"📅",title:"Manage Schedule",desc:"View season schedule",action:()=>setQuickView("schedule")},
                 ].map((a,i)=>(
                   <div key={i} onClick={a.action}
-                    style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s"}}
+                    style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${i===1?"#dc2626":"#002d6e"}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s"}}
                     onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
                     onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
                     <div style={{fontSize:24,marginBottom:8}}>{a.icon}</div>
@@ -2343,7 +2407,7 @@ function BSCrd({children,style={}}) {
   );
 }
 
-function BoxScoreEntry({ onClose, captainTeam="" }) {
+function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
   const POSITIONS = ["","P","C","1B","2B","3B","SS","LF","CF","RF","DH","PH","PR"];
   const BAT_STATS = ["ab","r","h","doubles","triples","hr","rbi","bb","k","sb","e"];
@@ -2389,6 +2453,12 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   // ── Drag & drop batting order ──
   const dragRef = useRef({idx:null, side:null});
   const [dragVisual, setDragVisual] = useState({idx:null, side:null}); // for visual feedback only
+
+  // ── Auto-load a game when opened from "Manage Games" → Edit ──
+  useEffect(() => {
+    if (preloadGame) selectSavedGame(preloadGame);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Save ──
   const [saving, setSaving] = useState(false);
