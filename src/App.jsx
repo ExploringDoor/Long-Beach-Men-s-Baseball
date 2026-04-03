@@ -2256,8 +2256,9 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
     });
   };
 
-  // ── Batting section ──
-  const BatSection = ({label,side,batters,setter,addName,setAddName}) => (
+  // ── Batting section — called as a function, NOT as <BatSection/>, so React never
+  //    unmounts/remounts it on re-render (which caused scroll-to-top + broken drag) ──
+  const renderBats = (label,side,batters,setter,addName,setAddName) => (
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
@@ -2337,8 +2338,8 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
     </div>
   );
 
-  // ── Pitching section ──
-  const PitSection = ({label,pit,setter}) => (
+  // ── Pitching section — also called as a plain function ──
+  const renderPit = (label,pit,setter) => (
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
@@ -2560,12 +2561,10 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
 
       {/* Batting */}
       <Crd>
-        <H2 n="3" title="Batting Lineups" sub="Drag rows to reorder · toggle off players not playing"/>
+        <H2 n="3" title="Batting Lineups" sub="Drag ⠿ handle to reorder · edit # to jump position · toggle off players not playing"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-          <BatSection label={`${game.away} Batting`} side="away" batters={awayBat} setter={setAwayBat}
-            addName={addAwayName} setAddName={setAddAwayName}/>
-          <BatSection label={`${game.home} Batting`} side="home" batters={homeBat} setter={setHomeBat}
-            addName={addHomeName} setAddName={setAddHomeName}/>
+          {renderBats(`${game.away} Batting`,"away",awayBat,setAwayBat,addAwayName,setAddAwayName)}
+          {renderBats(`${game.home} Batting`,"home",homeBat,setHomeBat,addHomeName,setAddHomeName)}
         </div>
       </Crd>
 
@@ -2573,8 +2572,8 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
       <Crd>
         <H2 n="4" title="Pitching" sub="Enter IP as innings.outs (e.g. 6.2 = 6 innings 2 outs)"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-          <PitSection label={`${game.away} Pitching`} pit={awayPit} setter={setAwayPit}/>
-          <PitSection label={`${game.home} Pitching`} pit={homePit} setter={setHomePit}/>
+          {renderPit(`${game.away} Pitching`,awayPit,setAwayPit)}
+          {renderPit(`${game.home} Pitching`,homePit,setHomePit)}
         </div>
       </Crd>
 
@@ -3027,15 +3026,15 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [teamDetail, setTeamDetail] = useState(null);
   const [activeAlert, setActiveAlert] = useState(() => localStorage.getItem("lbdc_alert") || null);
-  const [alertDismissed, setAlertDismissed] = useState(() => sessionStorage.getItem("lbdc_alert_dismissed") === "1");
-  const dismissAlert = () => { sessionStorage.setItem("lbdc_alert_dismissed","1"); setAlertDismissed(true); };
+  const [alertDismissed, setAlertDismissed] = useState(false);
+  const dismissAlert = () => setAlertDismissed(true);
 
   const handleSetTab = (t) => { setTab(t); setTeamDetail(null); };
   const handleTeamDetail = (name) => { setTeamDetail(name); setTab("teams"); };
 
   return (
     <div style={{minHeight:"100vh",fontFamily:"'Barlow',sans-serif",width:"100%",maxWidth:"100%",overflowX:"hidden"}}>
-      {activeAlert && !alertDismissed && (
+      {activeAlert && !alertDismissed && ( /* shows every page load until OK clicked */
         <div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div style={{background:"#dc2626",borderRadius:16,padding:"32px 36px",maxWidth:520,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,0.5)",border:"4px solid #991b1b"}}>
             <div style={{fontSize:48,marginBottom:12}}>🚨</div>
