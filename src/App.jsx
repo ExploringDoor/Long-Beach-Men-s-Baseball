@@ -1895,6 +1895,53 @@ function HistoryPage() {
               </div>
             )}
 
+            {/* Rosters */}
+            {season.rosters && season.rosters.length > 0 && (
+              <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,
+                padding:"16px 20px",marginBottom:16}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,
+                  textTransform:"uppercase",color:"#002d6e",marginBottom:14,letterSpacing:".04em"}}>
+                  Rosters
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:14}}>
+                  {season.rosters.map((roster,ri) => (
+                    <div key={ri} style={{border:"1px solid rgba(0,45,110,0.12)",borderRadius:10,overflow:"hidden"}}>
+                      <div style={{background:"#002d6e",padding:"8px 14px",
+                        fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
+                        color:"#FFD700",textTransform:"uppercase",letterSpacing:".04em"}}>
+                        {roster.team}
+                        <span style={{float:"right",color:"rgba(255,255,255,0.4)",fontWeight:400,fontSize:12}}>
+                          {roster.players.length} players
+                        </span>
+                      </div>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                        <thead>
+                          <tr style={{background:"#f0f4fa"}}>
+                            <th style={{padding:"5px 10px",textAlign:"center",width:36,
+                              fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
+                              color:"#888",textTransform:"uppercase",letterSpacing:".04em"}}>#</th>
+                            <th style={{padding:"5px 10px",textAlign:"left",
+                              fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
+                              color:"#888",textTransform:"uppercase",letterSpacing:".04em"}}>Name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {roster.players.map((p,pi) => (
+                            <tr key={pi} style={{borderTop:"1px solid rgba(0,0,0,0.05)",
+                              background:pi%2===0?"#fff":"#fafafa"}}>
+                              <td style={{padding:"7px 10px",textAlign:"center",
+                                fontWeight:700,color:"#aaa",fontSize:12}}>{p.number||"—"}</td>
+                              <td style={{padding:"7px 10px",color:"#222"}}>{p.name}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Games */}
             {season.games.length > 0 && (
               <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,padding:"16px 20px"}}>
