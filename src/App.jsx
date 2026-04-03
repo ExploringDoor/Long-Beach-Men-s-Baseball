@@ -727,69 +727,105 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
   const awayPit = pitching.filter(p => p.team === game.away_team);
   const homePit = pitching.filter(p => p.team === game.home_team);
   const BatTable = ({ rows, team }) => {
-    const withSingles = rows.map(r=>({...r, singles:Math.max(0,(r.h||0)-(r.doubles||0)-(r.triples||0)-(r.hr||0))}));
-    const note2B = withSingles.filter(r=>r.doubles>0).map(r=>`${r.player_name}${r.doubles>1?` (${r.doubles})`:""}`).join(", ");
-    const note3B = withSingles.filter(r=>r.triples>0).map(r=>`${r.player_name}${r.triples>1?` (${r.triples})`:""}`).join(", ");
-    const noteHR = withSingles.filter(r=>r.hr>0).map(r=>`${r.player_name}${r.hr>1?` (${r.hr})`:""}`).join(", ");
-    const notes = [note2B&&`2B: ${note2B}`, note3B&&`3B: ${note3B}`, noteHR&&`HR: ${noteHR}`].filter(Boolean);
+    const note2B = rows.filter(r=>r.doubles>0).map(r=>`${r.player_name}${r.doubles>1?` (${r.doubles})`:""}`).join(", ");
+    const note3B = rows.filter(r=>r.triples>0).map(r=>`${r.player_name}${r.triples>1?` (${r.triples})`:""}`).join(", ");
+    const noteHR = rows.filter(r=>r.hr>0).map(r=>`${r.player_name}${r.hr>1?` (${r.hr})`:""}`).join(", ");
+    // TB = 1B×1 + 2B×2 + 3B×3 + HR×4
+    const tbPlayers = rows.filter(r=>r.h>0).map(r=>{
+      const singles = Math.max(0,(r.h||0)-(r.doubles||0)-(r.triples||0)-(r.hr||0));
+      const tb = singles+(r.doubles||0)*2+(r.triples||0)*3+(r.hr||0)*4;
+      return {name:r.player_name, tb};
+    }).sort((a,b)=>b.tb-a.tb);
+    const noteTB = tbPlayers.map(p=>`${p.name}${p.tb>1?` ${p.tb}`:""}`).join(", ");
+    const xbhNotes = [note2B&&`2B: ${note2B}`, note3B&&`3B: ${note3B}`, noteHR&&`HR: ${noteHR}`].filter(Boolean);
     return (
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:6,padding:"6px 10px",background:"#f0f4ff",borderRadius:6}}>{team} — Batting</div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:"#f8f9fb"}}>
-              {["Player","AB","R","1B","2B","3B","HR","RBI","BB","K"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
+              {["Player","AB","R","H","RBI","BB","SO"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
             </tr></thead>
             <tbody>
-              {withSingles.map((r,i)=>(
+              {rows.map((r,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
                   <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{r.player_name}</td>
-                  {[r.ab,r.r,r.singles,r.doubles,r.triples,r.hr,r.rbi,r.bb,r.k].map((v,j)=>(
+                  {[r.ab,r.r,r.h,r.rbi,r.bb,r.k].map((v,j)=>(
                     <td key={j} style={{padding:"5px 8px",textAlign:"center",
-                      fontWeight:v>0&&[2,3,4,5,6].includes(j)?700:400,
-                      color:v>0&&j===5?"#c8102e":v>0&&j===4?"#1d4ed8":"inherit"}}>{v||0}</td>
+                      fontWeight:v>0&&[1,2,3].includes(j)?700:400}}>{v||0}</td>
                   ))}
                 </tr>
               ))}
               <tr style={{borderTop:"2px solid rgba(0,0,0,0.1)",background:"#f8f9fb",fontWeight:700}}>
                 <td style={{padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:11}}>Totals</td>
-                {["ab","r","singles","doubles","triples","hr","rbi","bb","k"].map(f=>(
-                  <td key={f} style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{withSingles.reduce((s,r)=>s+(r[f]||0),0)}</td>
+                {["ab","r","h","rbi","bb","k"].map(f=>(
+                  <td key={f} style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{rows.reduce((s,r)=>s+(r[f]||0),0)}</td>
                 ))}
               </tr>
             </tbody>
           </table>
         </div>
-        {notes.length > 0 && (
-          <div style={{marginTop:6,padding:"6px 10px",background:"#f8f9fb",borderRadius:6,fontSize:11,color:"#444",lineHeight:1.7}}>
-            {notes.map((n,i)=><span key={i} style={{marginRight:16}}><strong>{n.split(":")[0]}:</strong>{n.slice(n.indexOf(":")+ 1)}</span>)}
+        {(xbhNotes.length > 0 || noteTB) && (
+          <div style={{marginTop:6,padding:"7px 10px",background:"#f8f9fb",borderRadius:6,fontSize:11,color:"#444",lineHeight:1.8}}>
+            {xbhNotes.map((n,i)=>(
+              <span key={i} style={{marginRight:14}}>
+                <strong>{n.split(":")[0]}:</strong>{n.slice(n.indexOf(":")+1)}
+              </span>
+            ))}
+            {noteTB && <span><strong>TB:</strong> {noteTB}</span>}
           </div>
         )}
       </div>
     );
   };
-  const PitTable = ({ rows, team }) => rows.length === 0 ? null : (
-    <div style={{marginBottom:12}}>
-      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#374151",marginBottom:6,padding:"6px 10px",background:"#f8f9fb",borderRadius:6}}>{team} — Pitching</div>
-      <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead><tr style={{background:"#f8f9fb"}}>
-            {["Pitcher","IP","H","R","ER","BB","K","DEC"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Pitcher"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
-          </tr></thead>
-          <tbody>
-            {rows.map((r,i)=>(
-              <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{r.player_name}</td>
-                <td style={{padding:"5px 8px",textAlign:"center"}}>{r.ip}</td>
-                {[r.h,r.r,r.er,r.bb,r.k].map((v,j)=><td key={j} style={{padding:"5px 8px",textAlign:"center"}}>{v||0}</td>)}
-                <td style={{padding:"5px 8px",textAlign:"center",fontWeight:700,color:r.decision==="W"?"#166534":r.decision==="L"?"#991b1b":"#92400e"}}>{r.decision||"—"}</td>
+  const PitTable = ({ rows, team }) => {
+    if(rows.length === 0) return null;
+    const winner = rows.find(r=>r.decision==="W");
+    const loser  = rows.find(r=>r.decision==="L");
+    const saver  = rows.find(r=>r.decision==="S");
+    const decNotes = [
+      winner&&`W: ${winner.player_name}`,
+      loser&&`L: ${loser.player_name}`,
+      saver&&`S: ${saver.player_name}`,
+    ].filter(Boolean).join(", ");
+    return (
+      <div style={{marginBottom:12}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#374151",marginBottom:6,padding:"6px 10px",background:"#f8f9fb",borderRadius:6}}>{team} — Pitching</div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{background:"#f8f9fb"}}>
+              {["Pitcher","IP","H","R","ER","BB","SO","HR"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Pitcher"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
+            </tr></thead>
+            <tbody>
+              {rows.map((r,i)=>(
+                <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
+                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{r.player_name}</td>
+                  <td style={{padding:"5px 8px",textAlign:"center"}}>{r.ip}</td>
+                  {[r.h,r.r,r.er,r.bb,r.k,r.hr||0].map((v,j)=><td key={j} style={{padding:"5px 8px",textAlign:"center"}}>{v||0}</td>)}
+                </tr>
+              ))}
+              <tr style={{borderTop:"2px solid rgba(0,0,0,0.1)",background:"#f8f9fb"}}>
+                <td style={{padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:11}}>Totals</td>
+                <td style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>—</td>
+                {["h","r","er","bb","k","hr"].map(f=>(
+                  <td key={f} style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{rows.reduce((s,r)=>s+(r[f]||0),0)}</td>
+                ))}
               </tr>
+            </tbody>
+          </table>
+        </div>
+        {decNotes && (
+          <div style={{marginTop:6,padding:"7px 10px",background:"#f8f9fb",borderRadius:6,fontSize:11,color:"#444",lineHeight:1.8}}>
+            {decNotes.split(", ").map((n,i)=>(
+              <span key={i} style={{marginRight:14}}>
+                <strong>{n.split(":")[0]}:</strong>{n.slice(n.indexOf(":")+1)}
+              </span>
             ))}
-          </tbody>
-        </table>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px",overflowY:"auto"}} onClick={onClose}>
       <div style={{background:"#fff",borderRadius:14,maxWidth:680,width:"100%",overflow:"hidden",marginTop:20,marginBottom:20}} onClick={e=>e.stopPropagation()}>
@@ -2429,7 +2465,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   let _bid = 0;
   const blankBatter = (name="") => ({ _id:++_bid, name, on:true, ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,e:0, pos:"" });
-  const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0, decision:"ND" });
+  const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0,hr:0, decision:"ND" });
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).filter(p=>p!=="TBD").map(blankBatter);
 
   // ── Game selection ──
@@ -2543,7 +2579,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       };
       const toP = (p) => ({
         name:p.player_name, ip:fromIP(p.ip),
-        h:+p.h||0, r:+p.r||0, er:+p.er||0, bb:+p.bb||0, k:+p.k||0,
+        h:+p.h||0, r:+p.r||0, er:+p.er||0, bb:+p.bb||0, k:+p.k||0, hr:+p.hr||0,
         decision:p.decision||"ND",
       });
       const awayB=batLines.filter(b=>b.team===g.away_team);
@@ -2676,9 +2712,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const pitRows = [
         ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
         ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
-      ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
+      ].map(({name,_t,ip,h,r,er,bb,k,hr,decision})=>({
         game_id:gid,player_name:name,team:_t,
-        ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
+        ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,hr:+hr||0,
         decision:decision==="ND"?null:decision,
       }));
       if(pitRows.length) await sbPost("pitching_lines",pitRows);
@@ -2854,8 +2890,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               style={{padding:"4px 8px",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",
                 borderRadius:5,color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>✕</button>}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
-            {[["IP","ip",true],["H","h"],["R","r"],["ER","er"],["BB","bb"],["K","k"]].map(([lbl,f,isText])=>(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:4}}>
+            {[["IP","ip",true],["H","h"],["R","r"],["ER","er"],["BB","bb"],["SO","k"],["HR","hr"]].map(([lbl,f,isText])=>(
               <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center"}}>
                 <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>{lbl}</span>
                 {isText
