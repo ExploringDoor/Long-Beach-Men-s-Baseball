@@ -3377,7 +3377,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setOrderMode(true);
     };
     const tapPlayer = (id) => {
-      if (orderQueue.includes(id)) return; // already placed
+      // If already placed, remove it (tap again to deselect)
+      if (orderQueue.includes(id)) {
+        setOrderQueue(q => q.filter(qid => qid !== id));
+        return;
+      }
       const newQueue = [...orderQueue, id];
       setOrderQueue(newQueue);
       // Once all active batters tapped, apply order and exit
@@ -3428,14 +3432,12 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             const tapped = pos !== -1;
             return (
               <button key={p._id} type="button" onClick={()=>tapPlayer(p._id)}
-                disabled={tapped}
                 style={{
-                  padding:"14px 10px",borderRadius:10,cursor:tapped?"default":"pointer",
+                  padding:"14px 10px",borderRadius:10,cursor:"pointer",
                   background: tapped ? "#e8f5e9" : "#f0f4ff",
                   border: tapped ? "2px solid #22c55e" : "2px solid #002d6e",
                   position:"relative",transition:"all .1s",
-                  opacity: tapped ? 0.85 : 1,
-                  transform: tapped ? "none" : "scale(1)",
+                  opacity: 1,
                 }}>
                 {tapped && (
                   <div style={{
@@ -3448,7 +3450,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                   fontWeight:700,fontSize:14,color: tapped?"#166534":"#002d6e",
                   textAlign:"left",lineHeight:1.2,paddingRight:tapped?20:0
                 }}>{p.name||"—"}</div>
-                {!tapped && <div style={{fontSize:11,color:"#888",marginTop:3}}>Tap to set order</div>}
+                <div style={{fontSize:11,color:tapped?"#166534":"#888",marginTop:3}}>{tapped?"Tap to remove":"Tap to set order"}</div>
               </button>
             );
           })}
