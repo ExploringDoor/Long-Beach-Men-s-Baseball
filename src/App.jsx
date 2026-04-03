@@ -1431,10 +1431,10 @@ function StandingsPage({ setTab, setTeamDetail }) {
 /* ─── TEAM DETAIL PAGE ────────────────────────────────────────────────────── */
 /* ─── PLAYER STATS MODAL ──────────────────────────────────────────────── */
 function PlayerStatsModal({ playerName, onClose }) {
-  const [rows, setRows] = React.useState(null);
-  const [totals, setTotals] = React.useState(null);
+  const [rows, setRows] = useState(null);
+  const [totals, setTotals] = useState(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     async function load() {
       try {
         const enc = encodeURIComponent(`*${playerName}*`);
@@ -1527,7 +1527,7 @@ function PlayerStatsModal({ playerName, onClose }) {
 function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
   const team = ALL_TEAMS.find(t => t.name === teamName);
   const roster = TEAM_ROSTERS[teamName] || [];
-  const [selectedPlayer, setSelectedPlayer] = React.useState(null);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   if (!team) return null;
   const color = TEAM_COLORS[teamName] || "#002d6e";
   const teamGames = SCORES.flatMap(s => s.weeks.flatMap(w => w.games)).filter(g => g.away===teamName||g.home===teamName).slice(0,5);
