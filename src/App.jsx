@@ -382,7 +382,7 @@ function TLogo({ name, size=80 }) {
   const src = TEAM_LOGOS[name];
   if (src) return (
     <div style={{width:size,height:size,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <img src={src} alt={name} style={{width:size*2,height:size*2,objectFit:"contain",display:"block",flexShrink:0}} />
+      <img src={src} alt={name} loading="lazy" style={{width:size*2,height:size*2,objectFit:"contain",display:"block",flexShrink:0}} />
     </div>
   );
   const color = TEAM_COLORS[name] || "#002d6e";
@@ -1790,15 +1790,83 @@ function SubBoardPage() {
 
 /* ─── ADMIN PAGE ─────────────────────────────────────────────────────────── */
 function ManageSchedulePage({ onBack }) {
+  const TEAMS = Object.keys(TEAM_ROSTERS);
+  const [customGames, setCustomGames] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("lbdc_custom_games") || "[]"); } catch(e) { return []; }
+  });
+  const [form, setForm] = useState({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
+  const [showAdd, setShowAdd] = useState(false);
+
+  const saveGames = (games) => {
+    setCustomGames(games);
+    localStorage.setItem("lbdc_custom_games", JSON.stringify(games));
+  };
+  const addGame = () => {
+    if(!form.date||!form.away||!form.home) return;
+    saveGames([...customGames, {...form}]);
+    setForm({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
+    setShowAdd(false);
+  };
+  const removeGame = (i) => saveGames(customGames.filter((_,j)=>j!==i));
+
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
         <button type="button" onClick={onBack} style={{padding:"6px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>← Back</button>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Manage Schedule</div>
+        <button type="button" onClick={()=>setShowAdd(s=>!s)} style={{marginLeft:"auto",padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Game</button>
       </div>
+
+      {showAdd && (
+        <div style={{background:"#fff",border:"2px solid #002d6e",borderRadius:12,padding:"20px",marginBottom:16}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:14,color:"#002d6e"}}>New Game</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+            {[["Date","date","e.g. Apr 19, 2026"],["Time","time","9:00 AM"],["Field","field","Clark Field"]].map(([l,k,ph])=>(
+              <div key={k}>
+                <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:4}}>{l}</label>
+                <input value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} placeholder={ph}
+                  style={{width:"100%",padding:"8px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+            {[["Away Team","away"],["Home Team","home"]].map(([l,k])=>(
+              <div key={k}>
+                <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:4}}>{l}</label>
+                <select value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}
+                  style={{width:"100%",padding:"8px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}>
+                  {TEAMS.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button type="button" onClick={addGame} style={{padding:"10px 24px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>Save Game</button>
+            <button type="button" onClick={()=>setShowAdd(false)} style={{padding:"10px 16px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:8,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {customGames.length > 0 && (
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",marginBottom:16}}>
+          <div style={{background:"#002d6e",padding:"10px 18px"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>Added Games</div>
+          </div>
+          {customGames.map((g,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 18px",borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away} @ {g.home}</div>
+                <div style={{fontSize:12,color:"#888",marginTop:2}}>{g.date} · {g.time} · {g.field}</div>
+              </div>
+              <button type="button" onClick={()=>removeGame(i)} style={{padding:"4px 10px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontSize:12,fontWeight:700,cursor:"pointer"}}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
         <div style={{background:"#001a3e",padding:"12px 18px"}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>Spring/Summer 2026 — Upcoming Games</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>Spring/Summer 2026 — Full Schedule</div>
         </div>
         {SCHED.map((week,wi)=>(
           <div key={wi} style={{borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
@@ -1811,9 +1879,6 @@ function ManageSchedulePage({ onBack }) {
             )))}
           </div>
         ))}
-        <div style={{padding:"16px 18px",background:"#fffbeb",border:"1px solid #fcd34d",margin:12,borderRadius:8,fontSize:13,color:"#92400e"}}>
-          ✏️ To add or edit games, update the <strong>SCHED</strong> constant in <code>src/App.jsx</code> and redeploy — or contact your developer.
-        </div>
       </div>
     </div>
   );
@@ -1821,14 +1886,110 @@ function ManageSchedulePage({ onBack }) {
 
 function WeeklyEmailPage({ onBack }) {
   const [copied, setCopied] = useState(false);
-  const weeks = SCORES.flatMap(s=>s.weeks).filter(w=>w.games&&w.games.length>0);
-  const latest = weeks[0];
-  const text = latest ? [
-    `LBDC — ${latest.week} Results`,
-    "─".repeat(40),
-    ...(latest.games||[]).map(g=>`  ${g.away} ${g.aScore}  vs  ${g.home} ${g.hScore}${g.note?`  (${g.note})`:""}`)
-  ].join("\n") : "No results yet.";
-  const copy = () => { navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);}); };
+  const [season, setSeason] = useState("Spring/Summer 2026");
+  const [liveGames, setLiveGames] = useState([]);
+  const [liveStandings, setLiveStandings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      sbFetch("seasons?select=id,name&limit=20"),
+    ]).then(([seasons]) => {
+      const s = seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
+      if(!s) { setLoading(false); return; }
+      setSeason(s.name);
+      return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&season_id=eq.${s.id}&away_score=not.is.null&order=game_date.desc&limit=50`);
+    }).then(games => {
+      if(!games) return;
+      setLiveGames(games);
+      // compute standings
+      const tm = {};
+      Object.keys(TEAM_ROSTERS).forEach(t=>{tm[t]={w:0,l:0,t:0,rs:0,ra:0,gp:0,streak:0,lastResult:null};});
+      [...games].reverse().forEach(g=>{
+        const a=g.away_team,h=g.home_team,as=+g.away_score,hs=+g.home_score;
+        if(!tm[a]||!tm[h]) return;
+        tm[a].rs+=as;tm[a].ra+=hs;tm[a].gp++;
+        tm[h].rs+=hs;tm[h].ra+=as;tm[h].gp++;
+        if(as>hs){
+          tm[a].w++;tm[h].l++;
+          tm[a].streak=tm[a].lastResult==="W"?tm[a].streak+1:1; tm[a].lastResult="W";
+          tm[h].streak=tm[h].lastResult==="L"?tm[h].streak+1:1; tm[h].lastResult="L";
+        } else if(hs>as){
+          tm[h].w++;tm[a].l++;
+          tm[h].streak=tm[h].lastResult==="W"?tm[h].streak+1:1; tm[h].lastResult="W";
+          tm[a].streak=tm[a].lastResult==="L"?tm[a].streak+1:1; tm[a].lastResult="L";
+        } else {
+          tm[a].t++;tm[h].t++;tm[a].lastResult="T";tm[h].lastResult="T";tm[a].streak=0;tm[h].streak=0;
+        }
+      });
+      const rows=Object.entries(tm).map(([name,s])=>{
+        const pts=s.w*2+s.t,max=(s.gp||1)*2;
+        const pct=s.gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"");
+        const d=s.rs-s.ra;
+        const streakStr=s.gp===0?"—":s.lastResult==="W"?`W${s.streak}`:s.lastResult==="L"?`L${s.streak}`:"T";
+        return {name,w:s.w,l:s.l,t:s.t,pct,gp:s.gp,rs:s.rs,ra:s.ra,diff:d>=0?`+${d}`:`${d}`,streak:streakStr,seed:0};
+      }).sort((a,b)=>{
+        const ag=a.gp||1,bg=b.gp||1;
+        const ar=(a.w*2+a.t)/ag,br=(b.w*2+b.t)/bg;
+        return br!==ar?br-ar:(b.rs-b.ra)-(a.rs-a.ra);
+      }).map((t,i)=>({...t,seed:i+1}));
+      setLiveStandings(rows);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[]);
+
+  // Group games by date, take the most recent date
+  const byDate = {};
+  liveGames.forEach(g=>{ if(!byDate[g.game_date]) byDate[g.game_date]=[]; byDate[g.game_date].push(g); });
+  const dates = Object.keys(byDate).sort((a,b)=>b.localeCompare(a));
+  const latestDate = dates[0];
+  const latestGames = byDate[latestDate] || [];
+
+  const fmtDate = (d) => d ? new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}) : "";
+
+  const autoRecap = (g) => {
+    const as=+g.away_score, hs=+g.home_score;
+    const winner=as>hs?g.away_team:g.home_team, loser=as>hs?g.home_team:g.away_team;
+    const ws=as>hs?as:hs, ls=as>hs?hs:as, margin=ws-ls;
+    if(g.headline&&!g.headline.includes("[submitted")) return g.headline;
+    if(margin===0) return `${g.away_team} and ${g.home_team} played to a ${as}–${hs} tie in a hard-fought contest.`;
+    if(margin>=10) return `${winner} dominated ${loser}, cruising to a ${ws}–${ls} victory.`;
+    if(margin<=2) return `${winner} edged ${loser} in a nail-biter, ${ws}–${ls}.`;
+    return `${winner} topped ${loser} by a score of ${ws}–${ls}.`;
+  };
+
+  const emailText = loading ? "Loading..." : [
+    `LONG BEACH DIAMOND CLASSICS — WEEK IN REVIEW`,
+    `${fmtDate(latestDate)}`,
+    ``,
+    `═══════════════════════════════════════════`,
+    `  GAME RESULTS`,
+    `═══════════════════════════════════════════`,
+    ...latestGames.map(g=>[
+      ``,
+      `  ${g.away_team.toUpperCase()}  ${g.away_score}  —  ${g.home_team.toUpperCase()}  ${g.home_score}  (${g.status||"Final"})`,
+      `  ${autoRecap(g)}`,
+    ].join("\n")),
+    ``,
+    `═══════════════════════════════════════════`,
+    `  STANDINGS`,
+    `═══════════════════════════════════════════`,
+    ``,
+    `  #   TEAM              W    L    T    PCT   STREAK`,
+    `  ${"─".repeat(52)}`,
+    ...liveStandings.map(t=>`  ${String(t.seed).padEnd(4)}${t.name.padEnd(18)}${String(t.w).padEnd(5)}${String(t.l).padEnd(5)}${String(t.t).padEnd(5)}${t.pct.padEnd(7)}${t.streak}`),
+    ``,
+    liveStandings.filter(t=>t.streak.startsWith("W")&&parseInt(t.streak.slice(1))>=2).length>0
+      ? `🔥 WIN STREAKS: ${liveStandings.filter(t=>t.streak.startsWith("W")&&parseInt(t.streak.slice(1))>=2).map(t=>`${t.name} (${t.streak})`).join(", ")}`
+      : ``,
+    ``,
+    `═══════════════════════════════════════════`,
+    `View full box scores & stats: https://long-beach-men-s-baseball.vercel.app`,
+    `Long Beach Diamond Classics Baseball — Spring/Summer 2026`,
+  ].join("\n");
+
+  const copy = () => { navigator.clipboard.writeText(emailText).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);}); };
+
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
@@ -1836,11 +1997,21 @@ function WeeklyEmailPage({ onBack }) {
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Weekly Email</div>
       </div>
       <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,padding:"20px"}}>
-        <div style={{fontSize:13,color:"#555",marginBottom:12}}>Copy the text below and paste into your email client:</div>
-        <pre style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.1)",borderRadius:8,padding:"16px",fontSize:13,fontFamily:"monospace",whiteSpace:"pre-wrap",lineHeight:1.7,marginBottom:14}}>{text}</pre>
-        <button type="button" onClick={copy} style={{padding:"10px 22px",background:copied?"#22c55e":"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,textTransform:"uppercase",cursor:"pointer",transition:"background .2s"}}>
-          {copied ? "✓ Copied!" : "Copy to Clipboard"}
-        </button>
+        {loading ? (
+          <div style={{textAlign:"center",padding:40,color:"#888"}}>Loading latest results from database…</div>
+        ) : latestGames.length===0 ? (
+          <div style={{textAlign:"center",padding:40,color:"#888"}}>No games recorded yet. Enter box scores first.</div>
+        ) : (
+          <>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:13,color:"#555"}}>Auto-generated from latest results — <strong>{fmtDate(latestDate)}</strong> · {latestGames.length} game{latestGames.length!==1?"s":""}</div>
+              <button type="button" onClick={copy} style={{padding:"10px 22px",background:copied?"#22c55e":"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,textTransform:"uppercase",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
+                {copied?"✓ Copied!":"Copy to Clipboard"}
+              </button>
+            </div>
+            <pre style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.1)",borderRadius:8,padding:"16px",fontSize:12,fontFamily:"'Courier New',monospace",whiteSpace:"pre-wrap",lineHeight:1.8,maxHeight:500,overflowY:"auto"}}>{emailText}</pre>
+          </>
+        )}
       </div>
     </div>
   );
@@ -2074,6 +2245,28 @@ function parseIP(str) {
 }
 
 /* ─── BOX SCORE ENTRY ────────────────────────────────────────────────────── */
+// These MUST be module-level (not defined inside BoxScoreEntry) so React
+// never remounts them on state changes — which caused scroll-to-top.
+function BSH2({n,title,sub}) {
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+      <div style={{width:26,height:26,borderRadius:"50%",background:"#FFD700",color:"#001a3e",
+        fontSize:12,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n}</div>
+      <div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,
+          textTransform:"uppercase",color:"#111",lineHeight:1}}>{title}</div>
+        {sub&&<div style={{fontSize:11,color:"#888",marginTop:1}}>{sub}</div>}
+      </div>
+    </div>
+  );
+}
+function BSCrd({children,style={}}) {
+  return (
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,
+      padding:"18px 20px",marginBottom:14,...style}}>{children}</div>
+  );
+}
+
 function BoxScoreEntry({ onClose, captainTeam="" }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
   const POSITIONS = ["","P","C","1B","2B","3B","SS","LF","CF","RF","DH","PH","PR"];
@@ -2154,25 +2347,6 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
       onWheel={e=>e.target.blur()}
       style={{width:w,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(0,0,0,0.15)",
         borderRadius:4,fontSize:13,background:"#f8f9fb",fontFamily:"inherit"}}/>
-  );
-
-  // ── Section header ──
-  const H2 = ({n,title,sub}) => (
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-      <div style={{width:26,height:26,borderRadius:"50%",background:"#FFD700",color:"#001a3e",
-        fontSize:12,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n}</div>
-      <div>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,
-          textTransform:"uppercase",color:"#111",lineHeight:1}}>{title}</div>
-        {sub&&<div style={{fontSize:11,color:"#888",marginTop:1}}>{sub}</div>}
-      </div>
-    </div>
-  );
-
-  // ── Card ──
-  const Crd = ({children,style={}}) => (
-    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,
-      padding:"18px 20px",marginBottom:14,...style}}>{children}</div>
   );
 
   // ── Save handler ──
@@ -2472,8 +2646,8 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
       </div>
 
       {/* Score */}
-      <Crd>
-        <H2 n="1" title="Score & Game Info"/>
+      <BSCrd>
+        <BSH2 n="1" title="Score & Game Info"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:16,alignItems:"center",marginBottom:14}}>
           <div style={{textAlign:"center"}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
@@ -2505,11 +2679,11 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
             </select>
           </div>
         </div>
-      </Crd>
+      </BSCrd>
 
       {/* Linescore */}
-      <Crd>
-        <H2 n="2" title="Linescore" sub="Inning-by-inning runs · R = total · H = hits · E = errors"/>
+      <BSCrd>
+        <BSH2 n="2" title="Linescore" sub="Inning-by-inning runs · R = total · H = hits · E = errors"/>
         <div style={{overflowX:"auto"}}>
           <table style={{borderCollapse:"collapse",fontSize:13,width:"100%"}}>
             <thead>
@@ -2559,34 +2733,34 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
             </tbody>
           </table>
         </div>
-      </Crd>
+      </BSCrd>
 
       {/* Batting */}
-      <Crd>
-        <H2 n="3" title="Batting Lineups" sub="Drag ⠿ handle to reorder · edit # to jump position · toggle off players not playing"/>
+      <BSCrd>
+        <BSH2 n="3" title="Batting Lineups" sub="Drag ⠿ handle to reorder · edit # to jump position · toggle off players not playing"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           {renderBats(`${game.away} Batting`,"away",awayBat,setAwayBat,addAwayName,setAddAwayName)}
           {renderBats(`${game.home} Batting`,"home",homeBat,setHomeBat,addHomeName,setAddHomeName)}
         </div>
-      </Crd>
+      </BSCrd>
 
       {/* Pitching */}
-      <Crd>
-        <H2 n="4" title="Pitching" sub="Enter IP as innings.outs (e.g. 6.2 = 6 innings 2 outs)"/>
+      <BSCrd>
+        <BSH2 n="4" title="Pitching" sub="Enter IP as innings.outs (e.g. 6.2 = 6 innings 2 outs)"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           {renderPit(`${game.away} Pitching`,awayPit,setAwayPit)}
           {renderPit(`${game.home} Pitching`,homePit,setHomePit)}
         </div>
-      </Crd>
+      </BSCrd>
 
       {/* Recap */}
-      <Crd>
-        <H2 n="5" title="Game Recap" sub="Optional · shown on game cards"/>
+      <BSCrd>
+        <BSH2 n="5" title="Game Recap" sub="Optional · shown on game cards"/>
         <textarea value={recap} onChange={e=>setRecap(e.target.value)} rows={4}
           placeholder="Will be auto generated if you don't do a personalized one..."
           style={{width:"100%",padding:"10px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:13,
             fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
-      </Crd>
+      </BSCrd>
 
       {/* Save */}
       {saveMsg && (
