@@ -599,7 +599,7 @@ function Ticker({ setTab }) {
 }
 
 /* ─── NAVBAR ─────────────────────────────────────────────────────────────── */
-function Navbar({ tab, setTab }) {
+function Navbar({ tab, setTab, teamDetail, onBackTeam }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["history","History"],["rules","Rules"],["admin","⚙ Admin"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); window.scrollTo(0,0); };
@@ -616,6 +616,11 @@ function Navbar({ tab, setTab }) {
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:10,color:"rgba(0,0,0,0.4)",letterSpacing:".04em",lineHeight:1}}>Long Beach Men's 50+ Baseball</div>
             </div>
           </div>
+          {teamDetail && (
+            <button onClick={onBackTeam} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#002d6e",letterSpacing:".04em",textTransform:"uppercase",flexShrink:0,marginLeft:12}}>
+              ← {teamDetail}
+            </button>
+          )}
           <ul style={{display:"flex",gap:0,listStyle:"none",margin:"0 auto",padding:0,flexShrink:1,minWidth:0}} className="desktop-nav">
             {links.map(([id,label]) => (
               <li key={id}>
@@ -1431,92 +1436,137 @@ function StandingsPage({ setTab, setTeamDetail }) {
 /* ─── TEAM DETAIL PAGE ────────────────────────────────────────────────────── */
 /* ─── PLAYER STATS MODAL ──────────────────────────────────────────────── */
 function PlayerStatsModal({ playerName, onClose }) {
-  const [rows, setRows] = useState(null);
-  const [totals, setTotals] = useState(null);
+  const [seasons, setSeasons] = useState(null); // array of {seasonName, gp, ab, r, h, d, t, hr, rbi, bb, k, hbp, sf, sb}
 
   useEffect(() => {
     async function load() {
       try {
         const enc = encodeURIComponent(`*${playerName}*`);
-        const lines = await sbFetch(`batting_lines?player_name=ilike.${enc}&select=game_id,ab,r,h,doubles,triples,hr,rbi,bb,k&order=game_id.asc&limit=500`);
-        if (!Array.isArray(lines) || lines.length === 0) { setRows([]); setTotals(null); return; }
+        const lines = await sbFetch(`batting_lines?player_name=ilike.${enc}&select=game_id,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&order=game_id.asc&limit=1000`);
+        if (!Array.isArray(lines) || lines.length === 0) { setSeasons([]); return; }
 
         const gameIds = [...new Set(lines.map(l => l.game_id))];
-        const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,game_date,season_id,away_team,home_team&order=game_date.asc`);
+        const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id&order=id.asc`);
         const seasonIds = [...new Set(games.map(g => g.season_id))];
-        const seasons = await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name`);
-        const seasonMap = Object.fromEntries(seasons.map(s => [s.id, s.name]));
-        const gameMap = Object.fromEntries(games.map(g => [g.id, g]));
+        const seasonList = await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.asc`);
 
-        const enriched = lines.map(l => ({ ...l, game: gameMap[l.game_id], seasonName: gameMap[l.game_id] ? seasonMap[gameMap[l.game_id].season_id] : "—" }));
-        const tot = enriched.reduce((a,l) => ({
-          ab: a.ab+(l.ab||0), r: a.r+(l.r||0), h: a.h+(l.h||0),
-          doubles: a.doubles+(l.doubles||0), triples: a.triples+(l.triples||0),
-          hr: a.hr+(l.hr||0), rbi: a.rbi+(l.rbi||0), bb: a.bb+(l.bb||0), k: a.k+(l.k||0),
-        }), {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0});
-        setRows(enriched);
-        setTotals(tot);
-      } catch(e) { setRows([]); setTotals(null); }
+        const seasonNameMap = Object.fromEntries(seasonList.map(s => [s.id, s.name]));
+        const gameSeasonMap = Object.fromEntries(games.map(g => [g.id, g.season_id]));
+
+        // Group lines by season
+        const bySeasonId = {};
+        for (const l of lines) {
+          const sid = gameSeasonMap[l.game_id];
+          if (!sid) continue;
+          if (!bySeasonId[sid]) bySeasonId[sid] = { name: seasonNameMap[sid]||"?", games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
+          const s = bySeasonId[sid];
+          s.games.add(l.game_id);
+          s.ab+=(l.ab||0); s.r+=(l.r||0); s.h+=(l.h||0); s.d+=(l.doubles||0);
+          s.t+=(l.triples||0); s.hr+=(l.hr||0); s.rbi+=(l.rbi||0); s.bb+=(l.bb||0);
+          s.k+=(l.k||0); s.hbp+=(l.hbp||0); s.sf+=(l.sf||0); s.sb+=(l.sb||0);
+        }
+
+        const result = Object.entries(bySeasonId).map(([sid, s]) => ({
+          sid, name: s.name, gp: s.games.size,
+          ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb,
+        }));
+
+        setSeasons(result);
+      } catch(e) { console.error(e); setSeasons([]); }
     }
     load();
   }, [playerName]);
 
-  const fmtAvg = (h, ab) => ab > 0 ? (h/ab).toFixed(3).replace(/^0/,"") : ".000";
+  const fmtAvg = (h,ab) => ab>0 ? (h/ab).toFixed(3).replace(/^0/,"") : ".---";
+  const fmtObp = (h,bb,hbp,ab,sf) => {
+    const d = ab+bb+hbp+sf;
+    return d>0 ? ((h+bb+hbp)/d).toFixed(3).replace(/^0/,"") : ".---";
+  };
+  const fmtSlg = (h,d,t,hr,ab) => ab>0 ? ((h + d + 2*t + 3*hr)/ab).toFixed(3).replace(/^0/,"") : ".---";
+
+  const careerTot = seasons && seasons.length > 0 ? seasons.reduce((a,s) => ({
+    gp:a.gp+s.gp, ab:a.ab+s.ab, r:a.r+s.r, h:a.h+s.h, d:a.d+s.d, t:a.t+s.t,
+    hr:a.hr+s.hr, rbi:a.rbi+s.rbi, bb:a.bb+s.bb, k:a.k+s.k, hbp:a.hbp+s.hbp, sf:a.sf+s.sf, sb:a.sb+s.sb,
+  }), {gp:0,ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0}) : null;
+
+  const cols = ["SEASON","TEAM","GP","AB","R","H","2B","3B","HR","RBI","BB","SO","SB","AVG","OBP","SLG"];
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:820,maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
-        <div style={{position:"sticky",top:0,background:"#002d6e",padding:"16px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+      <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:960,maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{position:"sticky",top:0,background:"#002d6e",padding:"16px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0",zIndex:1}}>
           <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#fff",lineHeight:1}}>{playerName}</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:3,letterSpacing:".1em",textTransform:"uppercase"}}>Career Stats</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,textTransform:"uppercase",color:"#fff",lineHeight:1}}>{playerName}</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:3,letterSpacing:".1em",textTransform:"uppercase"}}>Career Batting Stats</div>
           </div>
-          <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontSize:20,width:32,height:32,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+          <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontSize:22,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
 
-        {rows === null ? (
-          <div style={{padding:40,textAlign:"center",color:"#999",fontSize:14}}>Loading stats…</div>
-        ) : rows.length === 0 ? (
-          <div style={{padding:40,textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>No recorded stats found for {playerName}.</div>
+        {seasons === null ? (
+          <div style={{padding:60,textAlign:"center",color:"#999",fontSize:14}}>Loading stats…</div>
+        ) : seasons.length === 0 ? (
+          <div style={{padding:60,textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>No recorded stats found for {playerName}.<br/><span style={{fontSize:12,marginTop:8,display:"block"}}>Stats may be listed under a slightly different name in the system.</span></div>
         ) : (
-          <div style={{padding:20}}>
-            {totals && (
-              <div style={{marginBottom:24}}>
-                <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#999",marginBottom:10}}>Career Totals — {rows.length} games</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(72px,1fr))",gap:8}}>
-                  {[["AVG",fmtAvg(totals.h,totals.ab)],["AB",totals.ab],["R",totals.r],["H",totals.h],["2B",totals.doubles],["3B",totals.triples],["HR",totals.hr],["RBI",totals.rbi],["BB",totals.bb],["K",totals.k]].map(([lbl,val])=>(
-                    <div key={lbl} style={{background:"#f2f4f8",borderRadius:8,padding:"10px 6px",textAlign:"center"}}>
-                      <div style={{fontSize:10,fontWeight:700,color:"#999",textTransform:"uppercase",letterSpacing:".08em"}}>{lbl}</div>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e",lineHeight:1.1}}>{val}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#999",marginBottom:8}}>Game Log</div>
+          <div>
+            <div style={{padding:"16px 24px 4px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111",letterSpacing:".06em"}}>Career Batting</div>
             <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:600}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:700}}>
                 <thead>
-                  <tr style={{background:"#f2f4f8"}}>
-                    {["Date","Season","AB","R","H","2B","3B","HR","RBI","BB","K","AVG"].map(h=>(
-                      <th key={h} style={{padding:"7px 10px",textAlign:h==="Season"?"left":"center",fontWeight:700,fontSize:10,textTransform:"uppercase",color:"#666",letterSpacing:".07em",whiteSpace:"nowrap"}}>{h}</th>
+                  <tr style={{background:"#f5f7fa",borderBottom:"2px solid #e5e7eb"}}>
+                    {cols.map(c=>(
+                      <th key={c} style={{padding:"9px 12px",textAlign:c==="SEASON"||c==="TEAM"?"left":"center",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap"}}>{c}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r,i)=>(
-                    <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"transparent":"rgba(0,0,0,0.015)"}}>
-                      <td style={{padding:"7px 10px",textAlign:"center",whiteSpace:"nowrap",color:"#555"}}>{r.game?.game_date?.slice(0,10)||"—"}</td>
-                      <td style={{padding:"7px 10px",fontSize:11,color:"#777",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.seasonName}</td>
-                      {[r.ab,r.r,r.h,r.doubles,r.triples,r.hr,r.rbi,r.bb,r.k].map((v,j)=>(
-                        <td key={j} style={{padding:"7px 10px",textAlign:"center",color:"#333"}}>{v||0}</td>
-                      ))}
-                      <td style={{padding:"7px 10px",textAlign:"center",fontWeight:700,color:"#002d6e"}}>{fmtAvg(r.h,r.ab)}</td>
+                  {seasons.map((s,i)=>(
+                    <tr key={i} style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
+                      <td style={{padding:"10px 12px",fontWeight:600,color:"#111",whiteSpace:"nowrap"}}>{s.name}</td>
+                      <td style={{padding:"10px 12px",color:"#555",whiteSpace:"nowrap"}}>LBDC</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.gp}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.ab}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.r}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.h}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.d}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.t}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.hr}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.rbi}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.bb}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.k}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.sb}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",fontWeight:600,color:"#111"}}>{fmtAvg(s.h,s.ab)}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#555"}}>{fmtObp(s.h,s.bb,s.hbp,s.ab,s.sf)}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#555"}}>{fmtSlg(s.h,s.d,s.t,s.hr,s.ab)}</td>
                     </tr>
                   ))}
+
+                  {/* Career Totals */}
+                  {careerTot && (
+                    <tr style={{borderTop:"2px solid #002d6e",background:"#fff",fontWeight:700}}>
+                      <td style={{padding:"10px 12px",color:"#111"}}>Career</td>
+                      <td style={{padding:"10px 12px"}}></td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.gp}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.ab}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.r}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.h}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.d}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.t}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.hr}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.rbi}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.bb}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.k}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.sb}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtAvg(careerTot.h,careerTot.ab)}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtObp(careerTot.h,careerTot.bb,careerTot.hbp,careerTot.ab,careerTot.sf)}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtSlg(careerTot.h,careerTot.d,careerTot.t,careerTot.hr,careerTot.ab)}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
+            <div style={{padding:"10px 24px 20px",fontSize:11,color:"#9ca3af"}}>Stats sourced from recorded box scores only. Games without entered stats are not reflected.</div>
           </div>
         )}
       </div>
@@ -4226,7 +4276,7 @@ export default function App() {
         }
       `}</style>
       <div style={{position:"relative",zIndex:200,overflow:"hidden",width:"100%"}}><Ticker setTab={handleSetTab} /></div>
-      <div style={{position:"sticky",top:0,zIndex:300,overflow:"hidden",width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
+      <div style={{position:"sticky",top:0,zIndex:300,overflow:"hidden",width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} teamDetail={teamDetail} onBackTeam={() => { setTeamDetail(null); setTab(prevTab); window.scrollTo(0,0); }} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="scores"    && <ScoresPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="schedule"  && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
