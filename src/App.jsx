@@ -3082,6 +3082,12 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const dragRef = useRef({idx:null, side:null});
   const [dragVisual, setDragVisual] = useState({idx:null, side:null}); // for visual feedback only
 
+  // ── Tap-to-order mode ──
+  const [awayOrderMode, setAwayOrderMode] = useState(false);
+  const [homeOrderMode, setHomeOrderMode] = useState(false);
+  const [awayOrderQueue, setAwayOrderQueue] = useState([]); // _ids in tap order
+  const [homeOrderQueue, setHomeOrderQueue] = useState([]);
+
   // ── Auto-load a game when opened from "Manage Games" → Edit ──
   useEffect(() => {
     if (preloadGame) selectSavedGame(preloadGame);
@@ -3358,7 +3364,99 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   // ── Batting section — called as a function, NOT as <BatSection/>, so React never
   //    unmounts/remounts it on re-render (which caused scroll-to-top + broken drag) ──
-  const renderBats = (label,side,batters,setter,addName,setAddName,statMode,setStatMode) => (
+  const renderBats = (label,side,batters,setter,addName,setAddName,statMode,setStatMode) => {
+    const orderMode  = side==="away" ? awayOrderMode  : homeOrderMode;
+    const setOrderMode = side==="away" ? setAwayOrderMode : setHomeOrderMode;
+    const orderQueue = side==="away" ? awayOrderQueue : homeOrderQueue;
+    const setOrderQueue = side==="away" ? setAwayOrderQueue : setHomeOrderQueue;
+
+    const activeBatters = batters.filter(p=>p.on);
+
+    const startOrderMode = () => {
+      setOrderQueue([]);
+      setOrderMode(true);
+    };
+    const tapPlayer = (id) => {
+      if (orderQueue.includes(id)) return; // already placed
+      const newQueue = [...orderQueue, id];
+      setOrderQueue(newQueue);
+      // Once all active batters tapped, apply order and exit
+      if (newQueue.length === activeBatters.length) {
+        setter(prev => {
+          const ordered = newQueue.map(qid => prev.find(p=>p._id===qid)).filter(Boolean);
+          const inactive = prev.filter(p=>!p.on);
+          return [...ordered, ...inactive];
+        });
+        setOrderMode(false);
+        setOrderQueue([]);
+      }
+    };
+    const undoLast = () => setOrderQueue(q=>q.slice(0,-1));
+    const cancelOrder = () => { setOrderMode(false); setOrderQueue([]); };
+
+    // ── Tap-to-order overlay ──
+    if (orderMode) return (
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
+          textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
+        <div style={{background:"#002d6e",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+          <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,marginBottom:4}}>
+            Tap players in batting order
+          </div>
+          <div style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginBottom:10}}>
+            {orderQueue.length < activeBatters.length
+              ? `Tap your #${orderQueue.length+1} batter…`
+              : "All set!"}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button type="button" onClick={undoLast} disabled={orderQueue.length===0}
+              style={{padding:"8px 14px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:7,
+                color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",opacity:orderQueue.length===0?0.4:1}}>
+              ↩ Undo
+            </button>
+            <button type="button" onClick={cancelOrder}
+              style={{padding:"8px 14px",background:"rgba(255,255,255,0.1)",border:"none",borderRadius:7,
+                color:"rgba(255,255,255,0.6)",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+              Cancel
+            </button>
+          </div>
+        </div>
+        {/* Player tap grid */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8}}>
+          {activeBatters.map(p => {
+            const pos = orderQueue.indexOf(p._id);
+            const tapped = pos !== -1;
+            return (
+              <button key={p._id} type="button" onClick={()=>tapPlayer(p._id)}
+                disabled={tapped}
+                style={{
+                  padding:"14px 10px",borderRadius:10,cursor:tapped?"default":"pointer",
+                  background: tapped ? "#e8f5e9" : "#f0f4ff",
+                  border: tapped ? "2px solid #22c55e" : "2px solid #002d6e",
+                  position:"relative",transition:"all .1s",
+                  opacity: tapped ? 0.85 : 1,
+                  transform: tapped ? "none" : "scale(1)",
+                }}>
+                {tapped && (
+                  <div style={{
+                    position:"absolute",top:6,right:8,
+                    fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+                    fontSize:22,color:"#22c55e",lineHeight:1
+                  }}>{pos+1}</div>
+                )}
+                <div style={{
+                  fontWeight:700,fontSize:14,color: tapped?"#166534":"#002d6e",
+                  textAlign:"left",lineHeight:1.2,paddingRight:tapped?20:0
+                }}>{p.name||"—"}</div>
+                {!tapped && <div style={{fontSize:11,color:"#888",marginTop:3}}>Tap to set order</div>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+
+    return (
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
@@ -3377,8 +3475,19 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       </div>
       {statMode==="full" && (
         <>
-          <div style={{fontSize:10,color:"#999",marginBottom:4}}>
-            Edit the # to change order · drag handle to drag · toggle off players not playing
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+            <div style={{fontSize:10,color:"#999"}}>
+              Use ▲▼ to reorder · toggle off players not playing
+            </div>
+            {activeBatters.length > 0 && (
+              <button type="button" onClick={startOrderMode}
+                style={{padding:"5px 11px",background:"#002d6e",border:"none",borderRadius:6,
+                  color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,
+                  fontSize:12,cursor:"pointer",textTransform:"uppercase",letterSpacing:".04em",
+                  whiteSpace:"nowrap",flexShrink:0}}>
+                📋 Set Order
+              </button>
+            )}
           </div>
           <div style={{background:"rgba(0,45,110,0.04)",border:"1px solid rgba(0,45,110,0.12)",borderRadius:6,
             padding:"5px 10px",fontSize:10,color:"#555",marginBottom:8,lineHeight:1.5}}>
@@ -3458,7 +3567,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   // ── Pitching section — also called as a plain function ──
   const renderPit = (label,pit,setter) => (
