@@ -141,7 +141,7 @@ function parseBoxScore(html, awayTeam, homeTeam) {
       const tds = [...row.matchAll(/<td[\s\S]*?>([\s\S]*?)<\/td>/gi)].map(m => clean(m[1]));
       if (tds.length < 6) continue;
       const name = tds[0];
-      if (!name || name === "Hitters" || /^[\s-]*$/.test(name)) continue;
+      if (!name || name === "Hitters" || /^[\s-]*$/.test(name) || /^totals?$/i.test(name)) continue;
       const ab  = parseInt(tds[1]) || 0;
       const r   = parseInt(tds[2]) || 0;
       const h   = parseInt(tds[3]) || 0;
@@ -163,7 +163,7 @@ function parseBoxScore(html, awayTeam, homeTeam) {
       const tds = [...row.matchAll(/<td[\s\S]*?>([\s\S]*?)<\/td>/gi)].map(m => clean(m[1]));
       if (tds.length < 3) continue;
       let name = tds[0];
-      if (!name || name === "Pitchers" || /^[\s-]*$/.test(name)) continue;
+      if (!name || name === "Pitchers" || /^[\s-]*$/.test(name) || /^totals?$/i.test(name)) continue;
       // Extract decision from name: "JOHN DOE (W)" → decision=W
       let decision = null;
       const decMatch = name.match(/\(([WLS])\)/i);

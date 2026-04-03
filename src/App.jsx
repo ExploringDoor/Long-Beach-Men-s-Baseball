@@ -727,7 +727,8 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
   const homeBat = batting.filter(b => b.team === game.home_team);
   const awayPit = pitching.filter(p => p.team === game.away_team);
   const homePit = pitching.filter(p => p.team === game.home_team);
-  const BatTable = ({ rows, team }) => {
+  const BatTable = ({ rows: rawRows, team }) => {
+    const rows = rawRows.filter(r => !/^totals?$/i.test(r.player_name));
     const note2B = rows.filter(r=>r.doubles>0).map(r=>`${r.player_name}${r.doubles>1?` (${r.doubles})`:""}`).join(", ");
     const note3B = rows.filter(r=>r.triples>0).map(r=>`${r.player_name}${r.triples>1?` (${r.triples})`:""}`).join(", ");
     const noteHR = rows.filter(r=>r.hr>0).map(r=>`${r.player_name}${r.hr>1?` (${r.hr})`:""}`).join(", ");
@@ -779,7 +780,8 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
       </div>
     );
   };
-  const PitTable = ({ rows, team }) => {
+  const PitTable = ({ rows: rawPitRows, team }) => {
+    const rows = rawPitRows.filter(r => !/^totals?$/i.test(r.player_name));
     if(rows.length === 0) return null;
     const winner = rows.find(r=>r.decision==="W");
     const loser  = rows.find(r=>r.decision==="L");
