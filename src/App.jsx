@@ -599,7 +599,7 @@ function Ticker({ setTab }) {
 }
 
 /* ─── NAVBAR ─────────────────────────────────────────────────────────────── */
-function Navbar({ tab, setTab, teamDetail, onBackTeam }) {
+function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["history","History"],["rules","Rules"],["admin","⚙ Admin"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); window.scrollTo(0,0); };
@@ -616,11 +616,6 @@ function Navbar({ tab, setTab, teamDetail, onBackTeam }) {
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:10,color:"rgba(0,0,0,0.4)",letterSpacing:".04em",lineHeight:1}}>Long Beach Men's 50+ Baseball</div>
             </div>
           </div>
-          {teamDetail && (
-            <button onClick={onBackTeam} style={{display:"flex",alignItems:"center",gap:6,background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#002d6e",letterSpacing:".04em",textTransform:"uppercase",flexShrink:0,marginLeft:12}}>
-              ← {teamDetail}
-            </button>
-          )}
           <ul style={{display:"flex",gap:0,listStyle:"none",margin:"0 auto",padding:0,flexShrink:1,minWidth:0}} className="desktop-nav">
             {links.map(([id,label]) => (
               <li key={id}>
@@ -4277,13 +4272,13 @@ export default function App() {
         }
       `}</style>
       <div style={{position:"relative",zIndex:200,overflow:"hidden",width:"100%"}}><Ticker setTab={handleSetTab} /></div>
-      <div style={{position:"sticky",top:0,zIndex:300,overflow:"hidden",width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} teamDetail={teamDetail} onBackTeam={() => window.history.back()} /></div>
+      <div style={{position:"sticky",top:0,zIndex:300,overflow:"hidden",width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="scores"    && <ScoresPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="schedule"  && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="standings" && <StandingsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && !teamDetail && <TeamsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
-      {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={() => window.history.back()} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
+      {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={() => { setTeamDetail(null); window.scrollTo(0,0); }} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="stats"     && <StatsPage />}
       {tab==="subs"      && <SubBoardPage />}
       {tab==="admin"     && <AdminPage onAlertChange={setActiveAlert} />}
