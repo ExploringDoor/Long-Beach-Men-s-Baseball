@@ -1684,6 +1684,14 @@ const SEASONS_WITH_BOX_SCORES = new Set([
   "2024 NABA World Series - 65+",
   "2023 Thanksgiving Turkey Bowl",
   "2026 Fall/Winter Season (Season #10)",
+  "2023 Fall/Winter Season",
+  "NABA World Series-LAS VEGAS 2023",
+  "2023 Spring/Summer Season",
+  "2022 Fall/Winter Season",
+  "2022 Summer Season",
+  "2021 Fall/Winter Season",
+  "2021 50+",
+  "Summer 2019",
 ]);
 
 function HistoryPage() {

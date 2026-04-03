@@ -9,29 +9,16 @@ const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
 const LL_BASE = "https://www.leaguelineup.com";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0";
 
-// Seasons to process (last ~2 years, skip ones already in Supabase)
-// Skipping divisionId 1061488 (2026 Fall/Winter - already in Supabase)
-// Skipping divisionId 1064043 (Spring/Summer 2026 - no games yet)
+// Remaining seasons — 2023 back to 2019
 const TARGET_SEASONS = [
-  // 2025
-  { name: "2025 Spring/Summer Season",               divisionId: "1055551" },
-  { name: "2025 NABA AZ World Series 50's",          divisionId: "1053560" },
-  { name: "2025 NABA Father/Son",                    divisionId: "1059946" },
-  { name: "2025 NABA Las Vegas World Series 60's",   divisionId: "1053561" },
-  { name: "2025 4th of July-NABA",                   divisionId: "1055104" },
-  { name: "2025 Memorial Weekend Tournament-Las Vegas", divisionId: "1056761" },
-  { name: "2025 NABA Great Park Tournament",         divisionId: "1055186" },
-  { name: "2025 NABA MLK Tournament",                divisionId: "1053559" },
-  // 2024
-  { name: "2024/2025 Fall Winter Season",            divisionId: "1049932" },
-  { name: "2024 Spring/Summer Season",               divisionId: "1044289" },
-  { name: "2024 4th of July-NABA",                   divisionId: "1045846" },
-  { name: "2024 Father/Son NABA",                    divisionId: "1049256" },
-  { name: "2024 MG Turkey Bowl Tournament",          divisionId: "1053282" },
-  { name: "2024 MLK-NABA",                           divisionId: "1041797" },
-  { name: "2024 NABA LAS VEGAS World Series - 60+",  divisionId: "1042135" },
-  { name: "2024 NABA World Series - 65+",            divisionId: "1042134" },
-  { name: "2023 Thanksgiving Turkey Bowl",           divisionId: "1040473" },
+  { name: "2023 Fall/Winter Season",                 divisionId: "1040472" },
+  { name: "NABA World Series-LAS VEGAS 2023",        divisionId: "1041039" },
+  { name: "2023 Spring/Summer Season",               divisionId: "1032266" },
+  { name: "2022 Fall/Winter Season",                 divisionId: "1022573" },
+  { name: "2022 Summer Season",                      divisionId: "1015858" },
+  { name: "2021 Fall/Winter Season",                 divisionId: "1009695" },
+  { name: "2021 50+",                                divisionId: "997284"  },
+  { name: "Summer 2019",                             divisionId: "850923"  },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
