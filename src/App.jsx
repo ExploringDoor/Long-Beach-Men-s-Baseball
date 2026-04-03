@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { HISTORY_DATA } from "./historyData.js";
 
 const L_LEAGUE = "/hero111.jpg";
 
@@ -573,7 +574,7 @@ function Ticker({ setTab }) {
 /* ─── NAVBAR ─────────────────────────────────────────────────────────────── */
 function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["rules","Rules"],["admin","⚙ Admin"]];
+  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["history","History"],["rules","Rules"],["admin","⚙ Admin"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); window.scrollTo(0,0); };
   return (
     <>
@@ -1662,9 +1663,271 @@ function RulesPage() {
   );
 }
 
+/* ─── HISTORY PAGE ──────────────────────────────────────────────────────── */
+function HistoryPage() {
+  // Group seasons by category
+  const LBDC_REGULAR = [
+    "Spring/Summer 2026 Diamond Classics Saturdays",
+    "2026 Fall/Winter Season (Season #10)",
+    "2025 Spring/Summer Season",
+    "2024/2025 Fall Winter Season",
+    "2024 Spring/Summer Season",
+    "2023 Fall/Winter Season",
+    "2023 Spring/Summer Season",
+    "2022 Fall/Winter Season",
+    "2022 Summer Season",
+    "2021 Fall/Winter Season",
+    "Summer 2019",
+  ];
+
+  const CATEGORIES = [
+    { key: "regular", label: "Regular Seasons", filter: s => LBDC_REGULAR.includes(s.name) },
+    { key: "tournament", label: "Tournaments & Special Events", filter: s => !LBDC_REGULAR.includes(s.name) },
+  ];
+
+  const [activeCategory, setActiveCategory] = useState("regular");
+  const [selectedSeason, setSelectedSeason] = useState(null);
+  const [gameFilter, setGameFilter] = useState("all"); // "all" | "Final" | "Playoff"
+  const [search, setSearch] = useState("");
+
+  const categorySeasons = HISTORY_DATA.filter(
+    CATEGORIES.find(c => c.key === activeCategory).filter
+  ).filter(s => s.games.length > 0 || s.standings.length > 0);
+
+  // Auto-select first season when category changes
+  useEffect(() => {
+    if (categorySeasons.length > 0) setSelectedSeason(categorySeasons[0]);
+  }, [activeCategory]);
+
+  const season = selectedSeason || categorySeasons[0];
+
+  const filteredGames = (season?.games || []).filter(g => {
+    if (gameFilter !== "all" && g.status !== gameFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return g.away_team.toLowerCase().includes(q) || g.home_team.toLowerCase().includes(q) || (g.headline||"").toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const totalGames = HISTORY_DATA.reduce((s,d) => s + d.games.length, 0);
+
+  return (
+    <div style={{maxWidth:1200,margin:"0 auto",padding:"32px clamp(12px,3vw,32px)"}}>
+      {/* Header */}
+      <div style={{marginBottom:28}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:38,
+          textTransform:"uppercase",color:"#002d6e",letterSpacing:".04em",lineHeight:1}}>
+          League History
+        </div>
+        <div style={{fontSize:13,color:"#888",marginTop:6}}>
+          {HISTORY_DATA.length} seasons · {totalGames} games · going back to 2019
+        </div>
+      </div>
+
+      {/* Category tabs */}
+      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+        {CATEGORIES.map(c => (
+          <button key={c.key} onClick={() => setActiveCategory(c.key)}
+            style={{padding:"8px 18px",borderRadius:20,border:"none",cursor:"pointer",
+              fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
+              textTransform:"uppercase",letterSpacing:".04em",
+              background:activeCategory===c.key?"#002d6e":"rgba(0,45,110,0.07)",
+              color:activeCategory===c.key?"#fff":"#555",transition:"all .15s"}}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:20,alignItems:"start"}}>
+
+        {/* Season list sidebar */}
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",
+          position:"sticky",top:80,maxHeight:"80vh",overflowY:"auto"}}>
+          {categorySeasons.map((s,i) => (
+            <button key={i} onClick={() => setSelectedSeason(s)}
+              style={{display:"block",width:"100%",textAlign:"left",padding:"12px 14px",
+                border:"none",borderBottom:"1px solid rgba(0,0,0,0.06)",cursor:"pointer",
+                background:season?.name===s.name?"rgba(0,45,110,0.07)":"#fff",
+                borderLeft:season?.name===s.name?"3px solid #002d6e":"3px solid transparent",
+                transition:"background .1s"}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
+                color:season?.name===s.name?"#002d6e":"#222",lineHeight:1.3}}>
+                {s.name}
+              </div>
+              <div style={{fontSize:11,color:"#999",marginTop:3}}>
+                {s.games.length} games · {s.standings.length} teams
+              </div>
+            </button>
+          ))}
+          {categorySeasons.length === 0 && (
+            <div style={{padding:20,textAlign:"center",color:"#aaa",fontSize:13}}>No seasons</div>
+          )}
+        </div>
+
+        {/* Main content */}
+        {season ? (
+          <div>
+            {/* Season header */}
+            <div style={{background:"#002d6e",borderRadius:12,padding:"16px 20px",marginBottom:16,
+              display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,
+                  color:"#FFD700",textTransform:"uppercase",letterSpacing:".04em"}}>
+                  {season.name}
+                </div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:3}}>
+                  {season.games.length} games played · {season.standings.length} teams
+                </div>
+              </div>
+            </div>
+
+            {/* Standings */}
+            {season.standings.length > 0 && (
+              <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,
+                padding:"16px 20px",marginBottom:16}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,
+                  textTransform:"uppercase",color:"#002d6e",marginBottom:12,letterSpacing:".04em"}}>
+                  Standings
+                </div>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <thead>
+                      <tr style={{background:"#001a3e"}}>
+                        {["#","Team","W","L","T","Pts","GB"].map(h => (
+                          <th key={h} style={{padding:"8px 10px",textAlign:h==="Team"||h==="#"?"left":"center",
+                            fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
+                            textTransform:"uppercase",color:"rgba(255,255,255,0.6)",letterSpacing:".06em"}}>
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {season.standings.map((row,i) => (
+                        <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.06)",
+                          background:i===0?"rgba(255,215,0,0.06)":i%2===0?"#fff":"#fafafa"}}>
+                          <td style={{padding:"8px 10px",fontWeight:700,color:"#aaa",fontSize:12}}>{i+1}</td>
+                          <td style={{padding:"8px 10px",fontWeight:i===0?700:400,
+                            fontFamily:i===0?"'Barlow Condensed',sans-serif":"inherit",
+                            fontSize:i===0?15:13,color:i===0?"#002d6e":"#222"}}>
+                            {i===0 && <span style={{marginRight:6}}>🏆</span>}
+                            {row.team}
+                          </td>
+                          <td style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#15803d"}}>{row.w}</td>
+                          <td style={{padding:"8px 10px",textAlign:"center",color:"#888"}}>{row.l}</td>
+                          <td style={{padding:"8px 10px",textAlign:"center",color:"#888"}}>{row.t}</td>
+                          <td style={{padding:"8px 10px",textAlign:"center",fontWeight:600}}>{row.pts}</td>
+                          <td style={{padding:"8px 10px",textAlign:"center",color:"#888"}}>{row.gb}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Games */}
+            {season.games.length > 0 && (
+              <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,padding:"16px 20px"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                  flexWrap:"wrap",gap:10,marginBottom:14}}>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,
+                    textTransform:"uppercase",color:"#002d6e",letterSpacing:".04em"}}>
+                    Game Results
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                    {/* Search */}
+                    <input value={search} onChange={e=>setSearch(e.target.value)}
+                      placeholder="Search team / headline..."
+                      style={{padding:"6px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:12,
+                        fontFamily:"inherit",width:180}}/>
+                    {/* Filter buttons */}
+                    {["all","Final","Playoff"].map(f => (
+                      <button key={f} onClick={()=>setGameFilter(f)}
+                        style={{padding:"5px 12px",borderRadius:16,border:"none",cursor:"pointer",
+                          fontSize:12,fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif",
+                          textTransform:"uppercase",
+                          background:gameFilter===f?"#002d6e":"rgba(0,45,110,0.07)",
+                          color:gameFilter===f?"#fff":"#555"}}>
+                        {f==="all"?"All":f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{fontSize:12,color:"#999",marginBottom:10}}>
+                  Showing {filteredGames.length} of {season.games.length} games
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {filteredGames.map((g,i) => {
+                    const awayWin = g.away_score > g.home_score;
+                    const homeWin = g.home_score > g.away_score;
+                    return (
+                      <div key={i} style={{display:"flex",alignItems:"center",gap:10,
+                        padding:"10px 12px",borderRadius:8,
+                        background:g.status==="Playoff"?"rgba(255,215,0,0.06)":"#f8f9fb",
+                        border:`1px solid ${g.status==="Playoff"?"rgba(255,215,0,0.3)":"rgba(0,0,0,0.06)"}`,
+                        flexWrap:"wrap"}}>
+                        <div style={{fontSize:11,color:"#999",minWidth:75,fontWeight:500}}>{g.date}</div>
+                        {g.status==="Playoff" && (
+                          <span style={{fontSize:10,fontWeight:700,color:"#b45309",background:"rgba(255,215,0,0.2)",
+                            padding:"2px 6px",borderRadius:4,textTransform:"uppercase",letterSpacing:".04em"}}>
+                            Playoff
+                          </span>
+                        )}
+                        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:200,flexWrap:"wrap"}}>
+                          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:awayWin?900:400,
+                            fontSize:15,textTransform:"uppercase",color:awayWin?"#002d6e":"#888",
+                            minWidth:120,flex:1}}>
+                            {g.away_team}
+                          </span>
+                          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+                            fontSize:22,color:awayWin?"#002d6e":"rgba(0,0,0,0.2)",minWidth:28,textAlign:"right"}}>
+                            {g.away_score}
+                          </span>
+                          <span style={{color:"#ccc",fontSize:14,margin:"0 2px"}}>–</span>
+                          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+                            fontSize:22,color:homeWin?"#002d6e":"rgba(0,0,0,0.2)",minWidth:28,textAlign:"left"}}>
+                            {g.home_score}
+                          </span>
+                          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:homeWin?900:400,
+                            fontSize:15,textTransform:"uppercase",color:homeWin?"#002d6e":"#888",
+                            minWidth:120,flex:1}}>
+                            {g.home_team}
+                          </span>
+                        </div>
+                        {g.headline && (
+                          <div style={{fontSize:11,color:"#666",fontStyle:"italic",
+                            flex:"0 0 100%",marginTop:2,paddingLeft:85}}>
+                            {g.headline}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {season.games.length === 0 && season.standings.length === 0 && (
+              <div style={{textAlign:"center",padding:"48px 0",color:"#aaa",fontSize:14}}>
+                No data available for this season yet.
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{textAlign:"center",padding:"48px 0",color:"#aaa",fontSize:14}}>
+            Select a season to view results.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── FOOTER ─────────────────────────────────────────────────────────────── */
 function Footer({ setTab }) {
-  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["rules","Rules"]];
+  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["history","History"],["rules","Rules"]];
   return (
     <div style={{background:"#001a3e",borderTop:"3px solid #002d6e",padding:"32px clamp(12px,3vw,40px)"}}>
       <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
@@ -3697,6 +3960,7 @@ export default function App() {
       {tab==="stats"     && <StatsPage />}
       {tab==="subs"      && <SubBoardPage />}
       {tab==="admin"     && <AdminPage onAlertChange={setActiveAlert} />}
+      {tab==="history"   && <HistoryPage />}
       {tab==="rules"     && <RulesPage />}
       <Footer setTab={handleSetTab} />
     </div>
