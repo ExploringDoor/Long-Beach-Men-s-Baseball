@@ -3273,6 +3273,13 @@ export default function App() {
   const [alertDismissed, setAlertDismissed] = useState(false);
   const dismissAlert = () => setAlertDismissed(true);
 
+  // Strip any leftover URL hash on every load so the site never opens mid-page
+  useEffect(() => {
+    if (window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
   const handleSetTab = (t) => { setTab(t); setTeamDetail(null); };
   const handleTeamDetail = (name) => { setTeamDetail(name); setTab("teams"); };
 
