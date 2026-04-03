@@ -1574,11 +1574,13 @@ function RulesPage() {
           </div>
           <div style={{padding:"14px 20px",display:"flex",flexWrap:"wrap",gap:8}}>
             {RULES_DATA.map(r => (
-              <a key={r.section} href={`#rule-${r.section.replace(/\s+/g,"-").toLowerCase()}`} style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(0,45,110,0.06)",border:"1px solid rgba(0,45,110,0.15)",borderRadius:20,padding:"5px 14px",textDecoration:"none",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#002d6e",letterSpacing:".04em",transition:"all .15s"}}
+              <button key={r.section} type="button"
+                onClick={()=>document.getElementById(`rule-${r.section.replace(/\s+/g,"-").toLowerCase()}`)?.scrollIntoView({behavior:"smooth",block:"start"})}
+                style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(0,45,110,0.06)",border:"1px solid rgba(0,45,110,0.15)",borderRadius:20,padding:"5px 14px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#002d6e",letterSpacing:".04em",transition:"all .15s",cursor:"pointer"}}
                 onMouseEnter={e => e.currentTarget.style.background="rgba(0,45,110,0.12)"}
                 onMouseLeave={e => e.currentTarget.style.background="rgba(0,45,110,0.06)"}>
                 {r.icon} {r.section}
-              </a>
+              </button>
             ))}
           </div>
         </Card>
