@@ -3405,12 +3405,15 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
         <div style={{background:"#002d6e",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
           <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,marginBottom:4}}>
-            Tap players in batting order
+            Set Batting Order
           </div>
-          <div style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginBottom:10}}>
+          <div style={{color:"rgba(255,255,255,0.85)",fontSize:12,marginBottom:6,lineHeight:1.5}}>
+            Tap each player in the order they bat — #1 first, then #2, and so on. Tap a player again to remove them.
+          </div>
+          <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,marginBottom:10}}>
             {orderQueue.length < activeBatters.length
-              ? `Tap your #${orderQueue.length+1} batter…`
-              : "All set!"}
+              ? `👆 Tap your #${orderQueue.length+1} batter…`
+              : "✅ All set!"}
           </div>
           <div style={{display:"flex",gap:8}}>
             <button type="button" onClick={undoLast} disabled={orderQueue.length===0}
@@ -3465,7 +3468,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       {/* Mode toggle */}
       <div style={{display:"flex",gap:4,marginBottom:10,background:"rgba(0,45,110,0.05)",borderRadius:8,padding:4}}>
         {[["simple","Score Only"],["full","Full Stats"]].map(([m,lbl])=>(
-          <button key={m} type="button" onClick={()=>setStatMode(m)}
+          <button key={m} type="button" onClick={()=>{
+            setStatMode(m);
+            if (m==="full" && activeBatters.length>0) { setOrderQueue([]); setOrderMode(true); }
+          }}
             style={{flex:1,padding:"6px 8px",borderRadius:6,border:"none",cursor:"pointer",
               fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
               textTransform:"uppercase",transition:"background .15s, color .15s",
@@ -3475,28 +3481,16 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           </button>
         ))}
       </div>
-      {statMode==="full" && (
-        <>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-            <div style={{fontSize:10,color:"#999"}}>
-              Use ▲▼ to reorder · toggle off players not playing
-            </div>
-            {activeBatters.length > 0 && (
-              <button type="button" onClick={startOrderMode}
-                style={{padding:"5px 11px",background:"#002d6e",border:"none",borderRadius:6,
-                  color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,
-                  fontSize:12,cursor:"pointer",textTransform:"uppercase",letterSpacing:".04em",
-                  whiteSpace:"nowrap",flexShrink:0}}>
-                📋 Set Order
-              </button>
-            )}
-          </div>
-          <div style={{background:"rgba(0,45,110,0.04)",border:"1px solid rgba(0,45,110,0.12)",borderRadius:6,
-            padding:"5px 10px",fontSize:10,color:"#555",marginBottom:8,lineHeight:1.5}}>
-            💡 <strong>Auto-stats:</strong> 2B/3B/HR → adds 1 H · HR → also adds 1 R + 1 RBI · removing any of these reverses it.
-            RBI ≠ R (a batter's RBI drives in <em>other</em> players — enter each player's R separately).
-          </div>
-        </>
+      {statMode==="full" && activeBatters.length>0 && (
+        <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",marginBottom:6}}>
+          <button type="button" onClick={startOrderMode}
+            style={{padding:"4px 10px",background:"transparent",border:"1px solid rgba(0,45,110,0.25)",
+              borderRadius:6,color:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,
+              fontSize:11,cursor:"pointer",textTransform:"uppercase",letterSpacing:".04em",
+              whiteSpace:"nowrap"}}>
+            🔄 Change Order
+          </button>
+        </div>
       )}
       {statMode==="full" && batters.map((p,i)=>(
         <div key={p._id||i}
