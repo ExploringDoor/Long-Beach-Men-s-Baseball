@@ -1943,6 +1943,10 @@ function BoxScoreEntry({ onClose }) {
   // ── Recap ──
   const [recap, setRecap] = useState("");
 
+  // ── Drag & drop batting order ──
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragSide, setDragSide] = useState(null); // "away" | "home"
+
   // ── Save ──
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
@@ -2033,35 +2037,50 @@ function BoxScoreEntry({ onClose }) {
     setSaving(false);
   };
 
+  // ── Drag helpers ──
+  const handleDragStart = (side, i) => { setDragIdx(i); setDragSide(side); };
+  const handleDrop = (side, setter, toIdx) => {
+    if(dragSide !== side || dragIdx === null || dragIdx === toIdx) { setDragIdx(null); setDragSide(null); return; }
+    setter(prev => {
+      const arr = [...prev];
+      const [moved] = arr.splice(dragIdx, 1);
+      arr.splice(toIdx, 0, moved);
+      return arr;
+    });
+    setDragIdx(null); setDragSide(null);
+  };
+
   // ── Batting section ──
-  const BatSection = ({label,batters,setter,addName,setAddName}) => (
+  const BatSection = ({label,side,batters,setter,addName,setAddName}) => (
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
-      <div style={{fontSize:10,color:"#999",marginBottom:8}}>Toggle off players not playing · ↑↓ to reorder batting order</div>
+      <div style={{fontSize:10,color:"#999",marginBottom:8}}>☰ Drag to reorder · toggle off players not playing</div>
       {batters.map((p,i)=>(
-        <div key={i} style={{background:p.on?"#f8f9fb":"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.09)",
-          borderRadius:8,marginBottom:5,opacity:p.on?1:0.4}}>
+        <div key={i}
+          draggable
+          onDragStart={()=>handleDragStart(side,i)}
+          onDragOver={e=>e.preventDefault()}
+          onDrop={()=>handleDrop(side,setter,i)}
+          style={{background:p.on?"#f8f9fb":"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.09)",
+            borderRadius:8,marginBottom:5,opacity:(dragIdx===i&&dragSide===side)?0.4:p.on?1:0.5,
+            cursor:"grab",transition:"opacity .15s"}}>
           <div style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px"}}>
+            {/* drag handle */}
+            <div style={{fontSize:13,color:"#bbb",flexShrink:0,userSelect:"none",cursor:"grab",letterSpacing:"-1px"}}>⠿</div>
             {/* batting order badge */}
             <div style={{width:20,height:20,borderRadius:"50%",background:"rgba(0,45,110,0.1)",
               color:"#002d6e",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",
               justifyContent:"center",flexShrink:0}}>{i+1}</div>
-            {/* reorder */}
-            <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
-              <button onClick={()=>moveBat(setter,i,-1)} style={{border:"none",background:"none",
-                cursor:"pointer",fontSize:10,lineHeight:1,color:"#999",padding:"1px 3px"}}>▲</button>
-              <button onClick={()=>moveBat(setter,i,1)} style={{border:"none",background:"none",
-                cursor:"pointer",fontSize:10,lineHeight:1,color:"#999",padding:"1px 3px"}}>▼</button>
-            </div>
             {/* name */}
             <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
+              onClick={e=>e.stopPropagation()}
               style={{flex:1,padding:"4px 7px",border:"1px solid #ddd",borderRadius:5,fontSize:13,
-                fontFamily:"inherit",minWidth:0}}/>
+                fontFamily:"inherit",minWidth:0,cursor:"text"}}/>
             {/* position */}
             <select value={p.pos} onChange={e=>updBat(setter,i,"pos",e.target.value)}
               style={{width:52,padding:"4px 3px",border:"1px solid #ddd",borderRadius:5,fontSize:12,
-                fontFamily:"inherit"}}>
+                fontFamily:"inherit",cursor:"pointer"}}>
               {POSITIONS.map(pos=><option key={pos} value={pos}>{pos||"Pos"}</option>)}
             </select>
             {/* toggle */}
@@ -2073,9 +2092,9 @@ function BoxScoreEntry({ onClose }) {
             </button>
           </div>
           {p.on && (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(11,1fr)",gap:3,padding:"0 8px 8px"}}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:"0 10px 9px"}}>
               {BAT_STATS.map((f,fi)=>(
-                <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center"}}>
+                <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",minWidth:38}}>
                   <span style={{fontSize:9,fontWeight:700,color:"#999",letterSpacing:".05em",
                     textTransform:"uppercase"}}>{BAT_LBLS[fi]}</span>
                   {N(p[f],v=>updBat(setter,i,f,v))}
@@ -2319,11 +2338,11 @@ function BoxScoreEntry({ onClose }) {
 
       {/* Batting */}
       <Crd>
-        <H2 n="3" title="Batting Lineups" sub="Toggle off players not in lineup · ↑↓ to set batting order"/>
+        <H2 n="3" title="Batting Lineups" sub="Drag rows to reorder · toggle off players not playing"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-          <BatSection label={`${game.away} Batting`} batters={awayBat} setter={setAwayBat}
+          <BatSection label={`${game.away} Batting`} side="away" batters={awayBat} setter={setAwayBat}
             addName={addAwayName} setAddName={setAddAwayName}/>
-          <BatSection label={`${game.home} Batting`} batters={homeBat} setter={setHomeBat}
+          <BatSection label={`${game.home} Batting`} side="home" batters={homeBat} setter={setHomeBat}
             addName={addHomeName} setAddName={setAddHomeName}/>
         </div>
       </Crd>
@@ -2340,8 +2359,8 @@ function BoxScoreEntry({ onClose }) {
       {/* Recap */}
       <Crd>
         <H2 n="5" title="Game Recap" sub="Optional · shown on game cards"/>
-        <textarea value={recap} onChange={e=>setRecap(e.target.value)} rows={3}
-          placeholder="Write a quick recap..."
+        <textarea value={recap} onChange={e=>setRecap(e.target.value)} rows={4}
+          placeholder="Will be auto generated if you don't do a personalized one..."
           style={{width:"100%",padding:"10px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:13,
             fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
       </Crd>
