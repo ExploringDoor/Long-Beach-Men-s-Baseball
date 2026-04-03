@@ -36,13 +36,13 @@ const TEAM_COLORS = {
 };
 
 const TEAM_ROSTERS = {
-  "Tribe": ["Tom Cavanagh","R. Martinez","K. Flores","D. Reyes","J. Hernandez","M. Lopez","B. Garcia","S. Ortiz","P. Morales","A. Castillo","E. Ramirez"],
-  "Dodgers": ["Glenn Barr","D. Chen","G. Wong","K. Park","T. Nguyen","R. Tanaka","J. Kim","A. Lee","B. Yamamoto","C. Chang"],
-  "Pirates": ["Joe Sandoval","K. Williams","D. Torres","M. Rivera","J. Cruz","A. Mendez","B. Vargas","S. Rojas","P. Soto","L. Diaz"],
-  "Titans": ["Mike McCann","M. Torres","R. Schmidt","D. Mueller","J. Hoffmann","K. Weber","B. Fischer","A. Wagner","C. Bauer"],
-  "Brooklyn": ["Daniel Gutierrez","B. Johnson","T. Davis","K. Wilson","R. Brown","J. Thompson","M. Harris","C. Jackson"],
-  "Generals": ["TBD","P. Garcia","R. Martinez","J. Santos","A. Flores","B. Reyes","C. Lopez"],
-  "Black Sox": ["TBD"],
+  "Tribe": [],
+  "Dodgers": ["Jerry Lehman","Jamie Macek","Duane Welty","Rich Glavas","Tony Scimeca"],
+  "Pirates": ["Aamer Khan","J.R. Rodriguez","Eric Powers","Nick Carranza","Ken Breding","Joey Paschal","Justin Vaz","Jose Andrade","Kevin Hitt","Edwin Soto","John Larson","Terrence Herren","Ron Arbolida"],
+  "Titans": ["Tony Carrillo","John Blanchard","John Petrocelli","Mike McCann","Tommy Bennett","Gabreal Carabello","Gabby Pool","Lee Pool","Oscar Pool"],
+  "Brooklyn": [],
+  "Generals": ["Kyle Yamamoto","Greg Ferris","John Lane","Paul Potvin","Mike Liang","Joe Cervantes","Arnold Chavez","David Maciel","Dennis Clancy","Jess Whitehill","Antone Henley","Mike Pedotte"],
+  "Black Sox": [],
 };
 
 const TEAM_CAL_LINKS = {
@@ -2489,15 +2489,18 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>{
     if(j!==i) return r;
     const u={...r,[f]:v};
-    // Extra-base hits → auto-bump H
+    // Extra-base hits → auto-bump H (H must be >= total XBH)
     if(["doubles","triples","hr"].includes(f)){
       const minH=(+u.doubles||0)+(+u.triples||0)+(+u.hr||0);
       if((+u.h||0)<minH) u.h=minH;
     }
-    // HR → also auto-bump R and RBI (each HR = 1 run scored + 1 RBI minimum)
+    // HR → add the DELTA to R and RBI (each additional HR = +1R, +1RBI)
     if(f==="hr"){
-      if((+u.r||0)<(+u.hr||0)) u.r=+u.hr;
-      if((+u.rbi||0)<(+u.hr||0)) u.rbi=+u.hr;
+      const delta=(+v||0)-(+r.hr||0);
+      if(delta>0){
+        u.r=(+r.r||0)+delta;
+        u.rbi=(+r.rbi||0)+delta;
+      }
     }
     return u;
   }));
@@ -2787,20 +2790,33 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
           {savedLoading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading saved games…</div>}
           {!savedLoading && savedGames.length===0 && <div style={{textAlign:"center",padding:30,color:"#888"}}>No saved games found.</div>}
           {savedGames.map((g,i)=>(
-            <div key={i} onClick={()=>selectSavedGame(g)}
+            <div key={i}
               style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:9,
-                padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",
-                justifyContent:"space-between",borderLeft:"3px solid #2d6a4f"}}
-              onMouseEnter={e=>e.currentTarget.style.borderColor="#2d6a4f"}
-              onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(0,0,0,0.09)"}>
-              <div>
+                padding:"12px 16px",display:"flex",alignItems:"center",
+                justifyContent:"space-between",borderLeft:"3px solid #2d6a4f"}}>
+              <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>selectSavedGame(g)}>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,
                   textTransform:"uppercase"}}>{g.away_team} <span style={{color:"#ccc"}}>@</span> {g.home_team}</div>
                 <div style={{fontSize:11,color:"#888",marginTop:2}}>
                   {g.game_date} · <strong style={{color:"#2d6a4f"}}>{g.away_score} – {g.home_score}</strong> · {g.status||"Final"}
                 </div>
               </div>
-              <div style={{fontSize:12,color:"#2d6a4f",fontWeight:700}}>Edit →</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,marginLeft:10}}>
+                <div style={{fontSize:12,color:"#2d6a4f",fontWeight:700,cursor:"pointer"}} onClick={()=>selectSavedGame(g)}>Edit →</div>
+                <button type="button" onClick={async(e)=>{
+                  e.stopPropagation();
+                  if(!window.confirm(`Delete ${g.away_team} vs ${g.home_team} (${g.game_date})? This cannot be undone.`)) return;
+                  try{
+                    await sbDelete(`batting_lines?game_id=eq.${g.id}`);
+                    await sbDelete(`pitching_lines?game_id=eq.${g.id}`);
+                    await sbDelete(`games?id=eq.${g.id}`);
+                    setSavedGames(prev=>prev.filter(x=>x.id!==g.id));
+                  }catch(err){alert("Delete failed: "+err.message);}
+                }} style={{background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.25)",
+                  borderRadius:6,color:"#dc2626",fontSize:13,padding:"4px 8px",cursor:"pointer",fontWeight:700}}>
+                  🗑️
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -2886,19 +2902,27 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
         <BSH2 n="1" title="Score & Game Info"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:16,alignItems:"center",marginBottom:14}}>
           <div style={{textAlign:"center"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
-              textTransform:"uppercase",color:"#555",marginBottom:6,letterSpacing:".06em"}}>{game.away} <span style={{fontSize:10,fontWeight:400,color:"#aaa",textTransform:"none"}}>(auto)</span></div>
-            <input type="number" min="0" value={awayScore} onChange={e=>setAwayScore(e.target.value)} placeholder="0"
-              style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",borderRadius:10,
-                fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,color:"#002d6e",outline:"none"}}/>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
+              textTransform:"uppercase",color:"#888",marginBottom:6,letterSpacing:".06em"}}>
+              {game.away} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>auto from R</span>
+            </div>
+            <div style={{width:80,margin:"0 auto",padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
+              borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+              color:"#002d6e",background:"rgba(0,45,110,0.04)"}}>
+              {awayScore||0}
+            </div>
           </div>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#ccc",textAlign:"center"}}>vs</div>
           <div style={{textAlign:"center"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
-              textTransform:"uppercase",color:"#555",marginBottom:6,letterSpacing:".06em"}}>{game.home} <span style={{fontSize:10,fontWeight:400,color:"#aaa",textTransform:"none"}}>(auto)</span></div>
-            <input type="number" min="0" value={homeScore} onChange={e=>setHomeScore(e.target.value)} placeholder="0"
-              style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",borderRadius:10,
-                fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,color:"#002d6e",outline:"none"}}/>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
+              textTransform:"uppercase",color:"#888",marginBottom:6,letterSpacing:".06em"}}>
+              {game.home} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>auto from R</span>
+            </div>
+            <div style={{width:80,margin:"0 auto",padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
+              borderRadius:10,fontSize:36,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,
+              color:"#002d6e",background:"rgba(0,45,110,0.04)"}}>
+              {homeScore||0}
+            </div>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10}}>
