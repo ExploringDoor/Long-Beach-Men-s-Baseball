@@ -4166,8 +4166,23 @@ export default function App() {
     }
   }, []);
 
+  // Browser back button support for team detail pages
+  useEffect(() => {
+    const onPop = () => {
+      setTeamDetail(null);
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   const handleSetTab = (t) => { setTab(t); setTeamDetail(null); };
-  const handleTeamDetail = (name) => { setPrevTab(tab); setTeamDetail(name); setTab("teams"); };
+  const handleTeamDetail = (name) => {
+    setPrevTab(tab);
+    setTeamDetail(name);
+    setTab("teams");
+    window.history.pushState({ team: name }, "", window.location.pathname);
+  };
 
   return (
     <div style={{minHeight:"100vh",fontFamily:"'Barlow',sans-serif",width:"100%",maxWidth:"100%",overflowX:"hidden"}}>
