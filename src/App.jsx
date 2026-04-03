@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const L_LEAGUE = "/hero111.jpg";
 
@@ -953,17 +953,25 @@ function ScoresPage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const season = SCORES[seasonIdx];
   const week = season?.weeks?.[weekIdx];
-  const isFW = seasonIdx === 1; // Fall/Winter 2026 tab = index 1
+  const isLive = seasonIdx <= 1; // Both Spring/Summer 2026 (0) and Fall/Winter 2026 (1) load live
+  const isFW = seasonIdx === 1;
 
-  // Load FW26 live data whenever we switch to that tab
+  // Load live data whenever we switch to a live tab
   useEffect(() => {
-    if (!isFW) return;
+    if (!isLive) return;
     setFwLoading(true);
     setFwError(null);
+    setFwWeeks([]);
+    const ssName = seasonIdx === 0 ? "Spring/Summer 2026" : null;
     sbFetch("seasons?select=id,name&limit=20")
       .then(allSeasons => {
-        const found = allSeasons.find(s => s.name.includes("Fall/Winter 2025-26") || s.name === "Fall/Winter 2025-26");
-        if (!found) throw new Error("Season 'Fall/Winter 2025-26' not found. Seasons in DB: " + allSeasons.map(s=>s.name).join(", "));
+        const found = seasonIdx === 0
+          ? allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"))
+          : allSeasons.find(s => s.name.includes("Fall/Winter 2025-26") || s.name === "Fall/Winter 2025-26");
+        if (!found) {
+          if (seasonIdx === 0) { setFwLoading(false); return Promise.reject(new Error("no_games_yet")); }
+          throw new Error("Season not found in DB: " + allSeasons.map(s=>s.name).join(", "));
+        }
         return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&order=game_date.desc&limit=200`);
       })
       .then(games => {
@@ -983,7 +991,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
         setFwWeeks(weeks);
         setFwLoading(false);
       })
-      .catch(e => { setFwError(e.message); setFwLoading(false); });
+      .catch(e => { if(e.message !== "no_games_yet") setFwError(e.message); setFwLoading(false); });
   }, [seasonIdx]);
 
   const handleSeasonChange = (i) => { setSeasonIdx(i); setWeekIdx(0); };
@@ -1012,8 +1020,8 @@ function ScoresPage({ setTab, setTeamDetail }) {
       </PageHero>
       <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
 
-        {/* FALL/WINTER 2026: Live box scores from Supabase */}
-        {isFW && (
+        {/* LIVE: Box scores from Supabase */}
+        {isLive && (
           <>
             {fwLoading && (
               <div style={{textAlign:"center",padding:60,color:"rgba(0,0,0,0.4)"}}>
@@ -1029,8 +1037,12 @@ function ScoresPage({ setTab, setTeamDetail }) {
             {!fwLoading && !fwError && fwWeeks.length === 0 && (
               <div style={{background:"#fff",borderRadius:12,padding:"48px",textAlign:"center",border:"1px solid rgba(0,0,0,0.09)"}}>
                 <div style={{fontSize:40,marginBottom:12}}>⚾</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#111",textTransform:"uppercase"}}>No games found</div>
-                <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:8}}>No game data was returned from the database.</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#111",textTransform:"uppercase"}}>
+                  {seasonIdx===0 ? "Season starts April 11" : "No games found"}
+                </div>
+                <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:8}}>
+                  {seasonIdx===0 ? "Box scores will appear here after games are entered." : "No game data was returned from the database."}
+                </div>
               </div>
             )}
             {!fwLoading && fwWeeks.length > 0 && (
@@ -1049,7 +1061,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
         )}
 
         {/* SPRING/SUMMER + NABA: static hardcoded data */}
-        {!isFW && (
+        {!isLive && (
           <>
             {season.weeks.length > 1 && (
               <WeekPills items={season.weeks.map(w=>w.week)} active={weekIdx} onChange={setWeekIdx} />
@@ -1184,9 +1196,47 @@ const STANDINGS_HISTORY = [
 function StandingsPage({ setTab, setTeamDetail }) {
   const [view, setView] = useState("current"); // "current" | "history"
   const [histIdx, setHistIdx] = useState(0);
+  const [liveTeams, setLiveTeams] = useState(null);
   const div = DIV["SAT"];
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); } };
   const hist = STANDINGS_HISTORY[histIdx];
+
+  useEffect(() => {
+    sbFetch("seasons?select=id,name&limit=20")
+      .then(allSeasons => {
+        const s = allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+        if (!s) return null;
+        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&away_score=not.is.null&limit=200`);
+      })
+      .then(games => {
+        if (!games || !games.length) return;
+        const tm = {};
+        Object.keys(TEAM_ROSTERS).forEach(t => { tm[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
+        games.forEach(g => {
+          if (!g.away_score && g.away_score !== 0) return;
+          const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
+          if(!tm[a]||!tm[h]) return;
+          tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
+          tm[h].rs+=hs; tm[h].ra+=as; tm[h].gp++;
+          if(as>hs){tm[a].w++;tm[h].l++;}
+          else if(hs>as){tm[h].w++;tm[a].l++;}
+          else{tm[a].t++;tm[h].t++;}
+        });
+        const rows = Object.entries(tm).map(([name,s]) => {
+          const pts=s.w*2+s.t, max=(s.gp||1)*2;
+          const pct=s.gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"");
+          const d=s.rs-s.ra;
+          return {name,full:name,w:s.w,l:s.l,t:s.t,pct,gp:s.gp,rs:s.rs,ra:s.ra,diff:d>=0?`+${d}`:`${d}`,seed:0};
+        }).sort((a,b)=>{
+          const ag=(a.gp||1),bg=(b.gp||1);
+          const ar=(a.w*2+a.t)/ag, br=(b.w*2+b.t)/bg;
+          if(br!==ar) return br-ar;
+          return (b.rs-b.ra)-(a.rs-a.ra);
+        }).map((t,i)=>({...t,seed:i+1}));
+        setLiveTeams(rows);
+      })
+      .catch(()=>{});
+  }, []);
 
   const StandingsTable = ({ teams, accent="#002d6e" }) => (<>
     <div className="mobile-standings" style={{display:"none",padding:"16px 12px"}}>
@@ -1244,10 +1294,17 @@ function StandingsPage({ setTab, setTeamDetail }) {
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         {view==="current" && <>
-          <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
-            ⚾ <strong>Season opens April 11, 2026</strong> — standings will update after each week's games.
-          </div>
-          <StandingsTable teams={div.teams} />
+          {!liveTeams && (
+            <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
+              ⚾ <strong>Season opens April 11, 2026</strong> — standings will update after each week's games.
+            </div>
+          )}
+          {liveTeams && (
+            <div style={{background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:8,padding:"10px 18px",marginBottom:16,fontSize:13,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:16}}>✅</span> <strong>Live standings</strong> — updated from the database after each box score entry.
+            </div>
+          )}
+          <StandingsTable teams={liveTeams || div.teams} />
         </>}
 
         {view==="history" && <>
@@ -1944,8 +2001,8 @@ function BoxScoreEntry({ onClose }) {
   const [recap, setRecap] = useState("");
 
   // ── Drag & drop batting order ──
-  const [dragIdx, setDragIdx] = useState(null);
-  const [dragSide, setDragSide] = useState(null); // "away" | "home"
+  const dragRef = useRef({idx:null, side:null});
+  const [dragVisual, setDragVisual] = useState({idx:null, side:null}); // for visual feedback only
 
   // ── Save ──
   const [saving, setSaving] = useState(false);
@@ -2037,17 +2094,36 @@ function BoxScoreEntry({ onClose }) {
     setSaving(false);
   };
 
-  // ── Drag helpers ──
-  const handleDragStart = (side, i) => { setDragIdx(i); setDragSide(side); };
+  // ── Drag helpers (ref-based so no stale closure) ──
+  const handleDragStart = (side, i) => {
+    dragRef.current = {idx:i, side};
+    setDragVisual({idx:i, side});
+  };
+  const handleDragEnd = () => {
+    dragRef.current = {idx:null, side:null};
+    setDragVisual({idx:null, side:null});
+  };
   const handleDrop = (side, setter, toIdx) => {
-    if(dragSide !== side || dragIdx === null || dragIdx === toIdx) { setDragIdx(null); setDragSide(null); return; }
+    const {idx:fromIdx, side:fromSide} = dragRef.current;
+    dragRef.current = {idx:null, side:null};
+    setDragVisual({idx:null, side:null});
+    if(fromSide !== side || fromIdx === null || fromIdx === toIdx) return;
     setter(prev => {
       const arr = [...prev];
-      const [moved] = arr.splice(dragIdx, 1);
+      const [moved] = arr.splice(fromIdx, 1);
       arr.splice(toIdx, 0, moved);
       return arr;
     });
-    setDragIdx(null); setDragSide(null);
+  };
+  const moveTo = (setter, batters, fromIdx, newPos) => {
+    const toIdx = Math.max(0, Math.min(batters.length-1, newPos-1));
+    if(toIdx === fromIdx) return;
+    setter(prev => {
+      const arr = [...prev];
+      const [moved] = arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, moved);
+      return arr;
+    });
   };
 
   // ── Batting section ──
@@ -2055,34 +2131,49 @@ function BoxScoreEntry({ onClose }) {
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
-      <div style={{fontSize:10,color:"#999",marginBottom:8}}>☰ Drag to reorder · toggle off players not playing</div>
+      <div style={{fontSize:10,color:"#999",marginBottom:6}}>
+        Edit the # to change order · drag handle to drag · toggle off players not playing
+      </div>
       {batters.map((p,i)=>(
         <div key={i}
-          draggable
-          onDragStart={()=>handleDragStart(side,i)}
           onDragOver={e=>e.preventDefault()}
           onDrop={()=>handleDrop(side,setter,i)}
-          style={{background:p.on?"#f8f9fb":"rgba(0,0,0,0.03)",border:"1px solid rgba(0,0,0,0.09)",
-            borderRadius:8,marginBottom:5,opacity:(dragIdx===i&&dragSide===side)?0.4:p.on?1:0.5,
-            cursor:"grab",transition:"opacity .15s"}}>
-          <div style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px"}}>
-            {/* drag handle */}
-            <div style={{fontSize:13,color:"#bbb",flexShrink:0,userSelect:"none",cursor:"grab",letterSpacing:"-1px"}}>⠿</div>
-            {/* batting order badge */}
-            <div style={{width:20,height:20,borderRadius:"50%",background:"rgba(0,45,110,0.1)",
-              color:"#002d6e",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",
-              justifyContent:"center",flexShrink:0}}>{i+1}</div>
+          style={{background:p.on?"#f8f9fb":"rgba(0,0,0,0.03)",
+            border:`1px solid ${(dragVisual.idx===i&&dragVisual.side===side)?"#002d6e":"rgba(0,0,0,0.09)"}`,
+            borderRadius:8,marginBottom:5,opacity:p.on?1:0.5,transition:"border-color .1s"}}>
+          <div style={{display:"flex",alignItems:"center",gap:5,padding:"7px 8px"}}>
+            {/* drag handle only — draggable here */}
+            <div
+              draggable
+              onDragStart={e=>{e.stopPropagation();handleDragStart(side,i);}}
+              onDragEnd={handleDragEnd}
+              style={{fontSize:16,color:"#bbb",flexShrink:0,userSelect:"none",cursor:"grab",padding:"0 2px",touchAction:"none"}}>⠿</div>
+            {/* editable batting order number */}
+            <input
+              type="number" min={1} max={batters.length} value={i+1}
+              onChange={e=>{const n=parseInt(e.target.value);if(!isNaN(n)&&n>=1&&n<=batters.length)moveTo(setter,batters,i,n);}}
+              style={{width:28,padding:"3px 2px",textAlign:"center",border:"1px solid rgba(0,45,110,0.25)",
+                borderRadius:4,fontSize:12,fontWeight:700,color:"#002d6e",background:"rgba(0,45,110,0.05)",
+                fontFamily:"inherit",flexShrink:0}}/>
             {/* name */}
             <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
-              onClick={e=>e.stopPropagation()}
-              style={{flex:1,padding:"4px 7px",border:"1px solid #ddd",borderRadius:5,fontSize:13,
-                fontFamily:"inherit",minWidth:0,cursor:"text"}}/>
+              style={{flex:1,padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:13,
+                fontFamily:"inherit",minWidth:0}}/>
             {/* position */}
             <select value={p.pos} onChange={e=>updBat(setter,i,"pos",e.target.value)}
-              style={{width:52,padding:"4px 3px",border:"1px solid #ddd",borderRadius:5,fontSize:12,
-                fontFamily:"inherit",cursor:"pointer"}}>
+              style={{width:50,padding:"4px 2px",border:"1px solid #ddd",borderRadius:5,fontSize:12,
+                fontFamily:"inherit"}}>
               {POSITIONS.map(pos=><option key={pos} value={pos}>{pos||"Pos"}</option>)}
             </select>
+            {/* up/down for mobile */}
+            <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
+              <button onClick={()=>moveBat(setter,i,-1)}
+                style={{border:"none",background:"rgba(0,45,110,0.07)",borderRadius:3,cursor:"pointer",
+                  fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 4px",fontWeight:700}}>▲</button>
+              <button onClick={()=>moveBat(setter,i,1)}
+                style={{border:"none",background:"rgba(0,45,110,0.07)",borderRadius:3,cursor:"pointer",
+                  fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 4px",fontWeight:700}}>▼</button>
+            </div>
             {/* toggle */}
             <button onClick={()=>updBat(setter,i,"on",!p.on)}
               style={{width:34,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",
