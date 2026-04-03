@@ -2558,20 +2558,33 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // ── Helpers ──
   const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>{
     if(j!==i) return r;
-    const u={...r,[f]:v};
-    // Extra-base hits → auto-bump H (H must be >= total XBH)
+    const vn = Math.max(0, +v||0);
+    const u = {...r, [f]:vn};
+
+    // ── XBH (2B/3B/HR) changes → delta-track H in both directions ──
+    // Adding a double/triple/HR always adds 1 hit.
+    // Removing one always removes 1 hit. H can never go below total XBH or 0.
     if(["doubles","triples","hr"].includes(f)){
-      const minH=(+u.doubles||0)+(+u.triples||0)+(+u.hr||0);
-      if((+u.h||0)<minH) u.h=minH;
+      const delta   = vn - (+r[f]||0);          // how many XBH changed (+/-)
+      const newH    = (+r.h||0) + delta;         // apply delta to old H
+      const minH    = (+u.doubles||0)+(+u.triples||0)+(+u.hr||0); // can't be < XBH total
+      u.h = Math.max(0, Math.max(newH, minH));
     }
-    // HR → add the DELTA to R and RBI (each additional HR = +1R, +1RBI)
+
+    // ── H directly edited → clamp so H can never be less than total XBH ──
+    if(f==="h"){
+      const minH = (+u.doubles||0)+(+u.triples||0)+(+u.hr||0);
+      if(vn < minH) u.h = minH;
+    }
+
+    // ── HR changes → delta-track R and RBI in BOTH directions ──
+    // Each HR = 1 R (batter scores) + 1 RBI (at minimum). Works for adds AND removes.
     if(f==="hr"){
-      const delta=(+v||0)-(+r.hr||0);
-      if(delta>0){
-        u.r=(+r.r||0)+delta;
-        u.rbi=(+r.rbi||0)+delta;
-      }
+      const delta = vn - (+r.hr||0);
+      u.r   = Math.max(0, (+r.r||0)   + delta);
+      u.rbi = Math.max(0, (+r.rbi||0) + delta);
     }
+
     return u;
   }));
   const updPit = (setter,i,f,v) => setter(p=>p.map((r,j)=>j===i?{...r,[f]:v}:r));
@@ -2713,8 +2726,13 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     <div style={{flex:1,minWidth:0}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
-      <div style={{fontSize:10,color:"#999",marginBottom:6}}>
+      <div style={{fontSize:10,color:"#999",marginBottom:4}}>
         Edit the # to change order · drag handle to drag · toggle off players not playing
+      </div>
+      <div style={{background:"rgba(0,45,110,0.04)",border:"1px solid rgba(0,45,110,0.12)",borderRadius:6,
+        padding:"5px 10px",fontSize:10,color:"#555",marginBottom:8,lineHeight:1.5}}>
+        💡 <strong>Auto-stats:</strong> 2B/3B/HR → adds 1 H · HR → also adds 1 R + 1 RBI · removing any of these reverses it.
+        RBI ≠ R (a batter's RBI drives in <em>other</em> players — enter each player's R separately).
       </div>
       {batters.map((p,i)=>(
         <div key={p._id||i}
