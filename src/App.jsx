@@ -1787,47 +1787,159 @@ function SubBoardPage() {
 }
 
 /* ─── ADMIN PAGE ─────────────────────────────────────────────────────────── */
-function AdminPage() {
-  const [authed, setAuthed] = useState(false);
+function ManageSchedulePage({ onBack }) {
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+        <button type="button" onClick={onBack} style={{padding:"6px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>← Back</button>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Manage Schedule</div>
+      </div>
+      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+        <div style={{background:"#001a3e",padding:"12px 18px"}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>Spring/Summer 2026 — Upcoming Games</div>
+        </div>
+        {SCHED.map((week,wi)=>(
+          <div key={wi} style={{borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+            <div style={{padding:"10px 18px",background:"#f8f9fb",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",color:"#555",letterSpacing:".06em"}}>{week.label}</div>
+            {week.fields.flatMap(f=>f.games.map((g,gi)=>(
+              <div key={gi} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 20px",borderBottom:"1px solid rgba(0,0,0,0.04)"}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away} <span style={{color:"#ccc",fontWeight:400}}>@</span> {g.home}</div>
+                <div style={{fontSize:12,color:"#888"}}>{g.time} · {f.name}</div>
+              </div>
+            )))}
+          </div>
+        ))}
+        <div style={{padding:"16px 18px",background:"#fffbeb",border:"1px solid #fcd34d",margin:12,borderRadius:8,fontSize:13,color:"#92400e"}}>
+          ✏️ To add or edit games, update the <strong>SCHED</strong> constant in <code>src/App.jsx</code> and redeploy — or contact your developer.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WeeklyEmailPage({ onBack }) {
+  const [copied, setCopied] = useState(false);
+  const weeks = SCORES.flatMap(s=>s.weeks).filter(w=>w.games&&w.games.length>0);
+  const latest = weeks[0];
+  const text = latest ? [
+    `LBDC — ${latest.week} Results`,
+    "─".repeat(40),
+    ...(latest.games||[]).map(g=>`  ${g.away} ${g.aScore}  vs  ${g.home} ${g.hScore}${g.note?`  (${g.note})`:""}`)
+  ].join("\n") : "No results yet.";
+  const copy = () => { navigator.clipboard.writeText(text).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);}); };
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+        <button type="button" onClick={onBack} style={{padding:"6px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>← Back</button>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Weekly Email</div>
+      </div>
+      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,padding:"20px"}}>
+        <div style={{fontSize:13,color:"#555",marginBottom:12}}>Copy the text below and paste into your email client:</div>
+        <pre style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.1)",borderRadius:8,padding:"16px",fontSize:13,fontFamily:"monospace",whiteSpace:"pre-wrap",lineHeight:1.7,marginBottom:14}}>{text}</pre>
+        <button type="button" onClick={copy} style={{padding:"10px 22px",background:copied?"#22c55e":"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,textTransform:"uppercase",cursor:"pointer",transition:"background .2s"}}>
+          {copied ? "✓ Copied!" : "Copy to Clipboard"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AdminPage({ onAlertChange }) {
+  const [screen, setScreen] = useState("login"); // "login" | "admin" | "captain"
   const [pw, setPw] = useState("");
   const [pwError, setPwError] = useState(false);
-  const [alertType, setAlertType] = useState("rainout-all");
-  const [alertDate, setAlertDate] = useState("Saturday, April 11");
-  const [alertMsg, setAlertMsg] = useState("");
-  const [activeAlert, setActiveAlert] = useState(null);
+  const [captainTeam, setCaptainTeam] = useState("");
+  const [alertText, setAlertText] = useState(() => localStorage.getItem("lbdc_alert") || "");
   const [showBoxScore, setShowBoxScore] = useState(false);
+  const [quickView, setQuickView] = useState(null); // null | "schedule" | "email"
 
-  const alertTypes = [
-    {id:"rainout-all",label:"⚠️ Rainout — all games cancelled"},
-    {id:"rainout-some",label:"⚠️ Rainout — select games cancelled"},
-    {id:"reschedule",label:"🔄 Games rescheduled"},
-    {id:"field-change",label:"🕐 Time or field change"},
-    {id:"general",label:"📢 General announcement"},
-  ];
+  const postAlert = () => {
+    const trimmed = alertText.trim();
+    localStorage.setItem("lbdc_alert", trimmed);
+    onAlertChange(trimmed || null);
+  };
+  const clearAlert = () => {
+    localStorage.removeItem("lbdc_alert");
+    setAlertText("");
+    onAlertChange(null);
+  };
+  const hasAlert = !!alertText.trim();
 
-  const preview = alertTypes.find(a => a.id===alertType)?.label.split("—")[1]?.trim() || "";
-
-  if (!authed) return (
+  // ── LOGIN SCREEN ──
+  if (screen === "login") return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <Card style={{maxWidth:380,width:"100%",padding:0}}>
+      <div style={{maxWidth:420,width:"100%"}}>
         <div style={{background:"#001a3e",padding:"24px 28px",borderRadius:"12px 12px 0 0",display:"flex",alignItems:"center",gap:12}}>
           <div style={{fontSize:32}}>⚾</div>
           <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>LBDC Admin</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.45)"}}>League management portal</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>LBDC Portal</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.45)"}}>League management</div>
           </div>
         </div>
-        <div style={{padding:"28px"}}>
-          <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginBottom:16}}>Enter your admin password to continue.</div>
-          <input type="password" placeholder="Password" value={pw} onChange={e => {setPw(e.target.value); setPwError(false);}} onKeyDown={e => e.key==="Enter" && (pw==="lbdc2026" ? setAuthed(true) : setPwError(true))} style={{width:"100%",padding:"10px 14px",borderRadius:8,border:`1px solid ${pwError?"#dc2626":"rgba(0,0,0,0.15)"}`,fontSize:15,marginBottom:8,background:"#f8f9fb"}} />
-          {pwError && <div style={{fontSize:12,color:"#dc2626",marginBottom:8}}>Incorrect password.</div>}
-          <button onClick={() => pw==="lbdc2026" ? setAuthed(true) : setPwError(true)} style={{width:"100%",padding:"11px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase",cursor:"pointer",letterSpacing:".06em"}}>Log in</button>
-          <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",textAlign:"center",marginTop:12}}>Demo password: lbdc2026</div>
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:"0 0 12px 12px",padding:"28px"}}>
+          {/* Admin login */}
+          <div style={{marginBottom:24}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#111",marginBottom:12,paddingBottom:8,borderBottom:"2px solid #002d6e"}}>
+              🔐 Admin Login
+            </div>
+            <input type="password" placeholder="Admin password" value={pw}
+              onChange={e=>{setPw(e.target.value);setPwError(false);}}
+              onKeyDown={e=>e.key==="Enter"&&(pw==="lbdc2026"?setScreen("admin"):setPwError(true))}
+              style={{width:"100%",padding:"10px 14px",borderRadius:8,border:`1px solid ${pwError?"#dc2626":"rgba(0,0,0,0.15)"}`,fontSize:15,marginBottom:8,background:"#f8f9fb",boxSizing:"border-box"}}/>
+            {pwError && <div style={{fontSize:12,color:"#dc2626",marginBottom:8}}>Incorrect password.</div>}
+            <button type="button" onClick={()=>pw==="lbdc2026"?setScreen("admin"):setPwError(true)}
+              style={{width:"100%",padding:"11px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase",cursor:"pointer"}}>
+              Log In as Admin
+            </button>
+          </div>
+          {/* Captain login */}
+          <div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#111",marginBottom:12,paddingBottom:8,borderBottom:"2px solid #4a7c3f"}}>
+              ⚾ Captain Login
+            </div>
+            <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:10}}>Select your team to enter today's box score:</div>
+            <select value={captainTeam} onChange={e=>setCaptainTeam(e.target.value)}
+              style={{width:"100%",padding:"10px 14px",borderRadius:8,border:"1px solid rgba(0,0,0,0.15)",fontSize:15,marginBottom:12,background:"#f8f9fb",boxSizing:"border-box"}}>
+              <option value="">— Select your team —</option>
+              {Object.keys(TEAM_ROSTERS).map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+            <button type="button" onClick={()=>captainTeam&&setScreen("captain")} disabled={!captainTeam}
+              style={{width:"100%",padding:"11px",background:captainTeam?"#2d6a4f":"#ccc",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase",cursor:captainTeam?"pointer":"default"}}>
+              Log In as {captainTeam||"Captain"}
+            </button>
+          </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 
+  // ── CAPTAIN SCREEN ──
+  if (screen === "captain") return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden"}}>
+      <div style={{background:"#2d6a4f",borderBottom:"3px solid #1b4332",padding:"16px clamp(12px,3vw,40px)"}}>
+        <div style={{maxWidth:900,margin:"0 auto",display:"flex",alignItems:"center",gap:14}}>
+          <div style={{fontSize:28}}>⚾</div>
+          <div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>Captain Portal — {captainTeam}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Submitting as: {captainTeam} captain</div>
+          </div>
+          <button type="button" onClick={()=>{setScreen("login");setCaptainTeam("");}} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.7)",fontSize:13,cursor:"pointer"}}>Log out</button>
+        </div>
+      </div>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+          <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>⚾ Enter Box Score</div>
+          </div>
+          <div style={{padding:"20px"}}>
+            <BoxScoreEntry onClose={()=>setScreen("captain")} captainTeam={captainTeam} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── ADMIN SCREEN ──
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <div style={{background:"#001a3e",borderBottom:"3px solid #002d6e",padding:"16px clamp(12px,3vw,40px)"}}>
@@ -1837,76 +1949,76 @@ function AdminPage() {
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>LBDC Admin</div>
             <div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Logged in as League Admin</div>
           </div>
-          <button onClick={() => setAuthed(false)} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.6)",fontSize:13,cursor:"pointer"}}>Log out</button>
+          <button type="button" onClick={()=>setScreen("login")} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.6)",fontSize:13,cursor:"pointer"}}>Log out</button>
         </div>
       </div>
       <div style={{maxWidth:900,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px",display:"flex",flexDirection:"column",gap:20}}>
-        <div style={{background:activeAlert?"#fef2f2":"#f0fdf4",border:`1px solid ${activeAlert?"#fecaca":"#bbf7d0"}`,borderRadius:10,padding:"12px 18px",display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:10,height:10,borderRadius:"50%",background:activeAlert?"#dc2626":"#22c55e",flexShrink:0,boxShadow:`0 0 6px ${activeAlert?"#dc2626":"#22c55e"}`}} />
-          <span style={{fontSize:14,fontWeight:600,color:activeAlert?"#991b1b":"#166534"}}>
-            {activeAlert ? `Active alert: ${activeAlert}` : "No active alerts — site showing normal"}
-          </span>
-          {activeAlert && <button onClick={() => setActiveAlert(null)} style={{marginLeft:"auto",padding:"4px 12px",background:"none",border:"1px solid #fca5a5",borderRadius:6,color:"#dc2626",fontSize:12,cursor:"pointer"}}>Clear alert</button>}
-        </div>
-        <Card>
-          <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Post a league alert</div>
+
+        {/* League Alert */}
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:10,height:10,borderRadius:"50%",background:hasAlert?"#dc2626":"#22c55e",flexShrink:0,boxShadow:`0 0 6px ${hasAlert?"#dc2626":"#22c55e"}`}} />
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>🚨 League Alert Banner</div>
           </div>
           <div style={{padding:"20px",display:"flex",flexDirection:"column",gap:14}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <div style={{display:"flex",flexDirection:"column",gap:5,gridColumn:"1 / -1"}}>
-                <label style={{fontSize:12,color:"rgba(0,0,0,0.4)",fontWeight:600}}>Alert type</label>
-                <select value={alertType} onChange={e => setAlertType(e.target.value)} style={{padding:"10px 12px",borderRadius:8,border:"1px solid rgba(0,0,0,0.15)",fontSize:14,background:"#f8f9fb"}}>
-                  {alertTypes.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
-                </select>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <label style={{fontSize:12,color:"rgba(0,0,0,0.4)",fontWeight:600}}>Date affected</label>
-                <input value={alertDate} onChange={e => setAlertDate(e.target.value)} style={{padding:"10px 12px",borderRadius:8,border:"1px solid rgba(0,0,0,0.15)",fontSize:14,background:"#f8f9fb"}} />
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <label style={{fontSize:12,color:"rgba(0,0,0,0.4)",fontWeight:600}}>Additional message (optional)</label>
-                <input placeholder="e.g. Fields are waterlogged. Makeup dates TBD." value={alertMsg} onChange={e => setAlertMsg(e.target.value)} style={{padding:"10px 12px",borderRadius:8,border:"1px solid rgba(0,0,0,0.15)",fontSize:14,background:"#f8f9fb"}} />
-              </div>
+            <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>
+              When active, a <strong style={{color:"#dc2626"}}>big red blocking popup</strong> appears on the site — visitors must click OK to continue. Leave blank to clear.
             </div>
-            <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 16px"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#856404",marginBottom:4,textTransform:"uppercase",letterSpacing:".08em"}}>Preview — what players see at the top of the site:</div>
-              <div style={{fontSize:14,color:"#111"}}>⚠️ <strong>{alertDate} — {preview || "All games cancelled."}</strong>{alertMsg ? ` ${alertMsg}` : ""}</div>
+            <textarea value={alertText} onChange={e=>setAlertText(e.target.value)} rows={3}
+              placeholder="e.g. ⚠️ RAINOUT — All Saturday April 19 games are CANCELLED due to rain. Makeup dates TBD."
+              style={{padding:"12px",border:"1px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",resize:"vertical",width:"100%",boxSizing:"border-box"}}/>
+            {hasAlert && (
+              <div style={{background:"#fef2f2",border:"2px solid #dc2626",borderRadius:8,padding:"12px 16px",fontSize:14,color:"#991b1b",fontWeight:600}}>
+                🔴 ACTIVE: "{alertText.slice(0,80)}{alertText.length>80?"...":""}"
+              </div>
+            )}
+            <div style={{display:"flex",gap:10}}>
+              <button type="button" onClick={postAlert}
+                style={{flex:1,padding:"12px",background:"#dc2626",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,textTransform:"uppercase",cursor:"pointer"}}>
+                {hasAlert ? "Update Alert" : "Post Alert to Site"}
+              </button>
+              {hasAlert && <button type="button" onClick={clearAlert}
+                style={{padding:"12px 20px",background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",color:"#555"}}>
+                Clear
+              </button>}
             </div>
-            <button onClick={() => setActiveAlert(`${alertDate} — ${preview}`)} style={{padding:"13px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase",cursor:"pointer",letterSpacing:".06em"}}>Post alert to site now</button>
           </div>
-        </Card>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>Quick Actions</div>
-        {showBoxScore ? (
-          <Card>
-            <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>⚾ Box Score Entry</div>
-              <button onClick={() => setShowBoxScore(false)} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",textTransform:"uppercase"}}>✕ Close</button>
-            </div>
-            <div style={{padding:"20px"}}>
-              <BoxScoreEntry onClose={() => setShowBoxScore(false)} />
-            </div>
-          </Card>
-        ) : (
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
-            {[
-              {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",action:() => setShowBoxScore(true)},
-              {icon:"📧",title:"Send weekly email",desc:"Blast scoreboard to league",action:null},
-              {icon:"📱",title:"Send text blast",desc:"Push message to all managers",action:null},
-              {icon:"📅",title:"Manage schedule",desc:"Add or edit games",action:null},
-              {icon:"🙋",title:"Availability board",desc:"View or clear listings",action:null},
-              {icon:"👥",title:"Season sub list",desc:"Manage registered subs",action:null},
-            ].map((a,i) => (
-              <div key={i} onClick={a.action||undefined}
-                style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${a.action?"#002d6e":"#ccc"}`,borderRadius:10,padding:"16px 18px",cursor:a.action?"pointer":"default",transition:"box-shadow .15s",opacity:a.action?1:0.55}}
-                onMouseEnter={e => a.action && (e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)")}
-                onMouseLeave={e => e.currentTarget.style.boxShadow="none"}>
-                <div style={{fontSize:24,marginBottom:8}}>{a.icon}</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:a.action?"#111":"#999",textTransform:"uppercase"}}>{a.title}</div>
-                <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:3}}>{a.desc}</div>
+        </div>
+
+        {/* Quick Actions */}
+        {quickView==="schedule" ? <ManageSchedulePage onBack={()=>setQuickView(null)}/> :
+         quickView==="email"    ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> : (
+          <>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>Quick Actions</div>
+            {showBoxScore ? (
+              <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+                <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>⚾ Box Score Entry</div>
+                  <button type="button" onClick={()=>setShowBoxScore(false)} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",textTransform:"uppercase"}}>✕ Close</button>
+                </div>
+                <div style={{padding:"20px"}}>
+                  <BoxScoreEntry onClose={()=>setShowBoxScore(false)} />
+                </div>
               </div>
-            ))}
-          </div>
+            ) : (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
+                {[
+                  {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",action:()=>setShowBoxScore(true)},
+                  {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",action:()=>setQuickView("email")},
+                  {icon:"📅",title:"Manage Schedule",desc:"View season schedule",action:()=>setQuickView("schedule")},
+                ].map((a,i)=>(
+                  <div key={i} onClick={a.action}
+                    style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
+                    onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+                    <div style={{fontSize:24,marginBottom:8}}>{a.icon}</div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",textTransform:"uppercase"}}>{a.title}</div>
+                    <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:3}}>{a.desc}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1959,7 +2071,7 @@ function parseIP(str) {
 }
 
 /* ─── BOX SCORE ENTRY ────────────────────────────────────────────────────── */
-function BoxScoreEntry({ onClose }) {
+function BoxScoreEntry({ onClose, captainTeam="" }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
   const POSITIONS = ["","P","C","1B","2B","3B","SS","LF","CF","RF","DH","PH","PR"];
   const BAT_STATS = ["ab","r","h","doubles","triples","hr","rbi","bb","k","sb","e"];
@@ -1970,7 +2082,8 @@ function BoxScoreEntry({ onClose }) {
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).filter(p=>p!=="TBD").map(blankBatter);
 
   // ── Game selection ──
-  const allGames = SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home }))));
+  const allGames = SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home }))))
+    .filter(g => !captainTeam || g.away===captainTeam || g.home===captainTeam);
   const [game, setGame] = useState(null);
   const [customMode, setCustomMode] = useState(false);
   const [custom, setCustom] = useState({ date:"", time:"", field:"", away:TEAMS[0], home:TEAMS[1] });
@@ -2064,11 +2177,12 @@ function BoxScoreEntry({ onClose }) {
       const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
       let season = allSeasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
       if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
+      const submitterTag = captainTeam ? ` [submitted: ${captainTeam}]` : "";
       const [newGame] = await sbPost("games",[{
         season_id:season.id, game_date:game.date, game_time:game.time, field:game.field,
         away_team:game.away, home_team:game.home,
         away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
-        headline:headline||null, status:gameStatus,
+        headline:(headline||"")+submitterTag || null, status:gameStatus,
       }]);
       const gid = newGame.id;
       const batRows = [
@@ -2136,18 +2250,17 @@ function BoxScoreEntry({ onClose }) {
       </div>
       {batters.map((p,i)=>(
         <div key={i}
+          draggable
+          onDragStart={()=>handleDragStart(side,i)}
+          onDragEnd={handleDragEnd}
           onDragOver={e=>e.preventDefault()}
           onDrop={()=>handleDrop(side,setter,i)}
           style={{background:p.on?"#f8f9fb":"rgba(0,0,0,0.03)",
             border:`1px solid ${(dragVisual.idx===i&&dragVisual.side===side)?"#002d6e":"rgba(0,0,0,0.09)"}`,
-            borderRadius:8,marginBottom:5,opacity:p.on?1:0.5,transition:"border-color .1s"}}>
+            borderRadius:8,marginBottom:5,opacity:p.on?1:0.5,transition:"border-color .1s",cursor:"grab"}}>
           <div style={{display:"flex",alignItems:"center",gap:5,padding:"7px 8px"}}>
-            {/* drag handle only — draggable here */}
-            <div
-              draggable
-              onDragStart={e=>{e.stopPropagation();handleDragStart(side,i);}}
-              onDragEnd={handleDragEnd}
-              style={{fontSize:16,color:"#bbb",flexShrink:0,userSelect:"none",cursor:"grab",padding:"0 2px",touchAction:"none"}}>⠿</div>
+            {/* drag handle visual */}
+            <div style={{fontSize:16,color:"#bbb",flexShrink:0,userSelect:"none",padding:"0 2px"}}>⠿</div>
             {/* editable batting order number */}
             <input
               type="number" min={1} max={batters.length} value={i+1}
@@ -2157,8 +2270,9 @@ function BoxScoreEntry({ onClose }) {
                 fontFamily:"inherit",flexShrink:0}}/>
             {/* name */}
             <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
+              onDragStart={e=>e.stopPropagation()}
               style={{flex:1,padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:13,
-                fontFamily:"inherit",minWidth:0}}/>
+                fontFamily:"inherit",minWidth:0,cursor:"text"}}/>
             {/* position */}
             <select value={p.pos} onChange={e=>updBat(setter,i,"pos",e.target.value)}
               style={{width:50,padding:"4px 2px",border:"1px solid #ddd",borderRadius:5,fontSize:12,
@@ -2167,10 +2281,10 @@ function BoxScoreEntry({ onClose }) {
             </select>
             {/* up/down for mobile */}
             <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
-              <button onClick={()=>moveBat(setter,i,-1)}
+              <button type="button" onClick={e=>{e.preventDefault();moveBat(setter,i,-1);}}
                 style={{border:"none",background:"rgba(0,45,110,0.07)",borderRadius:3,cursor:"pointer",
                   fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 4px",fontWeight:700}}>▲</button>
-              <button onClick={()=>moveBat(setter,i,1)}
+              <button type="button" onClick={e=>{e.preventDefault();moveBat(setter,i,1);}}
                 style={{border:"none",background:"rgba(0,45,110,0.07)",borderRadius:3,cursor:"pointer",
                   fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 4px",fontWeight:700}}>▼</button>
             </div>
@@ -2895,12 +3009,28 @@ function StatsPage() {
 export default function App() {
   const [tab, setTab] = useState("home");
   const [teamDetail, setTeamDetail] = useState(null);
+  const [activeAlert, setActiveAlert] = useState(() => localStorage.getItem("lbdc_alert") || null);
+  const [alertDismissed, setAlertDismissed] = useState(() => sessionStorage.getItem("lbdc_alert_dismissed") === "1");
+  const dismissAlert = () => { sessionStorage.setItem("lbdc_alert_dismissed","1"); setAlertDismissed(true); };
 
   const handleSetTab = (t) => { setTab(t); setTeamDetail(null); };
   const handleTeamDetail = (name) => { setTeamDetail(name); setTab("teams"); };
 
   return (
     <div style={{minHeight:"100vh",fontFamily:"'Barlow',sans-serif",width:"100%",maxWidth:"100%",overflowX:"hidden"}}>
+      {activeAlert && !alertDismissed && (
+        <div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:"#dc2626",borderRadius:16,padding:"32px 36px",maxWidth:520,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,0.5)",border:"4px solid #991b1b"}}>
+            <div style={{fontSize:48,marginBottom:12}}>🚨</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#fff",textTransform:"uppercase",letterSpacing:".04em",marginBottom:16,lineHeight:1.2}}>League Alert</div>
+            <div style={{fontSize:16,color:"rgba(255,255,255,0.95)",lineHeight:1.6,marginBottom:28,whiteSpace:"pre-wrap"}}>{activeAlert}</div>
+            <button type="button" onClick={dismissAlert}
+              style={{padding:"14px 48px",background:"#fff",border:"none",borderRadius:10,color:"#dc2626",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",cursor:"pointer",letterSpacing:".06em",boxShadow:"0 4px 12px rgba(0,0,0,0.2)"}}>
+              OK, I Understand
+            </button>
+          </div>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -2937,7 +3067,7 @@ export default function App() {
       {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} onBack={() => { setTeamDetail(null); window.scrollTo(0,0); }} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="stats"     && <StatsPage />}
       {tab==="subs"      && <SubBoardPage />}
-      {tab==="admin"     && <AdminPage />}
+      {tab==="admin"     && <AdminPage onAlertChange={setActiveAlert} />}
       {tab==="rules"     && <RulesPage />}
       <Footer setTab={handleSetTab} />
     </div>
