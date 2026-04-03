@@ -1891,6 +1891,7 @@ function AdminPage({ onAlertChange }) {
               style={{width:"100%",padding:"11px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase",cursor:"pointer"}}>
               Log In as Admin
             </button>
+            <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",textAlign:"center",marginTop:8}}>Password: lbdc2026</div>
           </div>
           {/* Captain login */}
           <div>
@@ -2077,7 +2078,8 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   const BAT_STATS = ["ab","r","h","doubles","triples","hr","rbi","bb","k","sb","e"];
   const BAT_LBLS  = ["AB","R","H","2B","3B","HR","RBI","BB","K","SB","E"];
 
-  const blankBatter = (name="") => ({ name, on:true, ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,e:0, pos:"" });
+  let _bid = 0;
+  const blankBatter = (name="") => ({ _id:++_bid, name, on:true, ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,e:0, pos:"" });
   const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0, decision:"ND" });
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).filter(p=>p!=="TBD").map(blankBatter);
 
@@ -2143,9 +2145,11 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
   const updInn = (setter, i, v) => setter(prev => prev.map((inn,j)=>j===i?{r:v}:inn));
 
   // ── Stat input ──
+  // onWheel blur prevents the page from scrolling when mouse wheel hits a focused number input
   const N = (val, onChange, w=38) => (
     <input type="number" min="0" value={val}
       onChange={e=>onChange(Math.max(0,parseInt(e.target.value)||0))}
+      onWheel={e=>e.target.blur()}
       style={{width:w,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(0,0,0,0.15)",
         borderRadius:4,fontSize:13,background:"#f8f9fb",fontFamily:"inherit"}}/>
   );
@@ -2208,8 +2212,13 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
     setSaving(false);
   };
 
-  // ── Drag helpers (ref-based so no stale closure) ──
-  const handleDragStart = (side, i) => {
+  // ── Drag helpers ──
+  // We store drag info in dataTransfer so it works even across React re-renders.
+  // The row div is NOT draggable (that causes every click to scroll to top).
+  // Only the ⠿ handle is draggable.
+  const handleDragStart = (e, side, i) => {
+    e.dataTransfer.setData("text/plain", JSON.stringify({side, i}));
+    e.dataTransfer.effectAllowed = "move";
     dragRef.current = {idx:i, side};
     setDragVisual({idx:i, side});
   };
@@ -2217,8 +2226,15 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
     dragRef.current = {idx:null, side:null};
     setDragVisual({idx:null, side:null});
   };
-  const handleDrop = (side, setter, toIdx) => {
-    const {idx:fromIdx, side:fromSide} = dragRef.current;
+  const handleDrop = (e, side, setter, toIdx) => {
+    e.preventDefault();
+    let fromIdx = dragRef.current.idx;
+    let fromSide = dragRef.current.side;
+    // Fallback: read from dataTransfer in case ref was stale
+    try {
+      const d = JSON.parse(e.dataTransfer.getData("text/plain"));
+      if(d.side) { fromIdx = d.i; fromSide = d.side; }
+    } catch(_) {}
     dragRef.current = {idx:null, side:null};
     setDragVisual({idx:null, side:null});
     if(fromSide !== side || fromIdx === null || fromIdx === toIdx) return;
@@ -2249,18 +2265,19 @@ function BoxScoreEntry({ onClose, captainTeam="" }) {
         Edit the # to change order · drag handle to drag · toggle off players not playing
       </div>
       {batters.map((p,i)=>(
-        <div key={i}
-          draggable
-          onDragStart={()=>handleDragStart(side,i)}
-          onDragEnd={handleDragEnd}
+        <div key={p._id||i}
           onDragOver={e=>e.preventDefault()}
-          onDrop={()=>handleDrop(side,setter,i)}
+          onDrop={e=>handleDrop(e,side,setter,i)}
           style={{background:p.on?"#f8f9fb":"rgba(0,0,0,0.03)",
             border:`1px solid ${(dragVisual.idx===i&&dragVisual.side===side)?"#002d6e":"rgba(0,0,0,0.09)"}`,
-            borderRadius:8,marginBottom:5,opacity:p.on?1:0.5,transition:"border-color .1s",cursor:"grab"}}>
+            borderRadius:8,marginBottom:5,opacity:p.on?1:0.5,transition:"border-color .1s"}}>
           <div style={{display:"flex",alignItems:"center",gap:5,padding:"7px 8px"}}>
-            {/* drag handle visual */}
-            <div style={{fontSize:16,color:"#bbb",flexShrink:0,userSelect:"none",padding:"0 2px"}}>⠿</div>
+            {/* ⠿ handle — ONLY this element is draggable, so clicks elsewhere never scroll */}
+            <div
+              draggable
+              onDragStart={e=>handleDragStart(e,side,i)}
+              onDragEnd={handleDragEnd}
+              style={{fontSize:16,color:"#aaa",flexShrink:0,userSelect:"none",cursor:"grab",padding:"0 3px",touchAction:"none"}}>⠿</div>
             {/* editable batting order number */}
             <input
               type="number" min={1} max={batters.length} value={i+1}
