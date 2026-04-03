@@ -3039,7 +3039,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   let _bid = 0;
   const blankBatter = (name="") => ({ _id:++_bid, name, on:true, ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,e:0, pos:"" });
   const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0,hr:0, decision:"ND" });
-  const initBatters = (team) => (TEAM_ROSTERS[team]||[]).filter(p=>p!=="TBD").map(blankBatter);
+  const initBatters = (team) => (TEAM_ROSTERS[team]||[]).map(p => typeof p === "string" ? p : p.name).filter(p=>p!=="TBD").map(blankBatter);
 
   // ── Game selection ──
   const allGames = SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home }))))
@@ -4216,10 +4216,11 @@ export default function App() {
     }
   }, []);
 
-  // Browser back button support for team detail pages
+  // Browser back button + in-app back button support for team detail pages
   useEffect(() => {
-    const onPop = () => {
+    const onPop = (e) => {
       setTeamDetail(null);
+      if (e.state && e.state.prevTab) setTab(e.state.prevTab);
       window.scrollTo(0, 0);
     };
     window.addEventListener("popstate", onPop);
@@ -4231,7 +4232,7 @@ export default function App() {
     setPrevTab(tab);
     setTeamDetail(name);
     setTab("teams");
-    window.history.pushState({ team: name }, "", window.location.pathname);
+    window.history.pushState({ team: name, prevTab: tab }, "", window.location.pathname);
   };
 
   return (
@@ -4276,13 +4277,13 @@ export default function App() {
         }
       `}</style>
       <div style={{position:"relative",zIndex:200,overflow:"hidden",width:"100%"}}><Ticker setTab={handleSetTab} /></div>
-      <div style={{position:"sticky",top:0,zIndex:300,overflow:"hidden",width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} teamDetail={teamDetail} onBackTeam={() => { setTeamDetail(null); setTab(prevTab); window.scrollTo(0,0); }} /></div>
+      <div style={{position:"sticky",top:0,zIndex:300,overflow:"hidden",width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} teamDetail={teamDetail} onBackTeam={() => window.history.back()} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="scores"    && <ScoresPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="schedule"  && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="standings" && <StandingsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && !teamDetail && <TeamsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
-      {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={() => { setTeamDetail(null); setTab(prevTab); window.scrollTo(0,0); }} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
+      {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={() => window.history.back()} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="stats"     && <StatsPage />}
       {tab==="subs"      && <SubBoardPage />}
       {tab==="admin"     && <AdminPage onAlertChange={setActiveAlert} />}
