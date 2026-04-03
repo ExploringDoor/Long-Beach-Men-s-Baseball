@@ -1524,7 +1524,7 @@ function PlayerStatsModal({ playerName, onClose }) {
   );
 }
 
-function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
+function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const team = ALL_TEAMS.find(t => t.name === teamName);
   const roster = TEAM_ROSTERS[teamName] || [];
   const [selectedPlayer, setSelectedPlayer] = useState(null);
@@ -1552,7 +1552,7 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
       {selectedPlayer && <PlayerStatsModal playerName={selectedPlayer} onClose={()=>setSelectedPlayer(null)} />}
       <div style={{background:`linear-gradient(135deg, ${color}15 0%, #fff 60%)`,borderBottom:"3px solid #002d6e",padding:"32px clamp(12px,3vw,40px) 0"}}>
         <div style={{maxWidth:1400,margin:"0 auto"}}>
-          <button onClick={onBack} style={{background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.12)",borderRadius:6,cursor:"pointer",color:"#333",fontSize:13,fontWeight:700,marginBottom:16,padding:"6px 14px",display:"inline-flex",alignItems:"center",gap:6}}>← All Teams</button>
+          <button onClick={onBack} style={{background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.12)",borderRadius:6,cursor:"pointer",color:"#333",fontSize:13,fontWeight:700,marginBottom:16,padding:"6px 14px",display:"inline-flex",alignItems:"center",gap:6}}>← {prevTab && prevTab !== "teams" ? `Back to ${prevTab.charAt(0).toUpperCase()+prevTab.slice(1)}` : "All Teams"}</button>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:24,marginBottom:24}}>
             <div style={{display:"flex",alignItems:"center",gap:20}}>
               <TLogo name={teamName} size={120} />
@@ -1586,18 +1586,21 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
 
       <div className="team-detail-grid" style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px",display:"grid",gridTemplateColumns:"1fr 300px",gap:28,alignItems:"start"}}>
         <div>
-          {roster.length > 0 && (
-            <div style={{marginBottom:28}}>
-              <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Roster</h2>
-              <Card>
+          <div style={{marginBottom:28}}>
+            <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Roster</h2>
+            <Card>
+              {roster.length === 0 ? (
+                <div style={{padding:"24px 20px",textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>Roster not yet submitted — check back soon.</div>
+              ) : (
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))"}}>
                   {roster.map((player,i) => {
                     const name = typeof player === "string" ? player : player.name;
                     const num  = typeof player === "string" ? "" : player.number;
                     return (
-                      <button key={i} onClick={() => setSelectedPlayer(name)} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",borderRight:"1px solid rgba(0,0,0,0.04)",background:"none",border:"none",cursor:"pointer",textAlign:"left",width:"100%",transition:"background .12s"}}
+                      <button key={i} onClick={() => setSelectedPlayer(name)}
+                        style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",width:"100%",transition:"background .12s"}}
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.04)"}
-                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                         <div style={{width:30,height:30,borderRadius:"50%",background:`${color}18`,border:`2px solid ${color}50`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                           <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,color}}>{num||"—"}</span>
                         </div>
@@ -1609,9 +1612,9 @@ function TeamDetailPage({ teamName, onBack, setTab, setTeamDetail }) {
                     );
                   })}
                 </div>
-              </Card>
-            </div>
-          )}
+              )}
+            </Card>
+          </div>
           {teamGames.length > 0 && (
             <div>
               <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Recent Results</h2>
@@ -4151,6 +4154,7 @@ function StatsPage() {
 export default function App() {
   const [tab, setTab] = useState("home");
   const [teamDetail, setTeamDetail] = useState(null);
+  const [prevTab, setPrevTab] = useState("home");
   const [activeAlert, setActiveAlert] = useState(() => localStorage.getItem("lbdc_alert") || null);
   const [alertDismissed, setAlertDismissed] = useState(false);
   const dismissAlert = () => setAlertDismissed(true);
@@ -4163,7 +4167,7 @@ export default function App() {
   }, []);
 
   const handleSetTab = (t) => { setTab(t); setTeamDetail(null); };
-  const handleTeamDetail = (name) => { setTeamDetail(name); setTab("teams"); };
+  const handleTeamDetail = (name) => { setPrevTab(tab); setTeamDetail(name); setTab("teams"); };
 
   return (
     <div style={{minHeight:"100vh",fontFamily:"'Barlow',sans-serif",width:"100%",maxWidth:"100%",overflowX:"hidden"}}>
@@ -4213,7 +4217,7 @@ export default function App() {
       {tab==="schedule"  && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="standings" && <StandingsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && !teamDetail && <TeamsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
-      {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} onBack={() => { setTeamDetail(null); window.scrollTo(0,0); }} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
+      {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={() => { setTeamDetail(null); setTab(prevTab); window.scrollTo(0,0); }} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="stats"     && <StatsPage />}
       {tab==="subs"      && <SubBoardPage />}
       {tab==="admin"     && <AdminPage onAlertChange={setActiveAlert} />}
