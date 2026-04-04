@@ -3195,7 +3195,7 @@ function AdminPage({ onAlertChange }) {
   });
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showBoxScore, setShowBoxScore] = useState(false);
-  const [quickView, setQuickView] = useState(null); // null | "schedule" | "email" | "games" | "tournaments" | "eligibility"
+  const [quickView, setQuickView] = useState(null); // null | "alert" | "news" | "schedule" | "email" | "games" | "tournaments" | "eligibility"
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
@@ -3208,6 +3208,8 @@ function AdminPage({ onAlertChange }) {
   const [newsSaving, setNewsSaving] = useState(false);
   const [newsStyle, setNewsStyle] = useState({});
   const updateNewsStyle = (key, val) => setNewsStyle(s => ({...s, [key]: val}));
+  const [newsSchedule, setNewsSchedule] = useState("");
+  const [newsExpire, setNewsExpire] = useState("");
 
   const loadNews = () => {
     setNewsLoading(true);
@@ -3226,6 +3228,8 @@ function AdminPage({ onAlertChange }) {
         event_date: newsForm.event_date || null,
         pinned: newsForm.pinned,
         style: Object.keys(newsStyle).length ? JSON.stringify(newsStyle) : null,
+        go_live_at: newsSchedule || null,
+        expire_at: newsExpire || null,
       };
       if (newsEditId) {
         await sbPatch(`news?id=eq.${newsEditId}`, payload);
@@ -3234,6 +3238,8 @@ function AdminPage({ onAlertChange }) {
       }
       setNewsForm({title:"", body:"", event_date:"", pinned:false});
       setNewsStyle({});
+      setNewsSchedule("");
+      setNewsExpire("");
       setNewsEditId(null);
       loadNews();
     } catch(e) { alert("Save failed: " + e.message); }
@@ -3252,6 +3258,8 @@ function AdminPage({ onAlertChange }) {
     setNewsEditId(item.id);
     setNewsForm({title:item.title||"", body:item.body||"", event_date:item.event_date||"", pinned:!!item.pinned});
     try { setNewsStyle(item.style ? JSON.parse(item.style) : {}); } catch(e) { setNewsStyle({}); }
+    setNewsSchedule(item.go_live_at ? item.go_live_at.slice(0,16) : "");
+    setNewsExpire(item.expire_at ? item.expire_at.slice(0,16) : "");
   };
 
   useEffect(() => {
@@ -3417,9 +3425,10 @@ function AdminPage({ onAlertChange }) {
       </div>
       <div style={{maxWidth:900,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px",display:"flex",flexDirection:"column",gap:20}}>
 
-        {/* League Alert */}
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+        {/* League Alert — shown inline when quickView==="alert" */}
+        {quickView==="alert" && <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
           <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+            <button type="button" onClick={()=>setQuickView(null)} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
             <div style={{width:10,height:10,borderRadius:"50%",background:hasAlert?"#dc2626":"#22c55e",flexShrink:0,boxShadow:`0 0 6px ${hasAlert?"#dc2626":"#22c55e"}`}} />
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>🚨 League Alert Banner</div>
           </div>
@@ -3613,11 +3622,12 @@ function AdminPage({ onAlertChange }) {
               </div>
             )}
           </div>
-        </div>
+        </div>}
 
-        {/* News & Events */}
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+        {/* News & Events — shown inline when quickView==="news" */}
+        {quickView==="news" && <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
           <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+            <button type="button" onClick={()=>setQuickView(null)} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>📰 News & Events</div>
             <button type="button" onClick={loadNews} style={{marginLeft:"auto",padding:"4px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
           </div>
@@ -3693,13 +3703,29 @@ function AdminPage({ onAlertChange }) {
                   📌 Pin to top
                 </label>
               </div>
+              {/* Schedule & Expire */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",marginBottom:4}}>📅 Go Live At (optional)</div>
+                  <input type="datetime-local" value={newsSchedule} onChange={e=>setNewsSchedule(e.target.value)}
+                    style={{width:"100%",padding:"7px 10px",border:"1px solid #ddd",borderRadius:7,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                  <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:2}}>Leave blank to post immediately</div>
+                </div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",marginBottom:4}}>⏰ Auto-Expire At (optional)</div>
+                  <input type="datetime-local" value={newsExpire} onChange={e=>setNewsExpire(e.target.value)}
+                    style={{width:"100%",padding:"7px 10px",border:"1px solid #ddd",borderRadius:7,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                  <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:2}}>Post removes itself automatically</div>
+                </div>
+              </div>
+
               <div style={{display:"flex",gap:8}}>
                 <button type="button" onClick={saveNewsPost} disabled={!newsForm.title.trim()||newsSaving}
                   style={{flex:1,padding:"11px",background:newsForm.title.trim()?"#002d6e":"#ccc",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,textTransform:"uppercase",cursor:newsForm.title.trim()?"pointer":"default"}}>
-                  {newsSaving ? "Saving…" : newsEditId ? "Save Changes" : "Post to Site"}
+                  {newsSaving ? "Saving…" : newsEditId ? "Save Changes" : newsSchedule && new Date(newsSchedule) > new Date() ? "⏰ Schedule Post" : "Post to Site"}
                 </button>
                 {newsEditId && (
-                  <button type="button" onClick={()=>{setNewsEditId(null);setNewsForm({title:"",body:"",event_date:"",pinned:false});}}
+                  <button type="button" onClick={()=>{setNewsEditId(null);setNewsForm({title:"",body:"",event_date:"",pinned:false});setNewsSchedule("");setNewsExpire("");}}
                     style={{padding:"11px 18px",background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",color:"#555"}}>
                     Cancel
                   </button>
@@ -3731,7 +3757,7 @@ function AdminPage({ onAlertChange }) {
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Quick Actions */}
         {quickView==="schedule"     ? <ManageSchedulePage onBack={()=>setQuickView(null)}/> :
@@ -3787,7 +3813,6 @@ function AdminPage({ onAlertChange }) {
           </div>
          ) : (
           <>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>Quick Actions</div>
             {showBoxScore ? (
               <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
                 <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -3801,17 +3826,19 @@ function AdminPage({ onAlertChange }) {
             ) : (
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
                 {[
-                  {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",action:()=>{setPreloadGame(null);setShowBoxScore(true);}},
-                  {icon:"🗂️",title:"Manage Games",desc:"Edit or delete saved games",action:()=>{setQuickView("games");loadAdminGames();}},
-                  {icon:"🏆",title:"Tournaments",desc:"Add tournament games to schedule",action:()=>setQuickView("tournaments")},
-                  {icon:"🏅",title:"Player Eligibility",desc:"Track fees paid & game appearances",action:()=>setQuickView("eligibility")},
-                  {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",action:()=>setQuickView("email")},
-                  {icon:"📅",title:"Manage Schedule",desc:"View season schedule",action:()=>setQuickView("schedule")},
+                  {icon:"🚨",title:"League Alert Banner",desc:"Post urgent site-wide notices",accent:hasAlert?"#dc2626":"#002d6e",badge:hasAlert?"ACTIVE":null,action:()=>setQuickView("alert")},
+                  {icon:"📰",title:"News & Events",desc:"Post announcements to the Home page",accent:"#b45309",action:()=>{setQuickView("news");loadNews();}},
+                  {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",accent:"#002d6e",action:()=>{setPreloadGame(null);setShowBoxScore(true);}},
+                  {icon:"🗂️",title:"Manage Games",desc:"Edit or delete saved games",accent:"#dc2626",action:()=>{setQuickView("games");loadAdminGames();}},
+                  {icon:"🏆",title:"Tournaments",desc:"Add tournament games to schedule",accent:"#002d6e",action:()=>setQuickView("tournaments")},
+                  {icon:"🏅",title:"Player Eligibility",desc:"Track fees paid & game appearances",accent:"#002d6e",action:()=>setQuickView("eligibility")},
+                  {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",accent:"#002d6e",action:()=>setQuickView("email")},
+                  {icon:"📅",title:"Manage Schedule",desc:"View season schedule",accent:"#002d6e",action:()=>setQuickView("schedule")},
                 ].map((a,i)=>(
-                  <div key={i} onClick={a.action}
-                    style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${i===1?"#dc2626":"#002d6e"}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s"}}
+                  <div key={i} onClick={a.action} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${a.accent}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s",position:"relative"}}
                     onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
                     onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+                    {a.badge && <div style={{position:"absolute",top:10,right:10,background:a.accent,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:10,textTransform:"uppercase",letterSpacing:".06em"}}>{a.badge}</div>}
                     <div style={{fontSize:24,marginBottom:8}}>{a.icon}</div>
                     <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",textTransform:"uppercase"}}>{a.title}</div>
                     <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:3}}>{a.desc}</div>
