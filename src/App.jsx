@@ -674,11 +674,15 @@ function HomePage({ setTab, setTeamDetail }) {
   const topTeams = [...ALL_TEAMS].sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8);
   const nextGames = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g,field:f.name}))).slice(0,5);
   const [recentGames, setRecentGames] = useState([]);
+  const [newsItems, setNewsItems] = useState([]);
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
     sbFetch("games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&status=neq.PPD&status=neq.CAN&away_score=not.is.null&order=game_date.desc&limit=6")
       .then(data => setRecentGames(data))
+      .catch(() => {});
+    sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=10")
+      .then(data => setNewsItems(data || []))
       .catch(() => {});
   }, []);
   return (
@@ -691,6 +695,30 @@ function HomePage({ setTab, setTeamDetail }) {
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         <div className="home-two-col" style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:32,alignItems:"start"}}>
           <div>
+            {newsItems.length > 0 && (
+              <div style={{marginBottom:32}}>
+                <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#b45309",marginBottom:4}}>From the Commissioner</div>
+                    <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>News & Events</h2>
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {newsItems.map((item,i) => (
+                    <div key={item.id||i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:`4px solid ${item.pinned?"#b45309":"#002d6e"}`,borderRadius:10,padding:"16px 20px",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
+                        {item.pinned && <span style={{background:"#b45309",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,textTransform:"uppercase",letterSpacing:".05em",flexShrink:0,marginTop:2}}>📌 Pinned</span>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase",lineHeight:1.1}}>{item.title}</div>
+                          {item.event_date && <div style={{fontSize:11,color:"#b45309",fontWeight:700,marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>📅 {new Date(item.event_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"long",day:"numeric",year:"numeric"})}</div>}
+                          {item.body && <div style={{fontSize:14,color:"#444",marginTop:8,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{item.body}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{marginBottom:32}}>
               <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
                 <div>
@@ -2707,6 +2735,59 @@ function AdminPage({ onAlertChange }) {
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
 
+  // News & Events
+  const [newsItems, setNewsItems] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsForm, setNewsForm] = useState({title:"", body:"", event_date:"", pinned:false});
+  const [newsEditId, setNewsEditId] = useState(null);
+  const [newsSaving, setNewsSaving] = useState(false);
+
+  const loadNews = () => {
+    setNewsLoading(true);
+    sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=20")
+      .then(data => { setNewsItems(data || []); setNewsLoading(false); })
+      .catch(() => setNewsLoading(false));
+  };
+
+  const saveNewsPost = async () => {
+    if (!newsForm.title.trim()) return;
+    setNewsSaving(true);
+    try {
+      const payload = {
+        title: newsForm.title.trim(),
+        body: newsForm.body.trim() || null,
+        event_date: newsForm.event_date || null,
+        pinned: newsForm.pinned,
+      };
+      if (newsEditId) {
+        await sbPatch(`news?id=eq.${newsEditId}`, payload);
+      } else {
+        await sbPost("news", payload);
+      }
+      setNewsForm({title:"", body:"", event_date:"", pinned:false});
+      setNewsEditId(null);
+      loadNews();
+    } catch(e) { alert("Save failed: " + e.message); }
+    setNewsSaving(false);
+  };
+
+  const deleteNewsPost = async (id) => {
+    if (!window.confirm("Delete this post?")) return;
+    try {
+      await sbDelete(`news?id=eq.${id}`);
+      setNewsItems(prev => prev.filter(x => x.id !== id));
+    } catch(e) { alert("Delete failed: " + e.message); }
+  };
+
+  const startEditNews = (item) => {
+    setNewsEditId(item.id);
+    setNewsForm({title:item.title||"", body:item.body||"", event_date:item.event_date||"", pinned:!!item.pinned});
+  };
+
+  useEffect(() => {
+    if (screen === "admin") loadNews();
+  }, [screen]);
+
   const loadAdminGames = () => {
     setAdminGamesLoading(true);
     sbFetch("seasons?select=id,name&limit=20")
@@ -2849,6 +2930,73 @@ function AdminPage({ onAlertChange }) {
                 Clear
               </button>}
             </div>
+          </div>
+        </div>
+
+        {/* News & Events */}
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>📰 News & Events</div>
+            <button type="button" onClick={loadNews} style={{marginLeft:"auto",padding:"4px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
+          </div>
+          <div style={{padding:"20px",display:"flex",flexDirection:"column",gap:16}}>
+            <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>Post announcements, upcoming events, or league news. These appear at the top of the Home page for all visitors.</div>
+
+            {/* Form */}
+            <div style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px 18px",display:"flex",flexDirection:"column",gap:10}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#002d6e"}}>{newsEditId ? "✏️ Editing Post" : "➕ New Post"}</div>
+              <input type="text" placeholder="Title (required)" value={newsForm.title} onChange={e=>setNewsForm(f=>({...f,title:e.target.value}))}
+                style={{padding:"10px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",width:"100%",boxSizing:"border-box"}}/>
+              <textarea placeholder="Body / details (optional)" value={newsForm.body} onChange={e=>setNewsForm(f=>({...f,body:e.target.value}))} rows={3}
+                style={{padding:"10px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",resize:"vertical",width:"100%",boxSizing:"border-box"}}/>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+                <div style={{flex:1,minWidth:140}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Event Date (optional)</div>
+                  <input type="date" value={newsForm.event_date} onChange={e=>setNewsForm(f=>({...f,event_date:e.target.value}))}
+                    style={{padding:"8px 10px",border:"1px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",width:"100%",boxSizing:"border-box"}}/>
+                </div>
+                <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",paddingTop:18,fontSize:14,fontWeight:600,color:"#333",flexShrink:0}}>
+                  <input type="checkbox" checked={newsForm.pinned} onChange={e=>setNewsForm(f=>({...f,pinned:e.target.checked}))} style={{width:16,height:16,cursor:"pointer"}}/>
+                  📌 Pin to top
+                </label>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button type="button" onClick={saveNewsPost} disabled={!newsForm.title.trim()||newsSaving}
+                  style={{flex:1,padding:"11px",background:newsForm.title.trim()?"#002d6e":"#ccc",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,textTransform:"uppercase",cursor:newsForm.title.trim()?"pointer":"default"}}>
+                  {newsSaving ? "Saving…" : newsEditId ? "Save Changes" : "Post to Site"}
+                </button>
+                {newsEditId && (
+                  <button type="button" onClick={()=>{setNewsEditId(null);setNewsForm({title:"",body:"",event_date:"",pinned:false});}}
+                    style={{padding:"11px 18px",background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",color:"#555"}}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Existing posts */}
+            {newsLoading && <div style={{textAlign:"center",padding:20,color:"#888"}}>Loading…</div>}
+            {!newsLoading && newsItems.length === 0 && (
+              <div style={{textAlign:"center",padding:20,color:"#aaa",fontSize:13}}>No posts yet. Add your first announcement above.</div>
+            )}
+            {newsItems.map((item,i) => (
+              <div key={item.id||i} style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderLeft:`4px solid ${item.pinned?"#b45309":"#002d6e"}`,borderRadius:8,padding:"12px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:2}}>
+                    {item.pinned && <span style={{background:"#b45309",color:"#fff",fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10,textTransform:"uppercase"}}>📌 Pinned</span>}
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase",color:"#111"}}>{item.title}</div>
+                  </div>
+                  {item.event_date && <div style={{fontSize:11,color:"#b45309",fontWeight:700,marginBottom:2}}>📅 {item.event_date}</div>}
+                  {item.body && <div style={{fontSize:13,color:"#555",lineHeight:1.5,whiteSpace:"pre-wrap"}}>{item.body}</div>}
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button type="button" onClick={()=>startEditNews(item)}
+                    style={{padding:"5px 10px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>✏️</button>
+                  <button type="button" onClick={()=>deleteNewsPost(item.id)}
+                    style={{padding:"5px 10px",background:"rgba(220,38,38,0.09)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>🗑️</button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
