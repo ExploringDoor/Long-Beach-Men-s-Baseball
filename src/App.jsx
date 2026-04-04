@@ -2512,18 +2512,26 @@ function PlayerEligibilityPage({ onBack }) {
   const load = async () => {
     setLoading(true);
     try {
-      const [payData, apData] = await Promise.all([
+      const [payData, seasons] = await Promise.all([
         sbFetch(`player_payments?select=id,player_name,team_name,paid,notes&season=eq.${encodeURIComponent(SEASON)}&order=team_name.asc,player_name.asc`),
-        sbFetch("batting_lines?select=player_name,game_id&player_name=not.is.null"),
+        sbFetch("seasons?select=id,name&limit=20"),
       ]);
       setPayments(payData || []);
-      // Count distinct game appearances per player
+      // Count distinct game appearances per player — current season only
       const counts = {};
-      (apData || []).forEach(row => {
-        if (!row.player_name) return;
-        if (!counts[row.player_name]) counts[row.player_name] = new Set();
-        counts[row.player_name].add(row.game_id);
-      });
+      const curSeason = (seasons || []).find(s => s.name.includes("Spring") && s.name.includes("2026"));
+      if (curSeason) {
+        const gameRows = await sbFetch(`games?select=id&season_id=eq.${curSeason.id}&away_score=not.is.null&limit=500`);
+        if (gameRows && gameRows.length > 0) {
+          const ids = gameRows.map(g => g.id).join(",");
+          const apData = await sbFetch(`batting_lines?select=player_name,game_id&game_id=in.(${ids})&player_name=not.is.null&limit=5000`);
+          (apData || []).forEach(row => {
+            if (!row.player_name) return;
+            if (!counts[row.player_name]) counts[row.player_name] = new Set();
+            counts[row.player_name].add(row.game_id);
+          });
+        }
+      }
       const flat = {};
       Object.entries(counts).forEach(([name, games]) => { flat[name] = games.size; });
       setAppearances(flat);
