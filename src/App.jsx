@@ -3188,6 +3188,12 @@ function AdminPage({ onAlertChange }) {
   const [alertStyle, setAlertStyle] = useState(() => {
     try { return JSON.parse(localStorage.getItem("lbdc_alert_style") || "{}"); } catch(e) { return {}; }
   });
+  const [alertExpire, setAlertExpire] = useState(() => localStorage.getItem("lbdc_alert_expire") || "");
+  const [alertSchedule, setAlertSchedule] = useState(() => localStorage.getItem("lbdc_alert_schedule") || "");
+  const [alertHistory, setAlertHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("lbdc_alert_history") || "[]"); } catch(e) { return []; }
+  });
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showBoxScore, setShowBoxScore] = useState(false);
   const [quickView, setQuickView] = useState(null); // null | "schedule" | "email" | "games" | "tournaments" | "eligibility"
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
@@ -3261,18 +3267,60 @@ function AdminPage({ onAlertChange }) {
 
   const postAlert = () => {
     const trimmed = alertText.trim();
+    if (!trimmed) return;
+    // Save to history (last 5, no duplicates)
+    const newHistory = [
+      {text: trimmed, style: alertStyle, ts: Date.now()},
+      ...alertHistory.filter(h => h.text !== trimmed),
+    ].slice(0, 5);
+    setAlertHistory(newHistory);
+    localStorage.setItem("lbdc_alert_history", JSON.stringify(newHistory));
     localStorage.setItem("lbdc_alert", trimmed);
     localStorage.setItem("lbdc_alert_style", JSON.stringify(alertStyle));
-    onAlertChange(trimmed || null);
+    if (alertExpire) localStorage.setItem("lbdc_alert_expire", alertExpire);
+    else localStorage.removeItem("lbdc_alert_expire");
+    if (alertSchedule) {
+      localStorage.setItem("lbdc_alert_schedule", alertSchedule);
+      // Don't go live yet if scheduled for the future
+      if (new Date(alertSchedule) > new Date()) { onAlertChange(null); return; }
+    } else {
+      localStorage.removeItem("lbdc_alert_schedule");
+    }
+    onAlertChange(trimmed);
   };
   const clearAlert = () => {
     localStorage.removeItem("lbdc_alert");
     localStorage.removeItem("lbdc_alert_style");
+    localStorage.removeItem("lbdc_alert_expire");
+    localStorage.removeItem("lbdc_alert_schedule");
     setAlertText("");
+    setAlertExpire("");
+    setAlertSchedule("");
     onAlertChange(null);
   };
   const hasAlert = !!alertText.trim();
   const updateAlertStyle = (key, val) => setAlertStyle(s => ({...s, [key]: val}));
+
+  // Check schedule/expire every minute
+  useEffect(() => {
+    const check = () => {
+      const scheduled = localStorage.getItem("lbdc_alert_schedule");
+      const expire = localStorage.getItem("lbdc_alert_expire");
+      const text = localStorage.getItem("lbdc_alert");
+      if (scheduled && new Date(scheduled) <= new Date() && text) {
+        localStorage.removeItem("lbdc_alert_schedule");
+        onAlertChange(text);
+      }
+      if (expire && new Date(expire) <= new Date() && text) {
+        localStorage.removeItem("lbdc_alert");
+        localStorage.removeItem("lbdc_alert_expire");
+        onAlertChange(null);
+      }
+    };
+    check();
+    const t = setInterval(check, 60000);
+    return () => clearInterval(t);
+  }, []);
 
   // ── LOGIN SCREEN ──
   if (screen === "login") return (
@@ -3374,6 +3422,18 @@ function AdminPage({ onAlertChange }) {
             <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>
               When active, a <strong style={{color:"#dc2626"}}>big red blocking popup</strong> appears on the site — visitors must click OK to continue. Leave blank to clear.
             </div>
+            {/* Emoji picker */}
+            <div style={{position:"relative"}}>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:6}}>
+                <span style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.4)",textTransform:"uppercase"}}>Quick insert:</span>
+                {["⚠️","🚨","❌","🌧️","☔","📢","⛔","✅","🔴","⚾","📅","🏟️"].map(e=>(
+                  <button key={e} type="button" onClick={()=>setAlertText(t=>t+e)}
+                    style={{fontSize:18,background:"none",border:"1px solid rgba(0,0,0,0.1)",borderRadius:6,padding:"2px 6px",cursor:"pointer",lineHeight:1.4}}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
             <textarea value={alertText} onChange={e=>setAlertText(e.target.value)} rows={3}
               placeholder="e.g. ⚠️ RAINOUT — All Saturday April 19 games are CANCELLED due to rain. Makeup dates TBD."
               style={{padding:"12px",border:"1px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",resize:"vertical",width:"100%",boxSizing:"border-box"}}/>
@@ -3442,7 +3502,7 @@ function AdminPage({ onAlertChange }) {
                 </div>
 
                 {/* Background color picker */}
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginRight:6,borderRight:"1px solid rgba(0,0,0,0.1)",paddingRight:8}}>
                   <span style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",whiteSpace:"nowrap"}}>Background</span>
                   <div style={{position:"relative",width:28,height:28}}>
                     <div style={{position:"absolute",inset:0,borderRadius:4,border:"2px solid rgba(0,0,0,0.15)",background:alertStyle.bgColor||"#dc2626",pointerEvents:"none"}}/>
@@ -3450,31 +3510,103 @@ function AdminPage({ onAlertChange }) {
                       style={{opacity:0,position:"absolute",inset:0,width:"100%",height:"100%",cursor:"pointer",border:"none",padding:0}}/>
                   </div>
                 </div>
+
+                {/* Border style */}
+                <div style={{display:"flex",alignItems:"center",gap:4,marginRight:6,borderRight:"1px solid rgba(0,0,0,0.1)",paddingRight:8}}>
+                  <span style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",whiteSpace:"nowrap"}}>Border</span>
+                  {[["None","none"],["Solid","solid"],["Dashed","dashed"],["Glow","glow"]].map(([lbl,val])=>(
+                    <button key={val} type="button" onClick={()=>updateAlertStyle("border",val)}
+                      style={{padding:"3px 7px",borderRadius:4,border:`1px solid ${(alertStyle.border||"solid")===val?"#002d6e":"rgba(0,0,0,0.12)"}`,background:(alertStyle.border||"solid")===val?"#002d6e":"#fff",color:(alertStyle.border||"solid")===val?"#fff":"#333",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Blink toggle */}
+                <button type="button" onClick={()=>updateAlertStyle("blink",!alertStyle.blink)}
+                  style={{padding:"3px 10px",borderRadius:4,border:`1px solid ${alertStyle.blink?"#002d6e":"rgba(0,0,0,0.12)"}`,background:alertStyle.blink?"#002d6e":"#fff",color:alertStyle.blink?"#fff":"#333",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+                  ✨ Blink
+                </button>
               </div>
 
               {/* Live preview */}
-              <div style={{background:alertStyle.bgColor||"#dc2626",padding:"20px 24px",minHeight:60,textAlign:alertStyle.textAlign||"center"}}>
-                <div style={{fontFamily:alertStyle.fontFamily||"inherit",fontSize:Number(alertStyle.fontSize||16),fontWeight:Number(alertStyle.fontWeight||400),fontStyle:alertStyle.fontStyle||"normal",color:alertStyle.color||"#ffffff",lineHeight:1.6,whiteSpace:"pre-wrap"}}>
+              <div style={{
+                background:alertStyle.bgColor||"#dc2626",
+                padding:"20px 24px",minHeight:60,
+                textAlign:alertStyle.textAlign||"center",
+                border: alertStyle.border==="none" ? "none" : alertStyle.border==="dashed" ? "3px dashed rgba(255,255,255,0.6)" : alertStyle.border==="glow" ? "none" : "3px solid rgba(255,255,255,0.4)",
+                boxShadow: alertStyle.border==="glow" ? "0 0 20px 6px rgba(255,200,0,0.7), inset 0 0 20px rgba(255,200,0,0.2)" : "none",
+              }}>
+                <div style={{
+                  fontFamily:alertStyle.fontFamily||"inherit",
+                  fontSize:Number(alertStyle.fontSize||16),
+                  fontWeight:Number(alertStyle.fontWeight||400),
+                  fontStyle:alertStyle.fontStyle||"normal",
+                  color:alertStyle.color||"#ffffff",
+                  lineHeight:1.6,whiteSpace:"pre-wrap",
+                  animation: alertStyle.blink ? "alertBlink 1s step-start infinite" : "none",
+                }}>
                   {alertText.trim() ? alertText : <span style={{opacity:.4,fontStyle:"italic"}}>Preview will appear here as you type…</span>}
                 </div>
+              </div>
+            </div>
+
+            {/* Schedule & Auto-Expire */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",marginBottom:4}}>📅 Go Live At (optional)</div>
+                <input type="datetime-local" value={alertSchedule} onChange={e=>setAlertSchedule(e.target.value)}
+                  style={{width:"100%",padding:"7px 10px",border:"1px solid #ddd",borderRadius:7,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:3}}>Leave blank to post immediately</div>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",marginBottom:4}}>⏰ Auto-Expire At (optional)</div>
+                <input type="datetime-local" value={alertExpire} onChange={e=>setAlertExpire(e.target.value)}
+                  style={{width:"100%",padding:"7px 10px",border:"1px solid #ddd",borderRadius:7,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:3}}>Alert clears itself automatically</div>
               </div>
             </div>
 
             {hasAlert && (
               <div style={{background:"#fef2f2",border:"2px solid #dc2626",borderRadius:8,padding:"12px 16px",fontSize:14,color:"#991b1b",fontWeight:600}}>
                 🔴 ACTIVE: "{alertText.slice(0,80)}{alertText.length>80?"...":""}"
+                {alertExpire && <span style={{marginLeft:8,fontWeight:400,fontSize:12}}>· expires {new Date(alertExpire).toLocaleString()}</span>}
               </div>
             )}
+            {alertSchedule && !hasAlert && (
+              <div style={{background:"#fff8e1",border:"2px solid #f0a500",borderRadius:8,padding:"12px 16px",fontSize:14,color:"#7c4e00",fontWeight:600}}>
+                ⏳ SCHEDULED: Goes live {new Date(alertSchedule).toLocaleString()}
+              </div>
+            )}
+
             <div style={{display:"flex",gap:10}}>
-              <button type="button" onClick={postAlert}
-                style={{flex:1,padding:"12px",background:"#dc2626",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,textTransform:"uppercase",cursor:"pointer"}}>
-                {hasAlert ? "Update Alert" : "Post Alert to Site"}
+              <button type="button" onClick={postAlert} disabled={!alertText.trim()}
+                style={{flex:1,padding:"12px",background:alertText.trim()?"#dc2626":"#ccc",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,textTransform:"uppercase",cursor:alertText.trim()?"pointer":"default"}}>
+                {alertSchedule && new Date(alertSchedule) > new Date() ? "⏰ Schedule Alert" : hasAlert ? "Update Alert" : "Post Alert to Site"}
               </button>
               {hasAlert && <button type="button" onClick={clearAlert}
                 style={{padding:"12px 20px",background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",color:"#555"}}>
                 Clear
               </button>}
             </div>
+
+            {/* Alert History */}
+            {alertHistory.length > 0 && (
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.4)",textTransform:"uppercase",marginBottom:6}}>🕘 Recent Alerts — click to reuse</div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {alertHistory.map((h,i)=>(
+                    <div key={i} onClick={()=>{setAlertText(h.text);setAlertStyle(h.style||{});}}
+                      style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderRadius:7,padding:"8px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,transition:"background .1s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="#f0f4ff"}
+                      onMouseLeave={e=>e.currentTarget.style.background="#f8f9fb"}>
+                      <div style={{flex:1,fontSize:13,color:"#333",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.text}</div>
+                      <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",flexShrink:0}}>{new Date(h.ts).toLocaleDateString()}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -5051,10 +5183,22 @@ export default function App() {
     <div style={{minHeight:"100vh",fontFamily:"'Barlow',sans-serif",width:"100%",maxWidth:"100%",overflowX:"hidden"}}>
       {activeAlert && !alertDismissed && ( /* shows every page load until OK clicked */
         <div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div style={{background:activeAlertStyle.bgColor||"#dc2626",borderRadius:16,padding:"32px 36px",maxWidth:520,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,0.5)",border:"4px solid rgba(0,0,0,0.2)"}}>
-            <div style={{fontSize:48,marginBottom:12}}>🚨</div>
+          <div style={{
+            background:activeAlertStyle.bgColor||"#dc2626",
+            borderRadius:16,padding:"32px 36px",maxWidth:520,width:"100%",
+            textAlign:"center",
+            boxShadow: activeAlertStyle.border==="glow"
+              ? "0 20px 60px rgba(0,0,0,0.5), 0 0 30px 10px rgba(255,200,0,0.8)"
+              : "0 20px 60px rgba(0,0,0,0.5)",
+            border: activeAlertStyle.border==="none" ? "none"
+              : activeAlertStyle.border==="dashed" ? "4px dashed rgba(255,255,255,0.6)"
+              : activeAlertStyle.border==="glow" ? "none"
+              : "4px solid rgba(0,0,0,0.2)",
+            animation: activeAlertStyle.border==="glow" ? "alertGlow 1.5s ease-in-out infinite" : "none",
+          }}>
+            <div style={{fontSize:48,marginBottom:12,animation:activeAlertStyle.blink?"alertBlink 1s step-start infinite":"none"}}>🚨</div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:activeAlertStyle.color||"#fff",textTransform:"uppercase",letterSpacing:".04em",marginBottom:16,lineHeight:1.2}}>League Alert</div>
-            <div style={{fontFamily:activeAlertStyle.fontFamily||"inherit",fontSize:Number(activeAlertStyle.fontSize||16),fontWeight:Number(activeAlertStyle.fontWeight||400),fontStyle:activeAlertStyle.fontStyle||"normal",color:activeAlertStyle.color||"rgba(255,255,255,0.95)",textAlign:activeAlertStyle.textAlign||"center",lineHeight:1.6,marginBottom:28,whiteSpace:"pre-wrap"}}>{activeAlert}</div>
+            <div style={{fontFamily:activeAlertStyle.fontFamily||"inherit",fontSize:Number(activeAlertStyle.fontSize||16),fontWeight:Number(activeAlertStyle.fontWeight||400),fontStyle:activeAlertStyle.fontStyle||"normal",color:activeAlertStyle.color||"rgba(255,255,255,0.95)",textAlign:activeAlertStyle.textAlign||"center",lineHeight:1.6,marginBottom:28,whiteSpace:"pre-wrap",animation:activeAlertStyle.blink?"alertBlink 1s step-start infinite":"none"}}>{activeAlert}</div>
             <button type="button" onClick={dismissAlert}
               style={{padding:"14px 48px",background:"#fff",border:"none",borderRadius:10,color:"#dc2626",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",cursor:"pointer",letterSpacing:".06em",boxShadow:"0 4px 12px rgba(0,0,0,0.2)"}}>
               OK, I Understand
@@ -5068,6 +5212,8 @@ export default function App() {
         html,body,#root{overflow-x:hidden;width:100%;max-width:100%;}
         body{background:#f2f4f8;color:#111;-webkit-font-smoothing:antialiased;position:relative;}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        @keyframes alertBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
+        @keyframes alertGlow{0%,100%{box-shadow:0 0 20px 6px rgba(255,200,0,0.7)}50%{box-shadow:0 0 40px 14px rgba(255,200,0,0.9)}}
         a{text-decoration:none;}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:#f2f4f8}
