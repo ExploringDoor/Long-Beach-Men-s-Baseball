@@ -1208,8 +1208,9 @@ function ScoresPage({ setTab, setTeamDetail }) {
 
 /* ─── SCHEDULE PAGE ───────────────────────────────────────────────────────── */
 function SchedulePage({ setTab, setTeamDetail }) {
-  const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers
+  const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers, 2=Tournaments
   const [wk,setWk] = useState(0);
+  const [tournGames, setTournGames] = useState([]);
   const week = SCHED[wk];
   const games = week.fields.flatMap(f => f.games.map(g => ({...g,field:f.name})));
   const dateStr = week.label;
@@ -1218,12 +1219,21 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const playingTeams = new Set(games.flatMap(g => [g.away, g.home]));
   const byeTeams = allTeams.filter(t => !playingTeams.has(t));
 
+  useEffect(() => {
+    sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=tournament_name.asc,game_date.asc,game_time.asc")
+      .then(data => setTournGames(data || []))
+      .catch(() => {});
+  }, []);
+
+  const byTournament = {};
+  tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
+
   const handleLeagueChange = (i) => { setLeague(i); setWk(0); };
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second">
-        <TabBar items={["Saturday Division","Boomers 60/70"]} active={league} onChange={handleLeagueChange} />
+        <TabBar items={["Saturday Division","Boomers 60/70",`Tournaments${tournGames.length>0?" ("+Object.keys(byTournament).length+")":""}`]} active={league} onChange={handleLeagueChange} />
       </PageHero>
 
       {league === 0 && <>
@@ -1295,6 +1305,44 @@ function SchedulePage({ setTab, setTeamDetail }) {
           </div>
         </div>
       )}
+
+      {league === 2 && (
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+          {Object.keys(byTournament).length === 0 ? (
+            <div style={{textAlign:"center",padding:"60px 20px",color:"#aaa",fontSize:16}}>No tournaments scheduled yet.</div>
+          ) : Object.entries(byTournament).map(([tname, tgames]) => (
+            <div key={tname} style={{marginBottom:32}}>
+              <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#b45309",marginBottom:4}}>Tournament</div>
+                  <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>🏆 {tname}</h2>
+                </div>
+                <span style={{fontSize:13,color:"#888"}}>{tgames.length} game{tgames.length!==1?"s":""}</span>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {tgames.map((g,i) => (
+                  <div key={g.id} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"4px solid #b45309",borderRadius:12,padding:"14px 20px",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:180}}>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>
+                        <span style={{cursor:"pointer",color:"#002d6e"}} onClick={()=>goTeam(g.away_team)}>{g.away_team}</span>
+                        <span style={{color:"#ccc",fontWeight:400,margin:"0 8px"}}>@</span>
+                        <span style={{cursor:"pointer",color:"#002d6e"}} onClick={()=>goTeam(g.home_team)}>{g.home_team}</span>
+                      </div>
+                      {g.notes && <div style={{fontSize:12,color:"#b45309",fontWeight:700,marginTop:2,textTransform:"uppercase",letterSpacing:".04em"}}>{g.notes}</div>}
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      {g.game_time && <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e",lineHeight:1}}>{g.game_time}</div>}
+                      {g.game_date && <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",fontWeight:600,marginTop:2}}>{new Date(g.game_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>}
+                      {g.field && <div style={{fontSize:12,color:"rgba(0,0,0,0.38)",marginTop:1}}>{g.field}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
     </div>
   );
 }
@@ -2443,6 +2491,226 @@ function SubBoardPage() {
 }
 
 /* ─── ADMIN PAGE ─────────────────────────────────────────────────────────── */
+function TournamentManagerPage({ onBack }) {
+  const TEAMS = Object.keys(TEAM_ROSTERS);
+  const [games, setGames] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({tournament_name:"", game_date:"", game_time:"9:00 AM", field:"Clark Field", away_team:TEAMS[0], home_team:TEAMS[1], notes:""});
+  const [newTournName, setNewTournName] = useState("");
+  const [showNewTourn, setShowNewTourn] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=tournament_name.asc,game_date.asc,game_time.asc")
+      .then(data => { setGames(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const tournamentNames = [...new Set(games.map(g => g.tournament_name))];
+
+  const addGame = async () => {
+    if (!addForm.tournament_name || !addForm.away_team || !addForm.home_team) return;
+    setSaving(true);
+    try {
+      await sbPost("tournament_games", {
+        tournament_name: addForm.tournament_name,
+        game_date: addForm.game_date || null,
+        game_time: addForm.game_time || null,
+        field: addForm.field || null,
+        away_team: addForm.away_team,
+        home_team: addForm.home_team,
+        notes: addForm.notes || null,
+      });
+      setAddForm({tournament_name:addForm.tournament_name, game_date:"", game_time:"9:00 AM", field:"Clark Field", away_team:TEAMS[0], home_team:TEAMS[1], notes:""});
+      setShowAdd(false);
+      load();
+    } catch(e) { alert("Save failed: " + e.message); }
+    setSaving(false);
+  };
+
+  const saveEdit = async () => {
+    setSaving(true);
+    try {
+      await sbPatch(`tournament_games?id=eq.${editId}`, {
+        tournament_name: editForm.tournament_name,
+        game_date: editForm.game_date || null,
+        game_time: editForm.game_time || null,
+        field: editForm.field || null,
+        away_team: editForm.away_team,
+        home_team: editForm.home_team,
+        notes: editForm.notes || null,
+      });
+      setEditId(null);
+      load();
+    } catch(e) { alert("Save failed: " + e.message); }
+    setSaving(false);
+  };
+
+  const deleteGame = async (id) => {
+    if (!window.confirm("Delete this game?")) return;
+    try {
+      await sbDelete(`tournament_games?id=eq.${id}`);
+      setGames(prev => prev.filter(g => g.id !== id));
+    } catch(e) { alert("Delete failed: " + e.message); }
+  };
+
+  const byTournament = {};
+  games.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
+
+  const inputStyle = {padding:"7px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
+
+  return (
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+      <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <button type="button" onClick={onBack} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>🏆 Manage Tournaments</div>
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          <button type="button" onClick={load} style={{padding:"6px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
+          <button type="button" onClick={()=>{setShowNewTourn(s=>!s);setShowAdd(false);}}
+            style={{padding:"7px 14px",background:"rgba(180,83,9,0.1)",border:"1px solid rgba(180,83,9,0.3)",borderRadius:7,color:"#b45309",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+            + New Tournament
+          </button>
+          <button type="button" onClick={()=>{setShowAdd(s=>!s);setShowNewTourn(false);}}
+            style={{padding:"7px 14px",background:"#002d6e",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+            + Add Game
+          </button>
+        </div>
+      </div>
+
+      <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
+        <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>Tournament games appear on a dedicated <strong>Tournaments</strong> tab on the public Schedule page.</div>
+
+        {/* New Tournament form */}
+        {showNewTourn && (
+          <div style={{background:"#fff8e1",border:"2px solid #b45309",borderRadius:10,padding:"16px 18px",display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#b45309"}}>🏆 Create New Tournament</div>
+            <div style={{fontSize:13,color:"#555"}}>Enter a tournament name. You can then add games to it using the <strong>+ Add Game</strong> button.</div>
+            <input type="text" placeholder="e.g. Memorial Day Classic, July 4th Tournament" value={newTournName} onChange={e=>setNewTournName(e.target.value)}
+              style={inputStyle}/>
+            <div style={{display:"flex",gap:8}}>
+              <button type="button" onClick={()=>{
+                if(!newTournName.trim()) return;
+                setAddForm(f=>({...f,tournament_name:newTournName.trim()}));
+                setNewTournName("");
+                setShowNewTourn(false);
+                setShowAdd(true);
+              }} disabled={!newTournName.trim()}
+                style={{padding:"9px 20px",background:newTournName.trim()?"#b45309":"#ccc",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:newTournName.trim()?"pointer":"default"}}>
+                Create & Add First Game
+              </button>
+              <button type="button" onClick={()=>setShowNewTourn(false)} style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Add Game form */}
+        {showAdd && (
+          <div style={{background:"#f0f4ff",border:"2px solid #002d6e",borderRadius:10,padding:"16px 18px",display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#002d6e"}}>➕ Add Game</div>
+            <div>
+              <label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Tournament</label>
+              <input type="text" list="tourn-names" placeholder="Tournament name" value={addForm.tournament_name} onChange={e=>setAddForm(f=>({...f,tournament_name:e.target.value}))} style={inputStyle}/>
+              <datalist id="tourn-names">{tournamentNames.map(n=><option key={n} value={n}/>)}</datalist>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              {[["Date","game_date","type","date"],["Time","game_time","placeholder","9:00 AM"],["Field","field","placeholder","Clark Field"]].map(([l,k,pt,pv])=>(
+                <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
+                  <input type={pt==="type"?pv:"text"} placeholder={pt==="placeholder"?pv:""} value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/></div>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[["Away Team","away_team"],["Home Team","home_team"]].map(([l,k])=>(
+                <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
+                  <select value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}>
+                    {TEAMS.map(t=><option key={t}>{t}</option>)}
+                  </select></div>
+              ))}
+            </div>
+            <div><label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Notes (optional)</label>
+              <input type="text" placeholder="e.g. Pool play, Bracket Game 1" value={addForm.notes} onChange={e=>setAddForm(f=>({...f,notes:e.target.value}))} style={inputStyle}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button type="button" onClick={addGame} disabled={!addForm.tournament_name||saving}
+                style={{padding:"9px 22px",background:addForm.tournament_name?"#002d6e":"#ccc",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:addForm.tournament_name?"pointer":"default"}}>
+                {saving ? "Saving…" : "Save Game"}
+              </button>
+              <button type="button" onClick={()=>setShowAdd(false)} style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {loading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading…</div>}
+        {!loading && games.length === 0 && (
+          <div style={{textAlign:"center",padding:30,color:"#aaa",fontSize:13}}>No tournament games yet. Click <strong>+ New Tournament</strong> to get started.</div>
+        )}
+
+        {/* Games grouped by tournament */}
+        {Object.entries(byTournament).map(([tname, tgames]) => (
+          <div key={tname} style={{border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,overflow:"hidden"}}>
+            <div style={{background:"#002d6e",padding:"10px 18px",display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase"}}>🏆 {tname}</span>
+              <span style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{tgames.length} game{tgames.length!==1?"s":""}</span>
+            </div>
+            {tgames.map(g => (
+              <div key={g.id}>
+                {editId === g.id ? (
+                  <div style={{padding:"14px 18px",background:"#eff6ff",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                      {[["Date","game_date"],["Time","game_time"],["Field","field"]].map(([l,k])=>(
+                        <div key={k}><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>{l}</label>
+                          <input value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/></div>
+                      ))}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                      {[["Away Team","away_team"],["Home Team","home_team"]].map(([l,k])=>(
+                        <div key={k}><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>{l}</label>
+                          <select value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}>
+                            {TEAMS.map(t=><option key={t}>{t}</option>)}
+                          </select></div>
+                      ))}
+                    </div>
+                    <div style={{marginBottom:10}}>
+                      <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Notes</label>
+                      <input value={editForm.notes||""} onChange={e=>setEditForm(f=>({...f,notes:e.target.value}))} placeholder="e.g. Pool play, Bracket Game 1" style={inputStyle}/>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button type="button" onClick={saveEdit} disabled={saving} style={{padding:"7px 18px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>{saving?"Saving…":"Save"}</button>
+                      <button type="button" onClick={()=>setEditId(null)} style={{padding:"7px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                      <button type="button" onClick={()=>deleteGame(g.id)} style={{marginLeft:"auto",padding:"7px 12px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Delete</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div onClick={()=>{setEditId(g.id);setEditForm({tournament_name:g.tournament_name,game_date:g.game_date||"",game_time:g.game_time||"",field:g.field||"",away_team:g.away_team,home_team:g.home_team,notes:g.notes||""});}}
+                    style={{display:"flex",alignItems:"center",padding:"10px 18px",borderBottom:"1px solid rgba(0,0,0,0.05)",cursor:"pointer",transition:"background .1s"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#f0f4ff"}
+                    onMouseLeave={e=>e.currentTarget.style.background=""}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away_team} <span style={{color:"#ccc",fontWeight:400}}>@</span> {g.home_team}</div>
+                      <div style={{fontSize:11,color:"#888",marginTop:1}}>
+                        {g.game_date && <span>{g.game_date}</span>}
+                        {g.game_time && <span> · {g.game_time}</span>}
+                        {g.field && <span> · {g.field}</span>}
+                        {g.notes && <span style={{color:"#b45309",fontWeight:600}}> · {g.notes}</span>}
+                      </div>
+                    </div>
+                    <div style={{fontSize:11,color:"#002d6e",fontWeight:700,flexShrink:0}}>✏️ Edit</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ManageSchedulePage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
 
@@ -2730,7 +2998,7 @@ function AdminPage({ onAlertChange }) {
   const [captainTeam, setCaptainTeam] = useState("");
   const [alertText, setAlertText] = useState(() => localStorage.getItem("lbdc_alert") || "");
   const [showBoxScore, setShowBoxScore] = useState(false);
-  const [quickView, setQuickView] = useState(null); // null | "schedule" | "email" | "games"
+  const [quickView, setQuickView] = useState(null); // null | "schedule" | "email" | "games" | "tournaments"
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
@@ -3001,8 +3269,9 @@ function AdminPage({ onAlertChange }) {
         </div>
 
         {/* Quick Actions */}
-        {quickView==="schedule" ? <ManageSchedulePage onBack={()=>setQuickView(null)}/> :
-         quickView==="email"    ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
+        {quickView==="schedule"     ? <ManageSchedulePage onBack={()=>setQuickView(null)}/> :
+         quickView==="tournaments"  ? <TournamentManagerPage onBack={()=>setQuickView(null)}/> :
+         quickView==="email"        ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
          quickView==="games"    ? (
           <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
             <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
@@ -3068,6 +3337,7 @@ function AdminPage({ onAlertChange }) {
                 {[
                   {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",action:()=>{setPreloadGame(null);setShowBoxScore(true);}},
                   {icon:"🗂️",title:"Manage Games",desc:"Edit or delete saved games",action:()=>{setQuickView("games");loadAdminGames();}},
+                  {icon:"🏆",title:"Tournaments",desc:"Add tournament games to schedule",action:()=>setQuickView("tournaments")},
                   {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",action:()=>setQuickView("email")},
                   {icon:"📅",title:"Manage Schedule",desc:"View season schedule",action:()=>setQuickView("schedule")},
                 ].map((a,i)=>(
