@@ -397,6 +397,15 @@ const RULES_DATA = [
     "Age limits: Each team is permitted to carry up to 3 players who are 45 years of age and up.",
     "Those 3 players aged 45+ are NOT permitted to pitch.",
   ]},
+  {section:"Registration & Playoff Eligibility",icon:"💰",items:[
+    "All players must pay a $50 registration fee to be eligible for the season.",
+    "Players must pay their $50 registration fee AND appear in a minimum of 4 regular season games to qualify for playoff eligibility.",
+    "Game appearances are tracked from official box scores submitted after each game.",
+    "It is the responsibility of each player to ensure their fee is paid before the playoff cutoff date.",
+    "Players who have not met both requirements (payment + 4 game appearances) will not be eligible for postseason play.",
+    "Medical exemptions may be granted at the discretion of the league commissioner.",
+    "Contact your team captain or the league commissioner with any questions about eligibility status.",
+  ]},
   {section:"St Pius X Ground Rules",icon:"🏟️",items:[
     "The home run line appears deceiving. From left field, the yellow marker is actually behind the screen — balls striking the netting is a HOME RUN.",
     "Please keep the dugout fences closed to keep more balls in play (this applies also to the softball field in center field).",
@@ -2491,6 +2500,185 @@ function SubBoardPage() {
 }
 
 /* ─── ADMIN PAGE ─────────────────────────────────────────────────────────── */
+function PlayerEligibilityPage({ onBack }) {
+  const SEASON = "Spring/Summer 2026";
+  const TEAMS = Object.keys(TEAM_ROSTERS);
+  const [payments, setPayments] = useState([]); // [{player_name, team_name, paid}]
+  const [appearances, setAppearances] = useState({}); // {player_name: count}
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [filterTeam, setFilterTeam] = useState("All");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [payData, apData] = await Promise.all([
+        sbFetch(`player_payments?select=id,player_name,team_name,paid,notes&season=eq.${encodeURIComponent(SEASON)}&order=team_name.asc,player_name.asc`),
+        sbFetch("batting_lines?select=player_name,game_id&player_name=not.is.null"),
+      ]);
+      setPayments(payData || []);
+      // Count distinct game appearances per player
+      const counts = {};
+      (apData || []).forEach(row => {
+        if (!row.player_name) return;
+        if (!counts[row.player_name]) counts[row.player_name] = new Set();
+        counts[row.player_name].add(row.game_id);
+      });
+      const flat = {};
+      Object.entries(counts).forEach(([name, games]) => { flat[name] = games.size; });
+      setAppearances(flat);
+    } catch(e) {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  // Build roster rows merging rosters + any saved payment records
+  const buildRows = () => {
+    const rows = [];
+    TEAMS.forEach(team => {
+      const roster = TEAM_ROSTERS[team] || [];
+      roster.forEach(p => {
+        const rec = payments.find(r => r.player_name === p.name && r.team_name === team);
+        rows.push({
+          id: rec?.id || null,
+          player_name: p.name,
+          team_name: team,
+          paid: rec?.paid || false,
+          notes: rec?.notes || "",
+          games: appearances[p.name] || 0,
+        });
+      });
+    });
+    return rows;
+  };
+
+  const rows = buildRows();
+  const filtered = filterTeam === "All" ? rows : rows.filter(r => r.team_name === filterTeam);
+
+  const togglePaid = async (row) => {
+    setSaving(true);
+    const newPaid = !row.paid;
+    try {
+      if (row.id) {
+        await sbPatch(`player_payments?id=eq.${row.id}`, {paid: newPaid});
+      } else {
+        await sbPost("player_payments", {
+          player_name: row.player_name,
+          team_name: row.team_name,
+          season: SEASON,
+          paid: newPaid,
+          notes: "",
+        });
+      }
+      await load();
+    } catch(e) { alert("Save failed: " + e.message); }
+    setSaving(false);
+  };
+
+  const byTeam = {};
+  filtered.forEach(r => { if (!byTeam[r.team_name]) byTeam[r.team_name] = []; byTeam[r.team_name].push(r); });
+
+  const totalPaid = rows.filter(r => r.paid).length;
+  const totalEligible = rows.filter(r => r.paid && r.games >= 4).length;
+  const totalPlayers = rows.length;
+
+  return (
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+      <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <button type="button" onClick={onBack} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>🏅 Player Eligibility — {SEASON}</div>
+        <button type="button" onClick={load} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
+      </div>
+
+      <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
+
+        {/* Summary bar */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
+          {[
+            {label:"Total Players",value:totalPlayers,color:"#002d6e"},
+            {label:"Fees Paid",value:`${totalPaid} / ${totalPlayers}`,color:"#16a34a"},
+            {label:"Playoff Eligible",value:`${totalEligible} / ${totalPlayers}`,color:"#b45309"},
+          ].map(s => (
+            <div key={s.label} style={{background:"#f8f9fb",border:`2px solid ${s.color}22`,borderRadius:10,padding:"12px 16px",textAlign:"center"}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:s.color,lineHeight:1}}>{s.value}</div>
+              <div style={{fontSize:11,color:"rgba(0,0,0,0.45)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginTop:3}}>{s.label}</div>
+            </div>
+          ))}
+          <div style={{background:"#f8f9fb",border:"2px solid rgba(0,0,0,0.08)",borderRadius:10,padding:"12px 16px",textAlign:"center"}}>
+            <div style={{fontSize:11,color:"rgba(0,0,0,0.45)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginBottom:6}}>Eligibility Requires</div>
+            <div style={{fontSize:12,color:"#333",lineHeight:1.5}}>✅ $50 fee paid<br/>✅ 4+ game appearances</div>
+          </div>
+        </div>
+
+        {/* Team filter */}
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:12,fontWeight:700,color:"rgba(0,0,0,0.4)",textTransform:"uppercase"}}>Filter:</span>
+          {["All", ...TEAMS].map(t => (
+            <button key={t} type="button" onClick={()=>setFilterTeam(t)}
+              style={{padding:"4px 12px",borderRadius:20,border:`1px solid ${filterTeam===t?"#002d6e":"rgba(0,0,0,0.15)"}`,background:filterTeam===t?"#002d6e":"#fff",color:filterTeam===t?"#fff":"#333",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {loading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading…</div>}
+
+        {!loading && Object.entries(byTeam).map(([team, teamRows]) => (
+          <div key={team} style={{border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,overflow:"hidden"}}>
+            <div style={{background:"#001a3e",padding:"10px 18px",display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase"}}>{team}</span>
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>
+                {teamRows.filter(r=>r.paid).length} paid · {teamRows.filter(r=>r.paid&&r.games>=4).length} eligible
+              </span>
+            </div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"#f8f9fb"}}>
+                  <th style={{padding:"8px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Player</th>
+                  <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>$50 Paid</th>
+                  <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Games</th>
+                  <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Eligible</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamRows.map((r,i) => {
+                  const eligible = r.paid && r.games >= 4;
+                  return (
+                    <tr key={r.player_name} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
+                      <td style={{padding:"10px 16px",fontWeight:600,color:"#111"}}>{r.player_name}</td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>
+                        <input type="checkbox" checked={r.paid} onChange={()=>!saving&&togglePaid(r)}
+                          style={{width:18,height:18,cursor:saving?"wait":"pointer",accentColor:"#16a34a"}}/>
+                      </td>
+                      <td style={{padding:"10px 12px",textAlign:"center"}}>
+                        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:r.games>=4?"#16a34a":r.games>0?"#b45309":"#ccc"}}>{r.games}</span>
+                        <span style={{fontSize:10,color:"rgba(0,0,0,0.3)",marginLeft:2}}>/4</span>
+                      </td>
+                      <td style={{padding:"10px 12px",textAlign:"center",fontSize:18}}>
+                        {eligible ? "✅" : r.paid && r.games < 4 ? "⏳" : r.games >= 4 && !r.paid ? "💳" : "❌"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+        {!loading && rows.length === 0 && (
+          <div style={{textAlign:"center",padding:30,color:"#aaa",fontSize:13}}>No roster data found. Add players to team rosters to track eligibility.</div>
+        )}
+
+        <div style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderRadius:8,padding:"12px 16px",fontSize:12,color:"rgba(0,0,0,0.45)",lineHeight:1.8}}>
+          <strong style={{color:"#333"}}>Legend:</strong> ✅ Fully eligible &nbsp;·&nbsp; ⏳ Paid but needs more games &nbsp;·&nbsp; 💳 4+ games but fee not paid &nbsp;·&nbsp; ❌ Not eligible
+          <br/>Game appearances are automatically pulled from submitted box scores.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TournamentManagerPage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
   const [games, setGames] = useState([]);
@@ -2998,7 +3186,7 @@ function AdminPage({ onAlertChange }) {
   const [captainTeam, setCaptainTeam] = useState("");
   const [alertText, setAlertText] = useState(() => localStorage.getItem("lbdc_alert") || "");
   const [showBoxScore, setShowBoxScore] = useState(false);
-  const [quickView, setQuickView] = useState(null); // null | "schedule" | "email" | "games" | "tournaments"
+  const [quickView, setQuickView] = useState(null); // null | "schedule" | "email" | "games" | "tournaments" | "eligibility"
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
@@ -3271,6 +3459,7 @@ function AdminPage({ onAlertChange }) {
         {/* Quick Actions */}
         {quickView==="schedule"     ? <ManageSchedulePage onBack={()=>setQuickView(null)}/> :
          quickView==="tournaments"  ? <TournamentManagerPage onBack={()=>setQuickView(null)}/> :
+         quickView==="eligibility"  ? <PlayerEligibilityPage onBack={()=>setQuickView(null)}/> :
          quickView==="email"        ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
          quickView==="games"    ? (
           <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
@@ -3338,6 +3527,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",action:()=>{setPreloadGame(null);setShowBoxScore(true);}},
                   {icon:"🗂️",title:"Manage Games",desc:"Edit or delete saved games",action:()=>{setQuickView("games");loadAdminGames();}},
                   {icon:"🏆",title:"Tournaments",desc:"Add tournament games to schedule",action:()=>setQuickView("tournaments")},
+                  {icon:"🏅",title:"Player Eligibility",desc:"Track fees paid & game appearances",action:()=>setQuickView("eligibility")},
                   {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",action:()=>setQuickView("email")},
                   {icon:"📅",title:"Manage Schedule",desc:"View season schedule",action:()=>setQuickView("schedule")},
                 ].map((a,i)=>(
