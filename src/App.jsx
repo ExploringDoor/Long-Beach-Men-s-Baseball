@@ -3382,6 +3382,24 @@ function AdminPage({ onAlertChange }) {
             <div style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.12)",borderRadius:8,overflow:"hidden"}}>
               {/* Toolbar row */}
               <div style={{display:"flex",alignItems:"center",gap:2,padding:"6px 8px",borderBottom:"1px solid rgba(0,0,0,0.09)",flexWrap:"wrap",background:"#fff"}}>
+                {/* Font family */}
+                <div style={{marginRight:6,borderRight:"1px solid rgba(0,0,0,0.1)",paddingRight:8}}>
+                  <select value={alertStyle.fontFamily||"inherit"} onChange={e=>updateAlertStyle("fontFamily",e.target.value)}
+                    style={{padding:"4px 6px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:4,fontSize:13,fontFamily:alertStyle.fontFamily||"inherit",background:"#fff",cursor:"pointer",height:28}}>
+                    {[
+                      ["Default (Barlow)","inherit"],
+                      ["Arial","Arial, sans-serif"],
+                      ["Georgia","Georgia, serif"],
+                      ["Times New Roman","'Times New Roman', serif"],
+                      ["Courier","'Courier New', monospace"],
+                      ["Verdana","Verdana, sans-serif"],
+                      ["Trebuchet","'Trebuchet MS', sans-serif"],
+                      ["Impact","Impact, sans-serif"],
+                    ].map(([label, val]) => (
+                      <option key={val} value={val} style={{fontFamily:val}}>{label}</option>
+                    ))}
+                  </select>
+                </div>
                 {/* Font size */}
                 <div style={{display:"flex",alignItems:"center",gap:2,marginRight:6,borderRight:"1px solid rgba(0,0,0,0.1)",paddingRight:8}}>
                   <button type="button" onClick={()=>updateAlertStyle("fontSize",String(Math.max(10,Number(alertStyle.fontSize||16)-2)))}
@@ -3436,7 +3454,7 @@ function AdminPage({ onAlertChange }) {
 
               {/* Live preview */}
               <div style={{background:alertStyle.bgColor||"#dc2626",padding:"20px 24px",minHeight:60,textAlign:alertStyle.textAlign||"center"}}>
-                <div style={{fontSize:Number(alertStyle.fontSize||16),fontWeight:Number(alertStyle.fontWeight||400),fontStyle:alertStyle.fontStyle||"normal",color:alertStyle.color||"#ffffff",lineHeight:1.6,whiteSpace:"pre-wrap"}}>
+                <div style={{fontFamily:alertStyle.fontFamily||"inherit",fontSize:Number(alertStyle.fontSize||16),fontWeight:Number(alertStyle.fontWeight||400),fontStyle:alertStyle.fontStyle||"normal",color:alertStyle.color||"#ffffff",lineHeight:1.6,whiteSpace:"pre-wrap"}}>
                   {alertText.trim() ? alertText : <span style={{opacity:.4,fontStyle:"italic"}}>Preview will appear here as you type…</span>}
                 </div>
               </div>
@@ -5036,7 +5054,7 @@ export default function App() {
           <div style={{background:activeAlertStyle.bgColor||"#dc2626",borderRadius:16,padding:"32px 36px",maxWidth:520,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,0.5)",border:"4px solid rgba(0,0,0,0.2)"}}>
             <div style={{fontSize:48,marginBottom:12}}>🚨</div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:activeAlertStyle.color||"#fff",textTransform:"uppercase",letterSpacing:".04em",marginBottom:16,lineHeight:1.2}}>League Alert</div>
-            <div style={{fontSize:Number(activeAlertStyle.fontSize||16),fontWeight:Number(activeAlertStyle.fontWeight||400),fontStyle:activeAlertStyle.fontStyle||"normal",color:activeAlertStyle.color||"rgba(255,255,255,0.95)",textAlign:activeAlertStyle.textAlign||"center",lineHeight:1.6,marginBottom:28,whiteSpace:"pre-wrap"}}>{activeAlert}</div>
+            <div style={{fontFamily:activeAlertStyle.fontFamily||"inherit",fontSize:Number(activeAlertStyle.fontSize||16),fontWeight:Number(activeAlertStyle.fontWeight||400),fontStyle:activeAlertStyle.fontStyle||"normal",color:activeAlertStyle.color||"rgba(255,255,255,0.95)",textAlign:activeAlertStyle.textAlign||"center",lineHeight:1.6,marginBottom:28,whiteSpace:"pre-wrap"}}>{activeAlert}</div>
             <button type="button" onClick={dismissAlert}
               style={{padding:"14px 48px",background:"#fff",border:"none",borderRadius:10,color:"#dc2626",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",cursor:"pointer",letterSpacing:".06em",boxShadow:"0 4px 12px rgba(0,0,0,0.2)"}}>
               OK, I Understand
