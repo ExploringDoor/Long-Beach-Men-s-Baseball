@@ -720,7 +720,7 @@ function HomePage({ setTab, setTeamDetail }) {
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase",lineHeight:1.1}}>{item.title}</div>
                           {item.event_date && <div style={{fontSize:11,color:"#b45309",fontWeight:700,marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>📅 {new Date(item.event_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"long",day:"numeric",year:"numeric"})}</div>}
-                          {item.body && <div style={{fontSize:14,color:"#444",marginTop:8,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{item.body}</div>}
+                          {item.body && (() => { let s={}; try{s=item.style?JSON.parse(item.style):{};}catch(e){} return <div style={{fontSize:Number(s.fontSize||14),fontFamily:s.fontFamily||"inherit",fontWeight:Number(s.fontWeight||400),fontStyle:s.fontStyle||"normal",color:s.color||"#444",textAlign:s.textAlign||"left",marginTop:8,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{item.body}</div>; })()}
                         </div>
                       </div>
                     </div>
@@ -3206,6 +3206,8 @@ function AdminPage({ onAlertChange }) {
   const [newsForm, setNewsForm] = useState({title:"", body:"", event_date:"", pinned:false});
   const [newsEditId, setNewsEditId] = useState(null);
   const [newsSaving, setNewsSaving] = useState(false);
+  const [newsStyle, setNewsStyle] = useState({});
+  const updateNewsStyle = (key, val) => setNewsStyle(s => ({...s, [key]: val}));
 
   const loadNews = () => {
     setNewsLoading(true);
@@ -3223,6 +3225,7 @@ function AdminPage({ onAlertChange }) {
         body: newsForm.body.trim() || null,
         event_date: newsForm.event_date || null,
         pinned: newsForm.pinned,
+        style: Object.keys(newsStyle).length ? JSON.stringify(newsStyle) : null,
       };
       if (newsEditId) {
         await sbPatch(`news?id=eq.${newsEditId}`, payload);
@@ -3230,6 +3233,7 @@ function AdminPage({ onAlertChange }) {
         await sbPost("news", payload);
       }
       setNewsForm({title:"", body:"", event_date:"", pinned:false});
+      setNewsStyle({});
       setNewsEditId(null);
       loadNews();
     } catch(e) { alert("Save failed: " + e.message); }
@@ -3247,6 +3251,7 @@ function AdminPage({ onAlertChange }) {
   const startEditNews = (item) => {
     setNewsEditId(item.id);
     setNewsForm({title:item.title||"", body:item.body||"", event_date:item.event_date||"", pinned:!!item.pinned});
+    try { setNewsStyle(item.style ? JSON.parse(item.style) : {}); } catch(e) { setNewsStyle({}); }
   };
 
   useEffect(() => {
@@ -3622,10 +3627,61 @@ function AdminPage({ onAlertChange }) {
             {/* Form */}
             <div style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px 18px",display:"flex",flexDirection:"column",gap:10}}>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#002d6e"}}>{newsEditId ? "✏️ Editing Post" : "➕ New Post"}</div>
+              {/* Emoji bar */}
+              <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+                <span style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.4)",textTransform:"uppercase"}}>Insert:</span>
+                {["⚾","🏆","📅","⚠️","🌧️","📢","✅","🔴","⭐","🎉","📌","🏟️"].map(e=>(
+                  <button key={e} type="button" onClick={()=>setNewsForm(f=>({...f,body:(f.body||"")+e}))}
+                    style={{fontSize:16,background:"none",border:"1px solid rgba(0,0,0,0.1)",borderRadius:5,padding:"2px 5px",cursor:"pointer",lineHeight:1.4}}>{e}</button>
+                ))}
+              </div>
               <input type="text" placeholder="Title (required)" value={newsForm.title} onChange={e=>setNewsForm(f=>({...f,title:e.target.value}))}
                 style={{padding:"10px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",width:"100%",boxSizing:"border-box"}}/>
-              <textarea placeholder="Body / details (optional)" value={newsForm.body} onChange={e=>setNewsForm(f=>({...f,body:e.target.value}))} rows={3}
-                style={{padding:"10px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",resize:"vertical",width:"100%",boxSizing:"border-box"}}/>
+
+              {/* Body + formatting toolbar */}
+              <div style={{border:"1px solid rgba(0,0,0,0.12)",borderRadius:8,overflow:"hidden"}}>
+                {/* Toolbar */}
+                <div style={{display:"flex",alignItems:"center",gap:2,padding:"5px 7px",background:"#fff",borderBottom:"1px solid rgba(0,0,0,0.09)",flexWrap:"wrap"}}>
+                  <div style={{marginRight:5,borderRight:"1px solid rgba(0,0,0,0.1)",paddingRight:7}}>
+                    <select value={newsStyle.fontFamily||"inherit"} onChange={e=>updateNewsStyle("fontFamily",e.target.value)}
+                      style={{padding:"3px 5px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:4,fontSize:12,fontFamily:newsStyle.fontFamily||"inherit",background:"#fff",cursor:"pointer",height:26}}>
+                      {[["Default","inherit"],["Arial","Arial, sans-serif"],["Georgia","Georgia, serif"],["Times New Roman","'Times New Roman', serif"],["Verdana","Verdana, sans-serif"],["Impact","Impact, sans-serif"]].map(([l,v])=>(
+                        <option key={v} value={v} style={{fontFamily:v}}>{l}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:2,marginRight:5,borderRight:"1px solid rgba(0,0,0,0.1)",paddingRight:7}}>
+                    <button type="button" onClick={()=>updateNewsStyle("fontSize",String(Math.max(10,Number(newsStyle.fontSize||14)-2)))}
+                      style={{width:22,height:26,border:"1px solid rgba(0,0,0,0.12)",borderRadius:4,background:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,color:"#333"}}>−</button>
+                    <input type="number" min="10" max="72" value={newsStyle.fontSize||14} onChange={e=>updateNewsStyle("fontSize",e.target.value)}
+                      style={{width:40,padding:"3px 4px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:4,fontSize:12,textAlign:"center"}}/>
+                    <button type="button" onClick={()=>updateNewsStyle("fontSize",String(Math.min(72,Number(newsStyle.fontSize||14)+2)))}
+                      style={{width:22,height:26,border:"1px solid rgba(0,0,0,0.12)",borderRadius:4,background:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,color:"#333"}}>+</button>
+                  </div>
+                  <div style={{display:"flex",gap:2,marginRight:5,borderRight:"1px solid rgba(0,0,0,0.1)",paddingRight:7}}>
+                    {[["B","fontWeight","700","400",{fontWeight:700}],["I","fontStyle","italic","normal",{fontStyle:"italic"}]].map(([lbl,key,on,off,s])=>(
+                      <button key={lbl} type="button" onClick={()=>updateNewsStyle(key,(newsStyle[key]||off)===on?off:on)}
+                        style={{width:26,height:26,border:`1px solid ${(newsStyle[key]||off)===on?"#002d6e":"rgba(0,0,0,0.12)"}`,borderRadius:4,background:(newsStyle[key]||off)===on?"#002d6e":"#fff",color:(newsStyle[key]||off)===on?"#fff":"#333",cursor:"pointer",...s,fontSize:13}}>{lbl}</button>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:2,marginRight:5,borderRight:"1px solid rgba(0,0,0,0.1)",paddingRight:7}}>
+                    {[["≡←","left"],["≡","center"],["≡→","right"]].map(([icon,val])=>(
+                      <button key={val} type="button" onClick={()=>updateNewsStyle("textAlign",val)}
+                        style={{width:26,height:26,border:`1px solid ${(newsStyle.textAlign||"left")===val?"#002d6e":"rgba(0,0,0,0.12)"}`,borderRadius:4,background:(newsStyle.textAlign||"left")===val?"#002d6e":"#fff",color:(newsStyle.textAlign||"left")===val?"#fff":"#555",cursor:"pointer",fontSize:11,fontWeight:700}}>{icon}</button>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{fontSize:10,fontWeight:700,color:"rgba(0,0,0,0.4)",textTransform:"uppercase"}}>Color</span>
+                    <div style={{position:"relative",width:24,height:26}}>
+                      <div style={{position:"absolute",inset:0,borderRadius:4,border:"2px solid rgba(0,0,0,0.15)",background:newsStyle.color||"#333",pointerEvents:"none"}}/>
+                      <input type="color" value={newsStyle.color||"#333333"} onChange={e=>updateNewsStyle("color",e.target.value)}
+                        style={{opacity:0,position:"absolute",inset:0,width:"100%",height:"100%",cursor:"pointer",border:"none",padding:0}}/>
+                    </div>
+                  </div>
+                </div>
+                <textarea placeholder="Body / details (optional)" value={newsForm.body} onChange={e=>setNewsForm(f=>({...f,body:e.target.value}))} rows={3}
+                  style={{padding:"10px 12px",border:"none",fontSize:Number(newsStyle.fontSize||14),fontFamily:newsStyle.fontFamily||"inherit",fontWeight:Number(newsStyle.fontWeight||400),fontStyle:newsStyle.fontStyle||"normal",color:newsStyle.color||"#333",textAlign:newsStyle.textAlign||"left",resize:"vertical",width:"100%",boxSizing:"border-box",outline:"none",display:"block"}}/>
+              </div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
                 <div style={{flex:1,minWidth:140}}>
                   <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>Event Date (optional)</div>
