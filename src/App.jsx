@@ -3185,6 +3185,9 @@ function AdminPage({ onAlertChange }) {
   const [pwError, setPwError] = useState(false);
   const [captainTeam, setCaptainTeam] = useState("");
   const [alertText, setAlertText] = useState(() => localStorage.getItem("lbdc_alert") || "");
+  const [alertStyle, setAlertStyle] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("lbdc_alert_style") || "{}"); } catch(e) { return {}; }
+  });
   const [showBoxScore, setShowBoxScore] = useState(false);
   const [quickView, setQuickView] = useState(null); // null | "schedule" | "email" | "games" | "tournaments" | "eligibility"
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
@@ -3259,14 +3262,17 @@ function AdminPage({ onAlertChange }) {
   const postAlert = () => {
     const trimmed = alertText.trim();
     localStorage.setItem("lbdc_alert", trimmed);
+    localStorage.setItem("lbdc_alert_style", JSON.stringify(alertStyle));
     onAlertChange(trimmed || null);
   };
   const clearAlert = () => {
     localStorage.removeItem("lbdc_alert");
+    localStorage.removeItem("lbdc_alert_style");
     setAlertText("");
     onAlertChange(null);
   };
   const hasAlert = !!alertText.trim();
+  const updateAlertStyle = (key, val) => setAlertStyle(s => ({...s, [key]: val}));
 
   // ── LOGIN SCREEN ──
   if (screen === "login") return (
@@ -3371,6 +3377,70 @@ function AdminPage({ onAlertChange }) {
             <textarea value={alertText} onChange={e=>setAlertText(e.target.value)} rows={3}
               placeholder="e.g. ⚠️ RAINOUT — All Saturday April 19 games are CANCELLED due to rain. Makeup dates TBD."
               style={{padding:"12px",border:"1px solid #ddd",borderRadius:8,fontSize:14,fontFamily:"inherit",resize:"vertical",width:"100%",boxSizing:"border-box"}}/>
+
+            {/* Formatting controls */}
+            <div style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"14px 16px",display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,textTransform:"uppercase",color:"#555",letterSpacing:".05em"}}>🎨 Alert Formatting</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12}}>
+                {/* Font size */}
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",marginBottom:4}}>Text Size</div>
+                  <div style={{display:"flex",gap:4}}>
+                    {[["S","14"],["M","18"],["L","22"],["XL","28"]].map(([label,val])=>(
+                      <button key={val} type="button" onClick={()=>updateAlertStyle("fontSize",val)}
+                        style={{flex:1,padding:"6px 0",borderRadius:6,border:`2px solid ${(alertStyle.fontSize||"16")===val?"#002d6e":"rgba(0,0,0,0.12)"}`,background:(alertStyle.fontSize||"16")===val?"#002d6e":"#fff",color:(alertStyle.fontSize||"16")===val?"#fff":"#333",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Font weight */}
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",marginBottom:4}}>Weight</div>
+                  <div style={{display:"flex",gap:4}}>
+                    {[["Normal","400"],["Bold","700"],["Extra Bold","900"]].map(([label,val])=>(
+                      <button key={val} type="button" onClick={()=>updateAlertStyle("fontWeight",val)}
+                        style={{flex:1,padding:"6px 4px",borderRadius:6,border:`2px solid ${(alertStyle.fontWeight||"400")===val?"#002d6e":"rgba(0,0,0,0.12)"}`,background:(alertStyle.fontWeight||"400")===val?"#002d6e":"#fff",color:(alertStyle.fontWeight||"400")===val?"#fff":"#333",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Text align */}
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",marginBottom:4}}>Alignment</div>
+                  <div style={{display:"flex",gap:4}}>
+                    {[["Left","left"],["Center","center"],["Right","right"]].map(([label,val])=>(
+                      <button key={val} type="button" onClick={()=>updateAlertStyle("textAlign",val)}
+                        style={{flex:1,padding:"6px 4px",borderRadius:6,border:`2px solid ${(alertStyle.textAlign||"center")===val?"#002d6e":"rgba(0,0,0,0.12)"}`,background:(alertStyle.textAlign||"center")===val?"#002d6e":"#fff",color:(alertStyle.textAlign||"center")===val?"#fff":"#333",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Text color */}
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",marginBottom:4}}>Text Color</div>
+                  <div style={{display:"flex",gap:4}}>
+                    {[["White","rgba(255,255,255,0.95)"],["Yellow","#FFD700"],["Red","#fca5a5"]].map(([label,val])=>(
+                      <button key={val} type="button" onClick={()=>updateAlertStyle("color",val)}
+                        style={{flex:1,padding:"6px 4px",borderRadius:6,border:`2px solid ${(alertStyle.color||"rgba(255,255,255,0.95)")===val?"#002d6e":"rgba(0,0,0,0.12)"}`,background:(alertStyle.color||"rgba(255,255,255,0.95)")===val?"#002d6e":"#fff",color:(alertStyle.color||"rgba(255,255,255,0.95)")===val?"#fff":"#333",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {/* Live preview */}
+              {alertText.trim() && (
+                <div style={{background:"#dc2626",borderRadius:10,padding:"16px 20px",textAlign:alertStyle.textAlign||"center"}}>
+                  <div style={{fontSize:Number(alertStyle.fontSize||16),fontWeight:Number(alertStyle.fontWeight||400),color:alertStyle.color||"rgba(255,255,255,0.95)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>
+                    {alertText}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {hasAlert && (
               <div style={{background:"#fef2f2",border:"2px solid #dc2626",borderRadius:8,padding:"12px 16px",fontSize:14,color:"#991b1b",fontWeight:600}}>
                 🔴 ACTIVE: "{alertText.slice(0,80)}{alertText.length>80?"...":""}"
@@ -4935,6 +5005,7 @@ export default function App() {
   const [teamDetail, setTeamDetail] = useState(null);
   const [prevTab, setPrevTab] = useState("home");
   const [activeAlert, setActiveAlert] = useState(() => localStorage.getItem("lbdc_alert") || null);
+  const [activeAlertStyle, setActiveAlertStyle] = useState(() => { try { return JSON.parse(localStorage.getItem("lbdc_alert_style") || "{}"); } catch(e) { return {}; } });
   const [alertDismissed, setAlertDismissed] = useState(false);
   const dismissAlert = () => setAlertDismissed(true);
 
@@ -4964,7 +5035,7 @@ export default function App() {
           <div style={{background:"#dc2626",borderRadius:16,padding:"32px 36px",maxWidth:520,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,0.5)",border:"4px solid #991b1b"}}>
             <div style={{fontSize:48,marginBottom:12}}>🚨</div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#fff",textTransform:"uppercase",letterSpacing:".04em",marginBottom:16,lineHeight:1.2}}>League Alert</div>
-            <div style={{fontSize:16,color:"rgba(255,255,255,0.95)",lineHeight:1.6,marginBottom:28,whiteSpace:"pre-wrap"}}>{activeAlert}</div>
+            <div style={{fontSize:Number(activeAlertStyle.fontSize||16),fontWeight:Number(activeAlertStyle.fontWeight||400),color:activeAlertStyle.color||"rgba(255,255,255,0.95)",textAlign:activeAlertStyle.textAlign||"center",lineHeight:1.6,marginBottom:28,whiteSpace:"pre-wrap"}}>{activeAlert}</div>
             <button type="button" onClick={dismissAlert}
               style={{padding:"14px 48px",background:"#fff",border:"none",borderRadius:10,color:"#dc2626",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",cursor:"pointer",letterSpacing:".06em",boxShadow:"0 4px 12px rgba(0,0,0,0.2)"}}>
               OK, I Understand
@@ -5019,7 +5090,7 @@ export default function App() {
       {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={handleBackFromTeam} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="stats"     && <StatsPage />}
       {tab==="subs"      && <SubBoardPage />}
-      {tab==="admin"     && <AdminPage onAlertChange={setActiveAlert} />}
+      {tab==="admin"     && <AdminPage onAlertChange={(txt) => { setActiveAlert(txt); setActiveAlertStyle((() => { try { return JSON.parse(localStorage.getItem("lbdc_alert_style")||"{}"); } catch(e) { return {}; } })()); }} />}
       {tab==="history"   && <HistoryPage />}
       {tab==="rules"     && <RulesPage />}
       <Footer setTab={handleSetTab} />
