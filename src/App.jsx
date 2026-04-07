@@ -610,7 +610,7 @@ function Ticker({ setTab }) {
 /* ─── NAVBAR ─────────────────────────────────────────────────────────────── */
 function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["history","History"],["rules","Rules"],["admin","⚙ Admin"]];
+  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["history","History"],["rules","Rules"],["admin","⚙ Admin"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); window.scrollTo(0,0); };
   return (
     <>
@@ -1260,8 +1260,11 @@ function SchedulePage({ setTab, setTeamDetail }) {
           </div>
         </div>
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {games.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
+          </div>
           {byeTeams.length > 0 && (
-            <div style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"3px solid #c8102e",borderRadius:8,padding:"12px 18px",marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"3px solid #c8102e",borderRadius:8,padding:"12px 18px",marginTop:16}}>
               <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,letterSpacing:"1px",textTransform:"uppercase",color:"#c8102e",flexShrink:0}}>BYE WEEK</span>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 {byeTeams.map(t => (
@@ -1273,9 +1276,6 @@ function SchedulePage({ setTab, setTeamDetail }) {
               </div>
             </div>
           )}
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {games.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
-          </div>
         </div>
       </>}
 
@@ -5241,6 +5241,473 @@ function StatsPage() {
 }
 
 
+/* ─── LIVE SCORER ─────────────────────────────────────────────────────────── */
+function Diamond({ bases }) {
+  const c = (o) => o ? "#FFD700" : "rgba(255,255,255,0.75)";
+  return (
+    <svg width={150} height={150} viewBox="0 0 150 150">
+      <polygon points="75,140 140,75 75,10 10,75" fill="#1e4d1a" stroke="#3d7a35" strokeWidth={1.5}/>
+      <circle cx={75} cy={80} r={44} fill="#c4935a" opacity={0.22}/>
+      <circle cx={75} cy={80} r={6} fill="#a07040" stroke="#7a5028" strokeWidth={1}/>
+      <rect x={68} y={133} width={14} height={9} rx={1} fill="rgba(255,255,255,0.85)"/>
+      <rect x={133} y={68} width={14} height={14} rx={2} fill={c(bases[0])}/>
+      <rect x={68} y={3} width={14} height={14} rx={2} fill={c(bases[1])}/>
+      <rect x={3} y={68} width={14} height={14} rx={2} fill={c(bases[2])}/>
+    </svg>
+  );
+}
+
+function LiveScorerPage() {
+  const [view, setView] = useState("pick");
+  const [weekIdx, setWeekIdx] = useState(0);
+  const [gs, setGs] = useState(null);
+  const [setupInfo, setSetupInfo] = useState(null);
+  const [lineupStep, setLineupStep] = useState("away");
+  const [lineupDraft, setLineupDraft] = useState({away:[],home:[]});
+  const [nameInput, setNameInput] = useState("");
+  const [modal, setModal] = useState(null);
+  const [pendingOutcome, setPO] = useState(null);
+  const [pendingLoc, setPL] = useState(null);
+  const [pendingOutType, setPOT] = useState(null);
+  const [runnerDests, setRD] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const lsKey = (a,h,d) => `lbdc_live_${a}_${h}_${d}`.replace(/[\s/]/g,"_");
+  const persist = (s) => {
+    if (!s) return;
+    const {_hist,...save} = s;
+    try { localStorage.setItem(lsKey(s.away,s.home,s.date), JSON.stringify(save)); } catch(e){}
+    setGs(s);
+  };
+  const loadSaved = (a,h,d) => { try { return JSON.parse(localStorage.getItem(lsKey(a,h,d))); } catch { return null; } };
+  const clearSaved = (a,h,d) => localStorage.removeItem(lsKey(a,h,d));
+
+  const weekGames = (SCHED[weekIdx]?.fields||[]).flatMap(f => f.games.map(g => ({...g,field:f.name,date:SCHED[weekIdx].label})));
+
+  const getBatter = (s) => { const side=s.topBottom==="top"?"away":"home"; const lu=s.lineup[side]; return lu.length?lu[s.batterIdx[side]%lu.length]:"—"; };
+  const getOnDeck = (s) => { const side=s.topBottom==="top"?"away":"home"; const lu=s.lineup[side]; return lu.length?lu[(s.batterIdx[side]+1)%lu.length]:"—"; };
+  const advBatter = (s) => { const side=s.topBottom==="top"?"away":"home"; return {...s,batterIdx:{...s.batterIdx,[side]:s.batterIdx[side]+1},balls:0,strikes:0}; };
+  const endHalf = (s) => {
+    const side=s.topBottom==="top"?"away":"home";
+    const ls={...s.lineScore,[side]:[...s.lineScore[side],s.runsThisHalf]};
+    if (s.topBottom==="top") return {...s,topBottom:"bot",outs:0,bases:[false,false,false],runsThisHalf:0,balls:0,strikes:0,lineScore:ls};
+    return {...s,inning:s.inning+1,topBottom:"top",outs:0,bases:[false,false,false],runsThisHalf:0,balls:0,strikes:0,lineScore:ls};
+  };
+  const addOut = (s,n=1) => { const o=s.outs+n; return o>=3?endHalf({...s,outs:3}):{...s,outs:o}; };
+  const updStat = (stats,name,d) => {
+    if (!name||name==="—") return stats;
+    const c=stats[name]||{ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0};
+    return {...stats,[name]:Object.entries(d).reduce((a,[k,v])=>({...a,[k]:(a[k]||0)+v}),c)};
+  };
+  const forceAdv = (bases) => {
+    if (bases[0]&&bases[1]&&bases[2]) return [[true,true,true],1];
+    if (bases[0]&&bases[1]) return [[true,true,true],0];
+    if (bases[0]) return [[true,true,false],0];
+    return [[true,false,false],0];
+  };
+
+  const applyPlay = (outcome,loc,outType,dests) => {
+    const prevForUndo = {...gs,_hist:undefined};
+    const hist = [...(gs._hist||[]).slice(-4),prevForUndo];
+    let s = {...gs,_hist:hist,balls:0,strikes:0};
+    const side = s.topBottom==="top"?"away":"home";
+    const batter = getBatter(s);
+    let stats={...s.stats}, bases=[...s.bases], score={...s.score}, runs=0, rbis=0;
+
+    const applyDests = (d) => {
+      let nb=[false,false,false],r=0,rbi=0;
+      Object.entries(d||{}).forEach(([k,v])=>{
+        const isBatter=k==="__batter__";
+        if (v==="scored"){r++;score[side]++;if(!isBatter)rbi++;}
+        else if(v==="3B")nb[2]=true; else if(v==="2B")nb[1]=true; else if(v==="1B")nb[0]=true;
+      });
+      return {nb,r,rbi};
+    };
+
+    if (outcome==="BB"){stats=updStat(stats,batter,{bb:1});const[nb,r]=forceAdv(bases);bases=nb;runs=r;rbis=r;score[side]+=runs;}
+    else if(outcome==="HBP"){stats=updStat(stats,batter,{hbp:1});const[nb,r]=forceAdv(bases);bases=nb;runs=r;rbis=r;score[side]+=runs;}
+    else if(outcome==="K"){
+      stats=updStat(stats,batter,{ab:1,k:1});
+      const play={inning:s.inning,side:s.topBottom,batter,outcome:"K",loc:null,outType:null,rbis:0,runs:0};
+      s={...s,stats,bases,score,plays:[...s.plays,play]};s=addOut(s);s=advBatter(s);persist(s);setModal(null);setPO(null);return;
+    }
+    else if(outcome==="HR"){runs=bases.filter(Boolean).length+1;rbis=runs;score[side]+=runs;stats=updStat(stats,batter,{ab:1,h:1,hr:1,r:1,rbi:rbis});bases=[false,false,false];}
+    else if(outcome==="OUT"){
+      stats=updStat(stats,batter,{ab:1});
+      if(dests){const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;}
+      const play={inning:s.inning,side:s.topBottom,batter,outcome:"OUT",loc,outType,rbis,runs};
+      s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+      s=addOut(s,outType==="DP"?2:1);s=advBatter(s);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
+    }
+    else if(outcome==="SAC"){
+      if(dests){const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;}
+      stats=updStat(stats,batter,{rbi:rbis});
+      const play={inning:s.inning,side:s.topBottom,batter,outcome:"SAC",loc,outType,rbis,runs};
+      s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+      s=addOut(s);s=advBatter(s);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
+    }
+    else if(outcome==="E"||outcome==="FC"){
+      stats=updStat(stats,batter,{ab:1});if(outcome==="E")stats=updStat(stats,batter,{e:1});
+      if(dests){const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;}
+      else bases=[true,...s.bases.slice(0,2)];
+    }
+    else{
+      stats=updStat(stats,batter,{ab:1,h:1});
+      if(outcome==="2B")stats=updStat(stats,batter,{doubles:1});
+      if(outcome==="3B")stats=updStat(stats,batter,{triples:1});
+      if(dests){
+        const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;
+        if(dests["__batter__"]==="scored")stats=updStat(stats,batter,{r:1});
+        stats=updStat(stats,batter,{rbi:rbis});
+      } else {
+        if(outcome==="1B")bases=[true,s.bases[0],s.bases[1]];
+        else if(outcome==="2B")bases=[false,true,s.bases[0]];
+        else if(outcome==="3B")bases=[false,false,true];
+      }
+    }
+    const play={inning:s.inning,side:s.topBottom,batter,outcome,loc,outType:null,rbis,runs};
+    s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+    s=advBatter(s);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});
+  };
+
+  const undoPlay = () => {
+    if (!gs._hist?.length) return;
+    persist({...gs._hist[gs._hist.length-1],_hist:gs._hist.slice(0,-1)});
+  };
+
+  const initRunnerDests = (outcome) => {
+    const d={};
+    gs.bases.forEach((occ,i)=>{if(occ)d[["1B","2B","3B"][i]]="stay";});
+    if(!["OUT","SAC"].includes(outcome))d["__batter__"]=outcome==="2B"?"2B":outcome==="3B"?"3B":"1B";
+    setRD(d);
+  };
+
+  const onAction = (outcome) => {
+    if(["BB","HBP","K","HR"].includes(outcome)){applyPlay(outcome,null,null,null);return;}
+    setPO(outcome);setModal("loc");
+  };
+  const onLocation = (loc) => {
+    setPL(loc);
+    if(pendingOutcome==="OUT"||pendingOutcome==="SAC"){setModal("outtype");return;}
+    if(gs.bases.some(Boolean)){initRunnerDests(pendingOutcome);setModal("runners");return;}
+    applyPlay(pendingOutcome,loc,null,null);
+  };
+  const onOutType = (ot) => {
+    setPOT(ot);
+    if(gs.bases.some(Boolean)||pendingOutcome==="SAC"){initRunnerDests(pendingOutcome);setModal("runners");return;}
+    applyPlay(pendingOutcome,pendingLoc,ot,null);
+  };
+
+  const endGame = async () => {
+    setSaving(true);
+    try {
+      const seasons=await sbFetch("seasons?select=id,name&limit=20");
+      let season=seasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
+      if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=r[0];}
+      const existing=await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
+      const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home,away_linescore:gs.lineScore.away.join("-"),home_linescore:gs.lineScore.home.join("-")};
+      let gameId;
+      if(existing.length){gameId=existing[0].id;await sbPatch(`games?id=eq.${gameId}`,gameData);await sbDelete(`batting_lines?game_id=eq.${gameId}`);}
+      else{const r=await sbPost("games",[gameData]);gameId=r[0].id;}
+      const batRows=[];
+      Object.entries(gs.stats).forEach(([name,st])=>{
+        const awayIdx=gs.lineup.away.indexOf(name);
+        const team=awayIdx>=0?gs.away:gs.home;
+        const order=awayIdx>=0?awayIdx+1:gs.lineup.home.indexOf(name)+1;
+        batRows.push({game_id:gameId,player_name:name,team,batting_order:order,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0});
+      });
+      if(batRows.length)await sbPost("batting_lines",batRows);
+      clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");
+    } catch(e){alert("Save failed: "+e.message);}
+    setSaving(false);
+  };
+
+  // ── PICK SCREEN ──
+  if (view==="pick") return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Live Scoring" title="Score a Game" subtitle="Select a game to start or resume scoring"/>
+      <div style={{maxWidth:680,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+        <div style={{display:"flex",gap:8,marginBottom:18,overflowX:"auto",paddingBottom:4}}>
+          {SCHED.map((w,i)=>(
+            <button key={i} onClick={()=>setWeekIdx(i)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,background:weekIdx===i?"#002d6e":"rgba(0,0,0,0.07)",color:weekIdx===i?"#fff":"#333"}}>{w.label}</button>
+          ))}
+        </div>
+        {weekGames.map((g,i)=>{
+          const saved=loadSaved(g.away,g.home,g.date);
+          const isFinal=saved?.status==="final";
+          const inProg=saved&&!isFinal;
+          return (
+            <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:`4px solid ${inProg?"#b45309":"#002d6e"}`,borderRadius:10,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:160}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <TLogo name={g.away} size={32}/><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase"}}>{g.away}</span>
+                  <span style={{color:"#bbb",fontWeight:600}}>@</span>
+                  <TLogo name={g.home} size={32}/><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase"}}>{g.home}</span>
+                </div>
+                <div style={{fontSize:12,color:"#888",marginTop:3}}>{g.time} · {g.field}</div>
+                {inProg&&<div style={{fontSize:12,color:"#b45309",fontWeight:700,marginTop:4}}>⚡ Inn {saved.inning} {saved.topBottom==="top"?"Top":"Bot"} · {saved.score.away}–{saved.score.home}</div>}
+                {isFinal&&<div style={{fontSize:12,color:"#16a34a",fontWeight:700,marginTop:4}}>✅ Final · {saved.score.away}–{saved.score.home}</div>}
+              </div>
+              <div>
+                {isFinal?(
+                  <button disabled style={{padding:"8px 16px",background:"#e5e7eb",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#9ca3af"}}>Final</button>
+                ):inProg?(
+                  <button onClick={()=>{setGs({...saved,_hist:[]});setView("game");}} style={{padding:"8px 16px",background:"#b45309",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>▶ Resume</button>
+                ):(
+                  <button onClick={()=>{setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep("away");setView("lineup");}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>⚡ Score Live</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // ── LINEUP SETUP ──
+  if (view==="lineup") {
+    const g=setupInfo;
+    const teamName=g[lineupStep];
+    const roster=TEAM_ROSTERS[teamName]||[];
+    const cur=lineupDraft[lineupStep];
+    const addPlayer=(name)=>{if(!name.trim()||cur.includes(name.trim()))return;setLineupDraft(p=>({...p,[lineupStep]:[...p[lineupStep],name.trim()]}));setNameInput("");};
+    const doneTeam=()=>{
+      if(!cur.length){alert("Add at least 1 player.");return;}
+      if(lineupStep==="away"){setLineupStep("home");return;}
+      const si={};[...lineupDraft.away,...lineupDraft.home].forEach(n=>{si[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0};});
+      const state={away:g.away,home:g.home,date:g.date,field:g.field,time:g.time,inning:1,topBottom:"top",outs:0,bases:[false,false,false],score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,lineup:lineupDraft,batterIdx:{away:0,home:0},stats:si,plays:[],status:"in_progress"};
+      persist({...state,_hist:[]});setView("game");
+    };
+    return (
+      <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+        <div style={{background:"#002d6e",padding:"14px 16px",display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>lineupStep==="away"?setView("pick"):setLineupStep("away")} style={{padding:"6px 12px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>← Back</button>
+          <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase"}}>{teamName} Batting Order</div>
+          <div style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{lineupStep==="away"?"Step 1 of 2":"Step 2 of 2"}</div>
+        </div>
+        <div style={{maxWidth:500,margin:"0 auto",padding:"20px 16px 60px"}}>
+          <div style={{background:"#fff",borderRadius:12,padding:"20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:12}}>{teamName} — {cur.length} players</div>
+            {cur.map((name,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+                <div style={{width:26,height:26,borderRadius:"50%",background:"#002d6e",color:"#FFD700",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,flexShrink:0}}>{i+1}</div>
+                <span style={{flex:1,fontSize:15,fontWeight:600}}>{name}</span>
+                <button onClick={()=>setLineupDraft(p=>({...p,[lineupStep]:p[lineupStep].filter((_,j)=>j!==i)}))} style={{padding:"3px 8px",background:"rgba(220,38,38,0.1)",border:"none",borderRadius:5,color:"#dc2626",fontWeight:700,cursor:"pointer"}}>✕</button>
+              </div>
+            ))}
+            {roster.length>0&&(
+              <div style={{marginTop:12}}>
+                <div style={{fontSize:11,color:"#888",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Tap to add from roster:</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {roster.filter(p=>!cur.includes(p.name)).map(p=>(
+                    <button key={p.name} onClick={()=>addPlayer(p.name)} style={{padding:"5px 10px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontSize:13,fontWeight:600,color:"#002d6e",cursor:"pointer"}}>{p.name}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{marginTop:12,display:"flex",gap:8}}>
+              <input value={nameInput} onChange={e=>setNameInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPlayer(nameInput)} placeholder="Type player name + Enter..." style={{flex:1,padding:"8px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:15}}/>
+              <button onClick={()=>addPlayer(nameInput)} style={{padding:"8px 14px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontWeight:700,cursor:"pointer"}}>Add</button>
+            </div>
+          </div>
+          <button onClick={doneTeam} style={{width:"100%",padding:"14px",background:"#002d6e",border:"none",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",cursor:"pointer"}}>
+            {lineupStep==="away"?`Next: ${g.home} Order →`:"▶ Start Game!"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── IN-GAME SCORER ──
+  if (!gs) return null;
+  const batter=getBatter(gs);
+  const onDeck=getOnDeck(gs);
+  const bSt=gs.stats[batter]||{};
+  const avg=bSt.ab>0?(bSt.h/bSt.ab).toFixed(3).replace(/^0/,""):".000";
+  const maxInns=Math.max(9,gs.lineScore.away.length+(gs.topBottom==="top"?1:2));
+  const LOC_ROWS=[["LF","CF","RF"],["3B","SS","P","2B","1B"],[null,"C",null]];
+  const OUT_TYPES=[["GO","Ground Out"],["FO","Fly Out"],["LO","Line Out"],["PO","Pop Out"],["DP","Double Play"]];
+  const DEST_OPTS=["scored","3B","2B","1B","out","stay"];
+  const DEST_LBL={scored:"🏠 Scored","3B":"3rd","2B":"2nd","1B":"1st",out:"Out",stay:"Stay"};
+
+  return (
+    <div style={{minHeight:"100vh",background:"#111",color:"#fff",maxWidth:500,margin:"0 auto",paddingBottom:60}}>
+      {/* Top bar */}
+      <div style={{background:"#002d6e",padding:"10px 12px",display:"flex",alignItems:"center",gap:8,position:"sticky",top:62,zIndex:200}}>
+        <button onClick={()=>setView("pick")} style={{padding:"5px 10px",background:"rgba(255,255,255,0.1)",border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>← Games</button>
+        <div style={{flex:1,textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase"}}>{gs.away} {gs.score.away} – {gs.score.home} {gs.home}</div>
+        <button onClick={()=>setModal("endgame")} style={{padding:"5px 10px",background:"rgba(220,38,38,0.4)",border:"1px solid rgba(220,38,38,0.5)",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>End Game</button>
+      </div>
+      {/* Inning bar */}
+      <div style={{background:"#001a4d",borderBottom:"1px solid rgba(255,215,0,0.2)",padding:"6px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",letterSpacing:".08em"}}>{gs.topBottom==="top"?"▼ TOP":"▲ BOT"}</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",lineHeight:1}}>{gs.inning}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>{gs[gs.topBottom==="top"?"away":"home"]} bat</div>
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>persist({...gs,outs:0,bases:[false,false,false],balls:0,strikes:0,runsThisHalf:0})} style={{padding:"5px 8px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,color:"#ccc",fontSize:11,fontWeight:700,cursor:"pointer"}}>↺ Inning</button>
+          <button onClick={()=>{
+            if(!window.confirm("Full game reset?"))return;
+            const fi={};[...gs.lineup.away,...gs.lineup.home].forEach(n=>{fi[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0};});
+            persist({...gs,inning:1,topBottom:"top",outs:0,bases:[false,false,false],score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,batterIdx:{away:0,home:0},stats:fi,plays:[],_hist:[]});
+          }} style={{padding:"5px 8px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,color:"#ccc",fontSize:11,fontWeight:700,cursor:"pointer"}}>↺ Game</button>
+        </div>
+      </div>
+      {/* Diamond + batter */}
+      <div style={{background:"#1a1a1a",padding:"14px 16px",display:"flex",gap:14,alignItems:"center"}}>
+        <Diamond bases={gs.bases}/>
+        <div style={{flex:1}}>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:3}}>At Bat</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",lineHeight:1.1}}>{batter}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{bSt.h||0}-{bSt.ab||0} · {avg}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginTop:5}}>On deck: {onDeck}</div>
+          <div style={{display:"flex",gap:10,marginTop:10,alignItems:"center"}}>
+            <div style={{display:"flex",gap:3,alignItems:"center"}}><span style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>B</span>{[0,1,2].map(i=><div key={i} style={{width:11,height:11,borderRadius:"50%",background:i<gs.balls?"#22c55e":"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)"}}/>)}</div>
+            <div style={{display:"flex",gap:3,alignItems:"center"}}><span style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>S</span>{[0,1].map(i=><div key={i} style={{width:11,height:11,borderRadius:"50%",background:i<gs.strikes?"#FFD700":"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)"}}/>)}</div>
+            <div style={{display:"flex",gap:3,alignItems:"center"}}><span style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>O</span>{[0,1].map(i=><div key={i} style={{width:11,height:11,borderRadius:"50%",background:i<gs.outs?"#ef4444":"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.2)"}}/>)}</div>
+          </div>
+        </div>
+      </div>
+      {/* Pitch buttons */}
+      <div style={{background:"#1a1a1a",borderTop:"1px solid rgba(255,255,255,0.05)",padding:"10px 16px",display:"flex",gap:8}}>
+        <button onClick={()=>{const nb=gs.balls+1;if(nb>=4)applyPlay("BB",null,null,null);else persist({...gs,balls:nb});}} style={{flex:1,padding:"9px",background:"rgba(22,163,74,0.18)",border:"1px solid rgba(22,163,74,0.35)",borderRadius:8,color:"#4ade80",fontWeight:700,fontSize:14,cursor:"pointer"}}>Ball</button>
+        <button onClick={()=>{const ns=gs.strikes+1;if(ns>=3)applyPlay("K",null,null,null);else persist({...gs,strikes:ns});}} style={{flex:1,padding:"9px",background:"rgba(220,38,38,0.18)",border:"1px solid rgba(220,38,38,0.35)",borderRadius:8,color:"#f87171",fontWeight:700,fontSize:14,cursor:"pointer"}}>Strike</button>
+        <button onClick={()=>{if(gs.strikes<2)persist({...gs,strikes:gs.strikes+1});}} style={{flex:1,padding:"9px",background:"rgba(180,83,9,0.18)",border:"1px solid rgba(180,83,9,0.35)",borderRadius:8,color:"#fb923c",fontWeight:700,fontSize:14,cursor:"pointer"}}>Foul</button>
+      </div>
+      {/* Action buttons */}
+      <div style={{padding:"12px 16px",background:"#111",display:"flex",flexDirection:"column",gap:6}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5}}>
+          {["1B","2B","3B","HR","BB"].map(o=>(
+            <button key={o} onClick={()=>onAction(o)} style={{padding:"13px 4px",background:o==="HR"?"rgba(220,38,38,0.28)":o==="BB"?"rgba(22,163,74,0.18)":"rgba(0,45,110,0.45)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:19,cursor:"pointer"}}>{o}</button>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5}}>
+          {["HBP","K","OUT","E","FC"].map(o=>(
+            <button key={o} onClick={()=>onAction(o)} style={{padding:"13px 4px",background:o==="K"?"rgba(220,38,38,0.18)":o==="OUT"?"rgba(80,80,80,0.3)":"rgba(180,83,9,0.18)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:19,cursor:"pointer"}}>{o}</button>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5}}>
+          <button onClick={()=>onAction("SAC")} style={{padding:"10px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#ccc",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"}}>SAC</button>
+          <button onClick={undoPlay} style={{padding:"10px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#ccc",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"}}>↩ Undo</button>
+          <button onClick={()=>setModal("log")} style={{padding:"10px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#ccc",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"}}>📋 Log</button>
+        </div>
+      </div>
+      {/* Line score */}
+      <div style={{padding:"0 16px 16px",background:"#111",overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,background:"rgba(255,255,255,0.04)",borderRadius:8,overflow:"hidden",minWidth:280}}>
+          <thead><tr>
+            <th style={{textAlign:"left",padding:"5px 8px",color:"rgba(255,255,255,0.4)",fontWeight:700,fontSize:10,textTransform:"uppercase",minWidth:44}}>Team</th>
+            {Array.from({length:maxInns},(_,i)=><th key={i} style={{textAlign:"center",padding:"5px 3px",color:"rgba(255,255,255,0.3)",fontWeight:600,fontSize:10,minWidth:20}}>{i+1}</th>)}
+            <th style={{textAlign:"center",padding:"5px 8px",color:"rgba(255,255,255,0.6)",fontWeight:700,fontSize:12}}>R</th>
+          </tr></thead>
+          <tbody>
+            {["away","home"].map(t=>(
+              <tr key={t}>
+                <td style={{padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#fff",textTransform:"uppercase"}}>{gs[t].slice(0,4)}</td>
+                {Array.from({length:maxInns},(_,i)=>{
+                  const v=gs.lineScore[t][i];
+                  const isLive=v===undefined&&i===gs.inning-1&&((t==="away"&&gs.topBottom==="top")||(t==="home"&&gs.topBottom==="bot"));
+                  return <td key={i} style={{textAlign:"center",padding:"5px 3px",color:v!==undefined?"#fff":isLive?"rgba(255,215,0,0.8)":"rgba(255,255,255,0.15)",fontWeight:isLive?700:500,fontSize:12,background:isLive?"rgba(255,215,0,0.08)":"transparent"}}>{v!==undefined?v:isLive?gs.runsThisHalf:"—"}</td>;
+                })}
+                <td style={{textAlign:"center",padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700"}}>{gs.score[t]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── MODALS ── */}
+      {modal==="loc"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:14,textAlign:"center"}}>{pendingOutcome} — Where was it hit?</div>
+            {LOC_ROWS.map((row,ri)=>(
+              <div key={ri} style={{display:"flex",justifyContent:"center",gap:6,marginBottom:6}}>
+                {row.map((loc,ci)=>loc?<button key={ci} onClick={()=>onLocation(loc)} style={{padding:"10px 14px",background:"rgba(0,45,110,0.55)",border:"1px solid rgba(100,160,255,0.3)",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",minWidth:52}}>{loc}</button>:<div key={ci} style={{minWidth:52}}/>)}
+              </div>
+            ))}
+            <button onClick={()=>onLocation(null)} style={{width:"100%",marginTop:8,padding:"10px",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:"#999",fontWeight:700,cursor:"pointer"}}>Skip</button>
+            <button onClick={()=>{setModal(null);setPO(null);setPL(null);}} style={{width:"100%",marginTop:6,padding:"8px",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:12}}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {modal==="outtype"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:14,textAlign:"center"}}>Out Type</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {OUT_TYPES.map(([code,label])=>(
+                <button key={code} onClick={()=>onOutType(code)} style={{padding:"13px",background:"rgba(80,80,80,0.25)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",textAlign:"center"}}>
+                  <span style={{fontSize:10,display:"block",color:"rgba(255,255,255,0.4)"}}>{code}</span>{label}
+                </button>
+              ))}
+            </div>
+            <button onClick={()=>{setModal(null);setPO(null);setPL(null);setPOT(null);}} style={{width:"100%",marginTop:10,padding:"8px",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:12}}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {modal==="runners"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:14,textAlign:"center"}}>Where did each runner end up?</div>
+            {Object.keys(runnerDests).map(k=>(
+              <div key={k} style={{marginBottom:14}}>
+                <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.8)",marginBottom:6}}>{k==="__batter__"?`${batter} (batter)`:`Runner on ${k}`}</div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {DEST_OPTS.map(d=>(
+                    <button key={d} onClick={()=>setRD(p=>({...p,[k]:d}))} style={{padding:"7px 11px",borderRadius:6,border:"2px solid",cursor:"pointer",fontSize:12,fontWeight:700,background:runnerDests[k]===d?"#FFD700":"rgba(255,255,255,0.07)",color:runnerDests[k]===d?"#002d6e":"#ddd",borderColor:runnerDests[k]===d?"#FFD700":"rgba(255,255,255,0.12)"}}>{DEST_LBL[d]}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <button onClick={()=>applyPlay(pendingOutcome,pendingLoc,pendingOutType,runnerDests)} style={{width:"100%",marginTop:8,padding:"13px",background:"#002d6e",border:"none",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",cursor:"pointer"}}>Confirm</button>
+            <button onClick={()=>applyPlay(pendingOutcome,pendingLoc,pendingOutType,null)} style={{width:"100%",marginTop:6,padding:"8px",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:12}}>Skip / Auto-advance</button>
+          </div>
+        </div>
+      )}
+      {modal==="log"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:600,display:"flex",flexDirection:"column"}}>
+          <div style={{background:"#002d6e",padding:"12px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+            <button onClick={()=>setModal(null)} style={{padding:"6px 10px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>← Back</button>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase"}}>Play Log ({gs.plays.length})</div>
+          </div>
+          <div style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
+            {gs.plays.length===0&&<div style={{color:"rgba(255,255,255,0.35)",textAlign:"center",padding:32}}>No plays yet.</div>}
+            {[...gs.plays].reverse().map((p,i)=>(
+              <div key={i} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8,padding:"9px 12px",marginBottom:7}}>
+                <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:7}}>
+                  <span style={{fontSize:10,color:"rgba(255,255,255,0.35)",fontWeight:600}}>Inn {p.inning} {p.side==="top"?"▼":"▲"}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{p.batter}</span>
+                  <span style={{background:["1B","2B","3B","HR"].includes(p.outcome)?"rgba(0,80,200,0.4)":["K","OUT"].includes(p.outcome)?"rgba(220,38,38,0.25)":"rgba(255,255,255,0.1)",padding:"2px 8px",borderRadius:10,fontSize:12,fontWeight:700,color:["1B","2B","3B","HR"].includes(p.outcome)?"#93c5fd":"#fff"}}>{p.outcome}{p.outType?` (${p.outType})`:""}</span>
+                  {p.loc&&<span style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>{p.loc}</span>}
+                  {p.runs>0&&<span style={{color:"#FFD700",fontSize:12,fontWeight:700}}>+{p.runs} R</span>}
+                  {p.rbis>0&&<span style={{color:"#4ade80",fontSize:12,fontWeight:700}}>{p.rbis} RBI</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {modal==="endgame"&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:"#1c1c1c",border:"2px solid rgba(255,215,0,0.25)",borderRadius:16,padding:"28px 22px",width:"100%",maxWidth:340,textAlign:"center"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:30,color:"#FFD700",textTransform:"uppercase",marginBottom:6}}>Final Score</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginBottom:22}}>
+              <div><div style={{fontSize:12,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",fontWeight:700}}>{gs.away}</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1}}>{gs.score.away}</div></div>
+              <div style={{color:"rgba(255,255,255,0.25)",fontSize:22,fontWeight:700}}>–</div>
+              <div><div style={{fontSize:12,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",fontWeight:700}}>{gs.home}</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1}}>{gs.score.home}</div></div>
+            </div>
+            <button onClick={endGame} disabled={saving} style={{width:"100%",padding:"13px",background:"#16a34a",border:"none",borderRadius:10,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase",cursor:"pointer",marginBottom:8,opacity:saving?0.6:1}}>{saving?"Saving…":"✅ Mark Game Final"}</button>
+            <button onClick={()=>{if(!window.confirm("Reset game?"))return;clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");}} style={{width:"100%",padding:"11px",background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:10,color:"#f87171",fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:8}}>↺ Reset Game</button>
+            <button onClick={()=>setModal(null)} style={{padding:"7px",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:12}}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── APP ────────────────────────────────────────────────────────────────── */
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -5345,6 +5812,7 @@ export default function App() {
       {tab==="teams"     && !teamDetail && <TeamsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={handleBackFromTeam} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="stats"     && <StatsPage />}
+      {tab==="live"      && <LiveScorerPage />}
       {tab==="subs"      && <SubBoardPage />}
       {tab==="admin"     && <AdminPage onAlertChange={(txt) => { setActiveAlert(txt); setActiveAlertStyle((() => { try { return JSON.parse(localStorage.getItem("lbdc_alert_style")||"{}"); } catch(e) { return {}; } })()); }} />}
       {tab==="history"   && <HistoryPage />}
