@@ -694,7 +694,7 @@ function HomePage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
-    sbFetch("games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&status=neq.PPD&status=neq.CAN&away_score=not.is.null&order=game_date.desc&limit=6")
+    sbFetch("games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&status=neq.PPD&status=neq.CAN&away_score=not.is.null&game_date=gte.2026-04-11&order=game_date.desc&limit=6")
       .then(data => setRecentGames(data))
       .catch(() => {});
     sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=10")
