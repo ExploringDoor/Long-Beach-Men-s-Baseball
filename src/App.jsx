@@ -680,19 +680,19 @@ function Navbar({ tab, setTab }) {
           <ul style={{display:"flex",gap:0,listStyle:"none",margin:"0 auto",padding:0,flexShrink:1,minWidth:0}} className="desktop-nav">
             {mainLinks.map(([id,label]) => (
               <li key={id}>
-                <button onClick={() => handleNav(id)} style={{
+                <button onClick={() => handleNav(id)} className="nav-btn" style={{
                   fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,
                   letterSpacing:".06em",textTransform:"uppercase",
                   color:tab===id?"#002d6e":"#555",background:"none",border:"none",
                   cursor:"pointer",padding:"7px 12px",borderRadius:6,
                   borderBottom:tab===id?"2px solid #002d6e":"2px solid transparent",
-                  transition:"color .15s",whiteSpace:"nowrap",
+                  whiteSpace:"nowrap",
                 }}>{label}</button>
               </li>
             ))}
             {/* More dropdown */}
             <li style={{position:"relative"}}>
-              <button onClick={e=>{e.stopPropagation();setMoreOpen(o=>!o);}} style={{
+              <button onClick={e=>{e.stopPropagation();setMoreOpen(o=>!o);}} className="nav-btn" style={{
                 fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,
                 letterSpacing:".06em",textTransform:"uppercase",
                 color:moreActive?"#002d6e":"#555",background:"none",border:"none",
@@ -6444,6 +6444,8 @@ export default function App() {
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:#f2f4f8}
         ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:3px}
+        .nav-btn{transition:color .15s,transform .15s,box-shadow .15s,background .15s!important;}
+        .nav-btn:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,45,110,0.22);background:rgba(0,45,110,0.07)!important;color:#002d6e!important;}
         .standings-table{overflow-x:auto;-webkit-overflow-scrolling:touch;}
         .mobile-standings{display:none;}
         .desktop-standings{display:block;}
