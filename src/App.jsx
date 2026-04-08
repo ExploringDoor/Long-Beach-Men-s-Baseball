@@ -5160,7 +5160,7 @@ function seasonSortYear(name) {
 
 function StatsPage() {
   const [tab, setTab] = useState(0);
-  const [season, setSeason] = useState("Spring/Summer 2026 Diamond Classics Saturdays");
+  const [season, setSeason] = useState(ALL_SEASONS_KEY);
   const [seasons, setSeasons] = useState([]);
   const [seasonsWithData, setSeasonsWithData] = useState(new Set());
   const [batting, setBatting] = useState([]);
@@ -5410,15 +5410,13 @@ function StatsPage() {
             style={{padding:"9px 14px",borderRadius:8,border:"1px solid rgba(0,0,0,0.12)",fontSize:14,background:"#fff",cursor:"pointer"}}>
             <option value={ALL_SEASONS_KEY}>⭐ All Seasons Combined</option>
             <option disabled>──────────────</option>
-            {seasons.map(s => {
-              const hasData = seasonsWithData.has(s);
-              return (
-                <option key={s} value={s} disabled={!hasData}
-                  style={{color: hasData ? "#111" : "#aaa"}}>
-                  {hasData ? s : `${s} (no stats)`}
-                </option>
-              );
-            })}
+            {seasons.filter(s => seasonsWithData.has(s)).map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+            {seasons.some(s => !seasonsWithData.has(s)) && <option disabled>──────────────</option>}
+            {seasons.filter(s => !seasonsWithData.has(s)).map(s => (
+              <option key={s} value={s} disabled style={{color:"#aaa"}}>{s} (no stats)</option>
+            ))}
           </select>
           {loading && <span style={{fontSize:13,color:"rgba(0,0,0,0.4)"}}>Loading…</span>}
         </div>
