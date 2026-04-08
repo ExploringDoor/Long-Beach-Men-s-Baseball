@@ -5385,10 +5385,16 @@ function LiveScorerPage() {
     return {...stats,[name]:Object.entries(d).reduce((a,[k,v])=>({...a,[k]:(a[k]||0)+v}),c)};
   };
   const forceAdv = (bases) => {
-    if (bases[0]&&bases[1]&&bases[2]) return [[true,true,true],1];
-    if (bases[0]&&bases[1]) return [[true,true,true],0];
-    if (bases[0]) return [[true,true,false],0];
-    return [[true,false,false],0];
+    // A runner is only forced if every base between them and home is occupied
+    const force1 = bases[0];                          // 1B runner forced if batter walks
+    const force2 = bases[0] && bases[1];             // 2B runner forced only if 1B was also occupied
+    const force3 = bases[0] && bases[1] && bases[2]; // 3B runner forced (scores) only if bases loaded
+    const nb = [
+      true,                                           // batter always takes 1st
+      force1 || (bases[1] && !force2),               // 2nd: forced 1B runner, or unforced 2B runner stays
+      force2 || (bases[2] && !force3),               // 3rd: forced 2B runner, or unforced 3B runner stays
+    ];
+    return [nb, force3 ? 1 : 0];
   };
 
   const applyPlay = (outcome,loc,outType,dests) => {
@@ -5468,11 +5474,12 @@ function LiveScorerPage() {
   };
 
   const onAction = (outcome) => {
-    if(["BB","HBP","K","HR"].includes(outcome)){applyPlay(outcome,null,null,null);return;}
-    setPO(outcome);setModal("loc");
+    if(["BB","HBP","K"].includes(outcome)){applyPlay(outcome,null,null,null);return;}
+    setPO(outcome);setModal("loc"); // HR, 1B, 2B, 3B, OUT, SAC all go through location
   };
   const onLocation = (loc) => {
     setPL(loc);
+    if(pendingOutcome==="HR"){applyPlay("HR",loc,null,null);return;} // HR: just need location, no runners/outtype
     if(pendingOutcome==="OUT"||pendingOutcome==="SAC"){setModal("outtype");return;}
     if(gs.bases.some(Boolean)){initRunnerDests(pendingOutcome);setModal("runners");return;}
     applyPlay(pendingOutcome,loc,null,null);
@@ -5944,7 +5951,7 @@ function LiveScorerPage() {
           <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:14,textAlign:"center"}}>Out Type</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              {OUT_TYPES.map(([code,label])=>(
+              {OUT_TYPES.filter(([code])=> code!=="DP" || gs.bases.some(Boolean)).map(([code,label])=>(
                 <button key={code} onClick={()=>onOutType(code)} style={{padding:"13px",background:"rgba(80,80,80,0.25)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",textAlign:"center"}}>
                   <span style={{fontSize:10,display:"block",color:"rgba(255,255,255,0.4)"}}>{code}</span>{label}
                 </button>
