@@ -739,16 +739,20 @@ function HomePage({ setTab, setTeamDetail }) {
               <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#002d6e",marginBottom:4}}>2026 Season</div>
-                  <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>Recent Results</h2>
+                  <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>{recentGames.length > 0 ? "Recent Results" : "Season Preview"}</h2>
                 </div>
-                <span onClick={() => setTab("scores")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>All Scores →</span>
+                {recentGames.length > 0 && <span onClick={() => setTab("scores")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>All Scores →</span>}
               </div>
-              <div className="scores-grid" style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,gridAutoRows:"1fr"}}>
-                {recentGames.length > 0
-                  ? recentGames.map((g,i) => <LiveBoxScoreFinalCard key={i} game={g} onTeamClick={goTeam} />)
-                  : SCORES[1].weeks[0].games.slice(0,6).map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)
-                }
-              </div>
+              {recentGames.length > 0
+                ? <div className="scores-grid" style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,gridAutoRows:"1fr"}}>
+                    {recentGames.map((g,i) => <LiveBoxScoreFinalCard key={i} game={g} onTeamClick={goTeam} />)}
+                  </div>
+                : <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.08)",borderRadius:14,padding:"32px 24px",textAlign:"center"}}>
+                    <div style={{fontSize:36,marginBottom:12}}>⚾</div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e",textTransform:"uppercase",marginBottom:6}}>Season Starting April 11th</div>
+                    <div style={{fontSize:14,color:"rgba(0,0,0,0.5)"}}>Check back after opening day for live scores and results.</div>
+                  </div>
+              }
             </div>
             <div>
               <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
@@ -1888,7 +1892,6 @@ function TeamsPage({ setTab, setTeamDetail }) {
                             📅 Subscribe
                           </a>
                         )}
-                        <span style={{fontSize:12,fontWeight:700,color:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif"}}>View Team →</span>
                       </div>
                     </div>
                   </button>
@@ -5271,7 +5274,10 @@ function StatsPage() {
                   {sortedPit.map((p, i) => {
                     const vals = pitValMap(p);
                     return (
-                      <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
+                      <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa",cursor:"pointer"}}
+                        onMouseEnter={e => e.currentTarget.style.background="#f0f4ff"}
+                        onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}
+                        onClick={() => loadPlayer(p.player_name, p.team)}>
                         <td style={{padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap"}}>
                           <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",marginRight:8,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>{i+1}</span>
                           {p.player_name}
