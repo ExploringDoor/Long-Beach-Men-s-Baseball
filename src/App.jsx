@@ -11,7 +11,11 @@ const TEAM_LOGOS = {
   "Brooklyn": "/brooklyn.png",
   "Generals": "/generals.png",
   "Black Sox": "/blacksox.png",
+  "Eddie Murray Mashers '56":   "/mashers56.png",
+  "Greg Maddux Magicians '66":  "/magicians66.png",
 };
+
+const BOOMERS_TEAMS = new Set(["Eddie Murray Mashers '56", "Greg Maddux Magicians '66"]);
 
 const DIV = {
   SAT: {
@@ -24,6 +28,12 @@ const DIV = {
       {seed:5,name:"Generals",full:"Generals",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
       {seed:6,name:"Black Sox",full:"Black Sox",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
     ]},
+  BOM: {
+    name: "Boomers 60/70", accent: "#7c3aed",
+    teams: [
+      {seed:1,name:"Eddie Murray Mashers '56",full:"Eddie Murray Mashers '56",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:2,name:"Greg Maddux Magicians '66",full:"Greg Maddux Magicians '66",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+    ]},
 };
 
 const ALL_TEAMS = Object.entries(DIV).flatMap(([dk,div]) =>
@@ -33,6 +43,7 @@ const ALL_TEAMS = Object.entries(DIV).flatMap(([dk,div]) =>
 const TEAM_COLORS = {
   "Tribe":"#002d6e","Dodgers":"#005a9c","Pirates":"#1d2d44","Titans":"#4a1d96",
   "Brooklyn":"#b45309","Generals":"#374151","Black Sox":"#111111",
+  "Eddie Murray Mashers '56":"#1a5276","Greg Maddux Magicians '66":"#6b21a8",
 };
 
 const TEAM_ROSTERS = {
@@ -125,6 +136,21 @@ const TEAM_ROSTERS = {
     {number:"", name:"Jimmy Van Cott"},
     {number:"", name:"Cedric Watson"},
   ],
+  "Eddie Murray Mashers '56": [
+    {number:"2",  name:"Steve Bunnell"},
+    {number:"",   name:"Dennis Clancy"},
+    {number:"",   name:"Jose Gomez"},
+    {number:"",   name:"Alan Ides"},
+    {number:"",   name:"Mike Ockwig"},
+    {number:"",   name:"Robbie Robinson"},
+  ],
+  "Greg Maddux Magicians '66": [
+    {number:"",   name:"Miguel Alejandre"},
+    {number:"",   name:"Pedro Barajas"},
+    {number:"",   name:"Tom Bennett"},
+    {number:"",   name:"Scott Page"},
+    {number:"",   name:"Dave Snyder"},
+  ],
 };
 
 const TEAM_CAL_LINKS = {
@@ -140,6 +166,12 @@ const TEAM_CAL_LINKS = {
 const SCORES = [
   {
     season:"Spring/Summer 2026",
+    weeks:[
+      {week:"Season opens Apr 11, 2026", games:[]},
+    ]
+  },
+  {
+    season:"Boomers 60/70",
     weeks:[
       {week:"Season opens Apr 11, 2026", games:[]},
     ]
@@ -735,7 +767,7 @@ function Navbar({ tab, setTab }) {
 
 /* ─── HOME PAGE ──────────────────────────────────────────────────────────── */
 function HomePage({ setTab, setTeamDetail }) {
-  const topTeams = [...ALL_TEAMS].sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8);
+  const topTeams = [...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8);
   const nextGames = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g,field:f.name}))).slice(0,5);
   const [recentGames, setRecentGames] = useState([]);
   const [newsItems, setNewsItems] = useState([]);
@@ -1134,7 +1166,7 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
 }
 
 function ScoresPage({ setTab, setTeamDetail }) {
-  // Tab indices: 0=Spring/Summer 2026, 1=Fall/Winter 2026 (live), 2=NABA
+  // Tab indices: 0=Spring/Summer 2026, 1=Boomers 60/70, 2=Fall/Winter 2026 (static), 3=NABA
   const [seasonIdx, setSeasonIdx] = useState(0);
   const [weekIdx, setWeekIdx] = useState(0);
   const [fwWeeks, setFwWeeks] = useState([]);
@@ -1143,8 +1175,8 @@ function ScoresPage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const season = SCORES[seasonIdx];
   const week = season?.weeks?.[weekIdx];
-  const isLive = seasonIdx <= 1; // Both Spring/Summer 2026 (0) and Fall/Winter 2026 (1) load live
-  const isFW = seasonIdx === 1;
+  const isLive = seasonIdx === 0 || seasonIdx === 1; // Spring/Summer (0) and Boomers (1) load from Supabase
+  const isFW = seasonIdx === 2;
 
   // Load live data whenever we switch to a live tab
   useEffect(() => {
@@ -1152,15 +1184,17 @@ function ScoresPage({ setTab, setTeamDetail }) {
     setFwLoading(true);
     setFwError(null);
     setFwWeeks([]);
-    const ssName = seasonIdx === 0 ? "Spring/Summer 2026" : null;
     sbFetch("seasons?select=id,name&limit=20")
       .then(allSeasons => {
-        const found = seasonIdx === 0
-          ? allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"))
-          : allSeasons.find(s => s.name.includes("Fall/Winter 2025-26") || s.name === "Fall/Winter 2025-26");
+        let found;
+        if (seasonIdx === 0) {
+          found = allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
+        } else if (seasonIdx === 1) {
+          found = allSeasons.find(s => s.name.includes("Boomers"));
+        }
         if (!found) {
-          if (seasonIdx === 0) { setFwLoading(false); return Promise.reject(new Error("no_games_yet")); }
-          throw new Error("Season not found in DB: " + allSeasons.map(s=>s.name).join(", "));
+          setFwLoading(false);
+          return Promise.reject(new Error("no_games_yet"));
         }
         return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&order=game_date.desc&limit=200`);
       })
@@ -1432,13 +1466,16 @@ const STANDINGS_HISTORY = [
 ];
 
 function StandingsPage({ setTab, setTeamDetail }) {
+  const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers
   const [view, setView] = useState("current"); // "current" | "history"
   const [histIdx, setHistIdx] = useState(0);
   const [liveTeams, setLiveTeams] = useState(null);
+  const [boomersTeams, setBoomersTeams] = useState(null);
   const div = DIV["SAT"];
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); } };
   const hist = STANDINGS_HISTORY[histIdx];
 
+  // Load Saturday standings
   useEffect(() => {
     sbFetch("seasons?select=id,name&limit=20")
       .then(allSeasons => {
@@ -1449,7 +1486,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
       .then(games => {
         if (!games || !games.length) return;
         const tm = {};
-        Object.keys(TEAM_ROSTERS).forEach(t => { tm[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
+        DIV.SAT.teams.forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
         games.forEach(g => {
           if (!g.away_score && g.away_score !== 0) return;
           const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
@@ -1472,6 +1509,44 @@ function StandingsPage({ setTab, setTeamDetail }) {
           return (b.rs-b.ra)-(a.rs-a.ra);
         }).map((t,i)=>({...t,seed:i+1}));
         setLiveTeams(rows);
+      })
+      .catch(()=>{});
+  }, []);
+
+  // Load Boomers standings
+  useEffect(() => {
+    sbFetch("seasons?select=id,name&limit=20")
+      .then(allSeasons => {
+        const s = allSeasons.find(x => x.name.includes("Boomers"));
+        if (!s) return null;
+        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&away_score=not.is.null&limit=200`);
+      })
+      .then(games => {
+        if (!games || !games.length) return;
+        const tm = {};
+        DIV.BOM.teams.forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
+        games.forEach(g => {
+          if (!g.away_score && g.away_score !== 0) return;
+          const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
+          if(!tm[a]||!tm[h]) return;
+          tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
+          tm[h].rs+=hs; tm[h].ra+=as; tm[h].gp++;
+          if(as>hs){tm[a].w++;tm[h].l++;}
+          else if(hs>as){tm[h].w++;tm[a].l++;}
+          else{tm[a].t++;tm[h].t++;}
+        });
+        const rows = Object.entries(tm).map(([name,s]) => {
+          const pts=s.w*2+s.t, max=(s.gp||1)*2;
+          const pct=s.gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"");
+          const d=s.rs-s.ra;
+          return {name,full:name,w:s.w,l:s.l,t:s.t,pct,gp:s.gp,rs:s.rs,ra:s.ra,diff:d>=0?`+${d}`:`${d}`,seed:0};
+        }).sort((a,b)=>{
+          const ag=(a.gp||1),bg=(b.gp||1);
+          const ar=(a.w*2+a.t)/ag, br=(b.w*2+b.t)/bg;
+          if(br!==ar) return br-ar;
+          return (b.rs-b.ra)-(a.rs-a.ra);
+        }).map((t,i)=>({...t,seed:i+1}));
+        setBoomersTeams(rows);
       })
       .catch(()=>{});
   }, []);
@@ -1527,55 +1602,83 @@ function StandingsPage({ setTab, setTeamDetail }) {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics" title="Standings">
-        <TabBar items={["Current Season","Season History"]} active={view==="current"?0:1} onChange={i => setView(i===0?"current":"history")} />
+        <TabBar items={["Saturday Division","Boomers 60/70"]} active={league} onChange={i=>{setLeague(i);setView("current");}} />
       </PageHero>
 
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
-        {view==="current" && <>
-          {!liveTeams && (
-            <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
-              ⚾ <strong>Season opens April 11, 2026</strong> — standings will update after each week's games.
-            </div>
-          )}
-          {liveTeams && (
-            <div style={{background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:8,padding:"10px 18px",marginBottom:16,fontSize:13,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:16}}>✅</span> <strong>Live standings</strong> — updated from the database after each box score entry.
-            </div>
-          )}
-          <StandingsTable teams={liveTeams || div.teams} />
-        </>}
-
-        {view==="history" && <>
-          {/* Season selector */}
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
-            {STANDINGS_HISTORY.map((s,i) => (
-              <button key={i} onClick={() => setHistIdx(i)} style={{
-                padding:"8px 18px",borderRadius:20,cursor:"pointer",
-                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
+      {/* ── SATURDAY DIVISION ── */}
+      {league === 0 && (
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+          <div style={{display:"flex",gap:8,marginBottom:20}}>
+            {["Current Season","Season History"].map((label,i) => (
+              <button key={i} onClick={()=>setView(i===0?"current":"history")} style={{
+                padding:"7px 18px",borderRadius:20,cursor:"pointer",
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
                 letterSpacing:".04em",textTransform:"uppercase",
-                background:histIdx===i?"#002d6e":"#fff",
-                color:histIdx===i?"#fff":"#555",
-                border:`1px solid ${histIdx===i?"#002d6e":"rgba(0,0,0,0.15)"}`,
-              }}>{s.season}</button>
+                background:view===(i===0?"current":"history")?"#002d6e":"#fff",
+                color:view===(i===0?"current":"history")?"#fff":"#555",
+                border:`1px solid ${view===(i===0?"current":"history")?"#002d6e":"rgba(0,0,0,0.15)"}`,
+              }}>{label}</button>
             ))}
           </div>
 
-          {/* Champion banner */}
-          <div style={{background:"#002d6e",borderRadius:10,padding:"16px 24px",marginBottom:20,display:"flex",alignItems:"center",gap:16}}>
-            <span style={{fontSize:32}}>🏆</span>
-            <div>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#FFD700",textTransform:"uppercase"}}>{hist.season} — Final Standings</div>
-              <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:2}}>{hist.note}</div>
-            </div>
-            <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
-              <TLogo name={hist.champion} size={80} />
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>{hist.champion}</div>
-            </div>
-          </div>
+          {view==="current" && <>
+            {!liveTeams && (
+              <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
+                ⚾ <strong>Season opens April 11, 2026</strong> — standings will update after each week's games.
+              </div>
+            )}
+            {liveTeams && (
+              <div style={{background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:8,padding:"10px 18px",marginBottom:16,fontSize:13,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:16}}>✅</span> <strong>Live standings</strong> — updated from the database after each box score entry.
+              </div>
+            )}
+            <StandingsTable teams={liveTeams || div.teams} />
+          </>}
 
-          <StandingsTable teams={hist.teams} />
-        </>}
-      </div>
+          {view==="history" && <>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
+              {STANDINGS_HISTORY.map((s,i) => (
+                <button key={i} onClick={() => setHistIdx(i)} style={{
+                  padding:"8px 18px",borderRadius:20,cursor:"pointer",
+                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
+                  letterSpacing:".04em",textTransform:"uppercase",
+                  background:histIdx===i?"#002d6e":"#fff",
+                  color:histIdx===i?"#fff":"#555",
+                  border:`1px solid ${histIdx===i?"#002d6e":"rgba(0,0,0,0.15)"}`,
+                }}>{s.season}</button>
+              ))}
+            </div>
+            <div style={{background:"#002d6e",borderRadius:10,padding:"16px 24px",marginBottom:20,display:"flex",alignItems:"center",gap:16}}>
+              <span style={{fontSize:32}}>🏆</span>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#FFD700",textTransform:"uppercase"}}>{hist.season} — Final Standings</div>
+                <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:2}}>{hist.note}</div>
+              </div>
+              <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+                <TLogo name={hist.champion} size={80} />
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>{hist.champion}</div>
+              </div>
+            </div>
+            <StandingsTable teams={hist.teams} />
+          </>}
+        </div>
+      )}
+
+      {/* ── BOOMERS 60/70 ── */}
+      {league === 1 && (
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+          <div style={{background:"#f3e8ff",border:"1px solid #d8b4fe",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#6b21a8",display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:18}}>👴</span>
+            <span><strong>Boomers 60/70 Division</strong> — Eddie Murray Mashers '56 vs Greg Maddux Magicians '66 · 2026 season</span>
+          </div>
+          {!boomersTeams && (
+            <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
+              ⚾ <strong>Season underway</strong> — standings will update after each game is entered.
+            </div>
+          )}
+          <StandingsTable teams={boomersTeams || DIV.BOM.teams} accent="#7c3aed" />
+        </div>
+      )}
     </div>
   );
 }
@@ -3366,6 +3469,7 @@ function AdminPage({ onAlertChange }) {
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
+  const [adminGamesLeague, setAdminGamesLeague] = useState(0); // 0=Saturday, 1=Boomers
 
   // News & Events
   const [newsItems, setNewsItems] = useState([]);
@@ -3433,11 +3537,13 @@ function AdminPage({ onAlertChange }) {
     if (screen === "admin") loadNews();
   }, [screen]);
 
-  const loadAdminGames = () => {
+  const loadAdminGames = (leagueIdx = adminGamesLeague) => {
     setAdminGamesLoading(true);
     sbFetch("seasons?select=id,name&limit=20")
       .then(seasons => {
-        const s = seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+        const s = leagueIdx === 1
+          ? seasons.find(x => x.name.includes("Boomers"))
+          : seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!s) return [];
         return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&order=game_date.desc&limit=100`);
       })
@@ -3959,10 +4065,20 @@ function AdminPage({ onAlertChange }) {
          quickView==="email"        ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
          quickView==="games"    ? (
           <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
-            <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
               <button type="button" onClick={()=>setQuickView(null)} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>🗂️ Manage Saved Games</div>
-              <button type="button" onClick={loadAdminGames} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
+              <div style={{display:"flex",gap:6,marginLeft:8}}>
+                {["Saturday","Boomers 60/70"].map((label,i) => (
+                  <button key={i} type="button" onClick={()=>{setAdminGamesLeague(i);loadAdminGames(i);}} style={{
+                    padding:"4px 12px",borderRadius:12,cursor:"pointer",border:"1px solid",fontWeight:700,fontSize:12,
+                    background:adminGamesLeague===i?"#002d6e":"#fff",
+                    color:adminGamesLeague===i?"#fff":"#555",
+                    borderColor:adminGamesLeague===i?"#002d6e":"rgba(0,0,0,0.15)",
+                  }}>{label}</button>
+                ))}
+              </div>
+              <button type="button" onClick={()=>loadAdminGames(adminGamesLeague)} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
             </div>
             <div style={{padding:"16px 20px"}}>
               {adminGamesLoading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading…</div>}
@@ -4150,8 +4266,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).map(p => typeof p === "string" ? p : p.name).filter(p=>p!=="TBD").map(blankBatter);
 
   // ── Game selection ──
-  const allGames = SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home }))))
-    .filter(g => !captainTeam || g.away===captainTeam || g.home===captainTeam);
+  const allGames = [
+    ...SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home })))),
+    ...BOOMERS_SCHED.map(g => ({ date:g.date, field:g.field, time:g.time, away:g.away, home:g.home })),
+  ].filter(g => !captainTeam || g.away===captainTeam || g.home===captainTeam);
   const [game, setGame] = useState(null);
   const [customMode, setCustomMode] = useState(false);
   const [custom, setCustom] = useState({ date:"", time:"", field:"", away:TEAMS[0], home:TEAMS[1] });
@@ -4386,10 +4504,17 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         await sbDelete(`pitching_lines?game_id=eq.${editGameId}`);
         gid = editGameId;
       } else {
-        // INSERT new game
+        // INSERT new game — detect which season based on teams
         const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
-        let season = allSeasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
-        if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
+        const isBoomerGame = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
+        let season;
+        if (isBoomerGame) {
+          season = allSeasons.find(s=>s.name.includes("Boomers"));
+          if(!season){const res=await sbPost("seasons",[{name:"Boomers 60/70 2026"}]);season=res[0];}
+        } else {
+          season = allSeasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
+          if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
+        }
         const [newGame] = await sbPost("games",[{
           season_id:season.id, game_date:toISODate(game.date), game_time:game.time, field:game.field,
           away_team:game.away, home_team:game.home,
