@@ -4847,10 +4847,19 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 }
 
 /* ─── STATS PAGE ─────────────────────────────────────────────────────────── */
+const ALL_SEASONS_KEY = "__all__";
+
+// Extract year from a season name for sorting (returns e.g. 2026, 2025, etc.)
+function seasonSortYear(name) {
+  const m = name.match(/(\d{4})/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
 function StatsPage() {
   const [tab, setTab] = useState(0);
   const [season, setSeason] = useState("Spring/Summer 2026 Diamond Classics Saturdays");
-  const [seasons, setSeasons] = useState(["Spring/Summer 2026 Diamond Classics Saturdays"]);
+  const [seasons, setSeasons] = useState([]);
+  const [seasonsWithData, setSeasonsWithData] = useState(new Set());
   const [batting, setBatting] = useState([]);
   const [pitching, setPitching] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4862,34 +4871,57 @@ function StatsPage() {
   const [batSort, setBatSort] = useState({ col: "avg", dir: "desc" });
   const [pitSort, setPitSort] = useState({ col: "era", dir: "asc" });
 
-  // Load seasons list
+  // Load seasons list + figure out which have data
   useEffect(() => {
-    sbFetch("seasons?select=name&order=id.desc")
-      .then(d => { if (d.length) setSeasons(d.map(s => s.name)); })
-      .catch(() => {});
+    Promise.all([
+      sbFetch("seasons?select=id,name&limit=100"),
+      sbFetch("games?select=id,season_id&limit=5000"),
+      sbFetch("batting_lines?select=game_id&limit=5000"),
+    ]).then(([allSeasons, allGames, allBatLines]) => {
+      // Sort seasons by year desc, then by id desc within same year
+      const sorted = [...allSeasons].sort((a, b) => {
+        const ya = seasonSortYear(a.name), yb = seasonSortYear(b.name);
+        if (ya !== yb) return yb - ya;
+        return b.id - a.id;
+      });
+      setSeasons(sorted.map(s => s.name));
+
+      // Build set of season IDs that have batting lines
+      const gameIdsWithData = new Set(allBatLines.map(l => l.game_id));
+      const seasonIdsWithData = new Set(allGames.filter(g => gameIdsWithData.has(g.id)).map(g => g.season_id));
+      const namesWithData = new Set(allSeasons.filter(s => seasonIdsWithData.has(s.id)).map(s => s.name));
+      setSeasonsWithData(namesWithData);
+    }).catch(() => {});
   }, []);
 
   // Load batting/pitching leaderboards when season changes
   useEffect(() => {
     setLoading(true); setError(null);
 
-    // Get season ID first, then game IDs, then lines — avoids PostgREST join-filter bug
-    sbFetch(`seasons?select=id,name&limit=20`)
-      .then(allSeasons => {
-        const found = allSeasons.find(s => s.name === season) ||
-          allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
-        if (!found) throw new Error(`Season not found: ${season}`);
-        const seasonId = found.id;
-        return sbFetch(`games?select=id&season_id=eq.${seasonId}&limit=200`)
-          .then(gs => {
-            if (!gs.length) return Promise.resolve([[],[]]);
-            const ids = gs.map(g => g.id).join(",");
-            return Promise.all([
-              sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf&game_id=in.(${ids})&limit=2000`),
-              sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&limit=2000`),
-            ]);
+    const isAll = season === ALL_SEASONS_KEY;
+
+    const fetchLines = isAll
+      ? Promise.all([
+          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf&limit=10000`),
+          sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&limit=10000`),
+        ])
+      : sbFetch(`seasons?select=id,name&limit=100`)
+          .then(allSeasons => {
+            const found = allSeasons.find(s => s.name === season) ||
+              allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
+            if (!found) throw new Error(`Season not found: ${season}`);
+            return sbFetch(`games?select=id&season_id=eq.${found.id}&limit=200`)
+              .then(gs => {
+                if (!gs.length) return [[],[]];
+                const ids = gs.map(g => g.id).join(",");
+                return Promise.all([
+                  sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf&game_id=in.(${ids})&limit=2000`),
+                  sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&limit=2000`),
+                ]);
+              });
           });
-      }).then(([bat, pit]) => {
+
+    fetchLines.then(([bat, pit]) => {
       // Aggregate batting
       const batMap = {};
       bat.forEach(row => {
@@ -5038,7 +5070,7 @@ function StatsPage() {
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="League Statistics" title="Stats" subtitle="Spring/Summer 2026 · Click any column header to sort">
+      <PageHero label="League Statistics" title="Stats" subtitle={`${season === ALL_SEASONS_KEY ? "All Seasons Combined" : season} · Click any column header to sort`}>
         <TabBar items={["Batting","Pitching"]} active={tab} onChange={setTab} />
       </PageHero>
 
@@ -5054,7 +5086,17 @@ function StatsPage() {
           </div>
           <select value={season} onChange={e => setSeason(e.target.value)}
             style={{padding:"9px 14px",borderRadius:8,border:"1px solid rgba(0,0,0,0.12)",fontSize:14,background:"#fff",cursor:"pointer"}}>
-            {seasons.map(s => <option key={s} value={s}>{s}</option>)}
+            <option value={ALL_SEASONS_KEY}>⭐ All Seasons Combined</option>
+            <option disabled>──────────────</option>
+            {seasons.map(s => {
+              const hasData = seasonsWithData.has(s);
+              return (
+                <option key={s} value={s} disabled={!hasData}
+                  style={{color: hasData ? "#111" : "#aaa"}}>
+                  {hasData ? s : `${s} (no stats)`}
+                </option>
+              );
+            })}
           </select>
           {loading && <span style={{fontSize:13,color:"rgba(0,0,0,0.4)"}}>Loading…</span>}
         </div>
