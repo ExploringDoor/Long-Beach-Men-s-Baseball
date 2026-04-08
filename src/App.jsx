@@ -1182,7 +1182,10 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
       ) : (
         <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column",width:"100%"}}>
           <div style={{padding:"8px 10px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <span style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(0,0,0,0.25)"}}>FINAL</span>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(0,0,0,0.25)"}}>FINAL</span>
+              {game.game_date && <span style={{fontSize:9,fontWeight:600,color:"rgba(0,0,0,0.35)",letterSpacing:".04em"}}>{new Date(game.game_date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
+            </div>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               {game.headline && <span style={{fontSize:9,fontWeight:700,color:"#dc2626",textTransform:"uppercase"}}>{game.headline}</span>}
             </div>
@@ -3273,12 +3276,13 @@ function TournamentManagerPage({ onBack }) {
                 + Add Game
               </button>
               <button type="button" onClick={async ()=>{
-                  const msg = tgames.length > 0
-                    ? `Delete "${tname}" and all ${tgames.length} game${tgames.length!==1?"s":""}?`
+                  const allTGames = byTournament[tname] || [];
+                  const msg = tgamesReal.length > 0
+                    ? `Delete "${tname}" and all ${tgamesReal.length} game${tgamesReal.length!==1?"s":""}?`
                     : `Delete "${tname}"?`;
                   if (!window.confirm(msg)) return;
                   try {
-                    if (tgames.length > 0) await sbDelete(`tournament_games?tournament_name=eq.${encodeURIComponent(tname)}`);
+                    if (allTGames.length > 0) await sbDelete(`tournament_games?tournament_name=eq.${encodeURIComponent(tname)}`);
                     const updated = tournMeta.filter(m=>m.name!==tname);
                     saveTournMeta(updated);
                     setTournMeta(updated);
