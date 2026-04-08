@@ -798,26 +798,28 @@ function Ticker({ setTab }) {
     <>
       {preview && <GamePreviewModal {...preview} onClose={()=>setPreview(null)} />}
       <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
-        <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 14px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
-          <span style={{fontSize:18,lineHeight:1}}>⚾</span>
-          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>LBDC</span>
-          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
+        <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 10px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
+          <span className="ticker-lbdc-text" style={{fontSize:18,lineHeight:1}}>⚾</span>
+          <span className="ticker-lbdc-text" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>LBDC</span>
+          <span className="ticker-lbdc-date" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
         </div>
-        <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
+        <div style={{display:"flex",alignItems:"stretch",overflow:"hidden",flex:"1 1 0",minWidth:0}}>
           {games.map((g,i) => (
             <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
-              style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"5px 18px",borderRight:"1px solid rgba(255,255,255,0.1)",flexShrink:0,gap:3,cursor:"pointer",transition:"background .12s"}}
+              style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"4px 10px",borderRight:"1px solid rgba(255,255,255,0.1)",flex:"1 1 0",minWidth:0,gap:1,cursor:"pointer",transition:"background .12s"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{fontSize:10,fontWeight:700,letterSpacing:".07em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap"}}>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:".07em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                 {g.time}{g.status==="PPD" ? " · PPD" : ""}
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}>
-                <TLogo name={g.away} size={20} />
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>{g.away}</span>
-                <span style={{color:"rgba(255,255,255,0.35)",fontWeight:400,fontSize:13,fontFamily:"'Barlow Condensed',sans-serif"}}>vs</span>
-                <TLogo name={g.home} size={20} />
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>{g.home}</span>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"#fff",textTransform:"uppercase",lineHeight:1.15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {g.away}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:3,minWidth:0,overflow:"hidden"}}>
+                <span style={{fontSize:9,color:"rgba(255,255,255,0.4)",flexShrink:0}}>vs</span>
+                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",lineHeight:1.15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>
+                  {g.home}
+                </span>
               </div>
             </div>
           ))}
@@ -912,7 +914,7 @@ function Navbar({ tab, setTab }) {
       </nav>
       {menuOpen && (
         <div style={{position:"fixed",top:62,left:0,right:0,bottom:0,zIndex:9999,display:"flex",flexDirection:"column"}}>
-          <div style={{background:"#fff",borderBottom:"3px solid #002d6e",boxShadow:"0 8px 24px rgba(0,0,0,0.2)"}}>
+          <div style={{background:"#fff",borderBottom:"3px solid #002d6e",boxShadow:"0 8px 24px rgba(0,0,0,0.2)",overflowY:"auto",maxHeight:"calc(100vh - 62px)"}}>
           <button onClick={() => handleNav("home")} style={{
             display:"flex",alignItems:"center",gap:12,width:"100%",textAlign:"left",
             fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,
@@ -2309,7 +2311,8 @@ function RulesPage() {
         </Card>
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           {RULES_DATA.map(r => (
-            <Card key={r.section} style={{padding:0}} id={`rule-${r.section.replace(/\s+/g,"-").toLowerCase()}`}>
+            <div key={r.section} id={`rule-${r.section.replace(/\s+/g,"-").toLowerCase()}`} style={{scrollMarginTop:72}}>
+            <Card style={{padding:0}}>
               <div style={{padding:"16px 24px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:12}}>
                 <span style={{fontSize:22}}>{r.icon}</span>
                 <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#111",textTransform:"uppercase"}}>{r.section}</h2>
@@ -2325,6 +2328,7 @@ function RulesPage() {
                 </ol>
               </div>
             </Card>
+            </div>
           ))}
         </div>
         <div style={{marginTop:20,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"14px 20px",textAlign:"center",fontSize:13,color:"rgba(0,0,0,0.4)"}}>
@@ -5522,7 +5526,7 @@ function StatsPage() {
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [playerGames, setPlayerGames] = useState([]);
   const [playerLoading, setPlayerLoading] = useState(false);
-  const [batSort, setBatSort] = useState({ col: "avg", dir: "desc" });
+  const [batSort, setBatSort] = useState({ col: "gp", dir: "desc" });
   const [pitSort, setPitSort] = useState({ col: "era", dir: "asc" });
 
   // Load seasons list + figure out which have data
@@ -6822,6 +6826,17 @@ export default function App() {
           .bs-score-input{width:90px!important;font-size:42px!important;}
           .bs-inn-input{width:38px!important;height:36px!important;}
           .bs-order-btn{padding:5px 10px!important;font-size:13px!important;}
+          /* Schedule page */
+          .schedule-week-grid{grid-template-columns:1fr!important;}
+          /* Upcoming cards — team name font size */
+          .upcoming-team-name{font-size:16px!important;}
+          /* Game preview modal roster grid */
+          .preview-roster-grid{grid-template-columns:1fr!important;}
+          /* Stats/leaderboard page controls */
+          .stats-controls{flex-direction:column!important;}
+          /* Ticker LBDC label compact on mobile */
+          .ticker-lbdc-text{display:none!important;}
+          .ticker-lbdc-date{font-size:10px!important;}
         }
       `}</style>
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
