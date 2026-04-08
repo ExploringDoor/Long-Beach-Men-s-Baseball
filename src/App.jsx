@@ -2138,7 +2138,10 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
           </div>
           {teamGames.length > 0 && (
             <div>
-              <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Recent Results</h2>
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(0,0,0,0.35)",marginBottom:3}}>Previous Season</div>
+                <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",lineHeight:1}}>Fall/Winter 2026 Results</h2>
+              </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
                 {teamGames.map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)}
               </div>
@@ -2257,18 +2260,6 @@ function TeamsPage({ setTab, setTeamDetail }) {
                         <div style={{fontSize:10,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:".08em"}}>Differential</div>
                       </div>
                       <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12}}>
-                        {TEAM_CAL_LINKS[t.name] && (
-                          <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
-                            <a href={TEAM_CAL_LINKS[t.name]} target="_blank" rel="noopener noreferrer"
-                              style={{fontSize:11,fontWeight:700,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",textDecoration:"none",background:"#4285F4",borderRadius:6,padding:"4px 9px",whiteSpace:"nowrap"}}>
-                              📅 Google
-                            </a>
-                            <a href={TEAM_CAL_ICS[t.name]}
-                              style={{fontSize:11,fontWeight:700,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",textDecoration:"none",background:"#1c1c1e",borderRadius:6,padding:"4px 9px",whiteSpace:"nowrap"}}>
-                              🍎 iPhone
-                            </a>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </button>
@@ -3507,38 +3498,36 @@ function TournamentManagerPage({ onBack }) {
 
 function ManageSchedulePage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
+  const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers
 
-  // Build initial editable list from SCHED + any stored overrides/additions
-  const buildInitial = () => {
-    try {
-      const stored = localStorage.getItem("lbdc_full_schedule");
-      if (stored) return JSON.parse(stored);
-    } catch(e) {}
-    // First time: flatten SCHED into editable rows
+  const SAT_KEY = "lbdc_full_schedule";
+  const BOM_KEY = "lbdc_boomers_schedule";
+
+  const buildInitialSat = () => {
+    try { const s = localStorage.getItem(SAT_KEY); if (s) return JSON.parse(s); } catch(e) {}
     return SCHED.flatMap(week =>
       week.fields.flatMap(f =>
-        f.games.map(g => ({
-          id: Math.random().toString(36).slice(2),
-          date: week.label,
-          time: g.time,
-          field: f.name,
-          away: g.away,
-          home: g.home,
-          source: "sched",
-        }))
+        f.games.map(g => ({ id: Math.random().toString(36).slice(2), date: week.label, time: g.time, field: f.name, away: g.away, home: g.home, source: "sched" }))
       )
     );
   };
+  const buildInitialBom = () => {
+    try { const s = localStorage.getItem(BOM_KEY); if (s) return JSON.parse(s); } catch(e) {}
+    return BOOMERS_SCHED.map(g => ({ id: Math.random().toString(36).slice(2), date: g.date, time: g.time, field: g.field, away: g.away, home: g.home, source: "sched" }));
+  };
 
-  const [games, setGames] = useState(buildInitial);
+  const [satGames, setSatGames] = useState(buildInitialSat);
+  const [bomGames, setBomGames] = useState(buildInitialBom);
+  const games = league === 1 ? bomGames : satGames;
+
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
 
   const persist = (list) => {
-    setGames(list);
-    localStorage.setItem("lbdc_full_schedule", JSON.stringify(list));
+    if (league === 1) { setBomGames(list); localStorage.setItem(BOM_KEY, JSON.stringify(list)); }
+    else { setSatGames(list); localStorage.setItem(SAT_KEY, JSON.stringify(list)); }
   };
 
   const startEdit = (g) => { setEditId(g.id); setEditForm({date:g.date,time:g.time,field:g.field,away:g.away,home:g.home}); };
@@ -3566,8 +3555,17 @@ function ManageSchedulePage({ onBack }) {
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
         <button type="button" onClick={onBack} style={{padding:"6px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>← Back</button>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Manage Schedule</div>
+        <div style={{display:"flex",gap:6,marginLeft:8}}>
+          {["Saturday","Boomers 60/70"].map((label,i) => (
+            <button key={i} type="button" onClick={()=>{setLeague(i);setEditId(null);setShowAdd(false);}} style={{
+              padding:"4px 12px",borderRadius:12,cursor:"pointer",border:"1px solid",fontWeight:700,fontSize:12,
+              background:league===i?"#002d6e":"#fff",color:league===i?"#fff":"#555",
+              borderColor:league===i?"#002d6e":"rgba(0,0,0,0.15)",
+            }}>{label}</button>
+          ))}
+        </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-          <button type="button" onClick={()=>{ if(window.confirm("Reset schedule back to original?")){ localStorage.removeItem("lbdc_full_schedule"); setGames(buildInitial()); }}}
+          <button type="button" onClick={()=>{ if(window.confirm("Reset schedule back to original?")){ if(league===1){localStorage.removeItem(BOM_KEY);setBomGames(buildInitialBom());}else{localStorage.removeItem(SAT_KEY);setSatGames(buildInitialSat());} }}}
             style={{padding:"7px 14px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Reset</button>
           <button type="button" onClick={()=>setShowAdd(s=>!s)}
             style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Game</button>
@@ -3601,7 +3599,7 @@ function ManageSchedulePage({ onBack }) {
       <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
         <div style={{background:"#001a3e",padding:"12px 18px"}}>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>
-            Spring/Summer 2026 — {games.length} Games · Click any game to edit
+            {league===1 ? "Boomers 60/70" : "Spring/Summer 2026"} — {games.length} Games · Click any game to edit
           </div>
         </div>
         {Object.entries(byDate).map(([date, dateGames]) => (
@@ -4694,10 +4692,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const loadSavedGames = () => {
     setSavedLoading(true);
     sbFetch("seasons?select=id,name&limit=20")
-      .then(seasons => {
-        const s=seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
-        if(!s) return [];
-        return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&away_score=not.is.null&order=game_date.desc&limit=50`);
+      .then(async seasons => {
+        const sat = seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
+        const bom = seasons.find(x=>x.name.includes("Boomers"));
+        const fetches = [];
+        if (sat) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${sat.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
+        if (bom) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${bom.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
+        const results = await Promise.all(fetches);
+        return results.flat().sort((a,b)=>b.game_date?.localeCompare(a.game_date||"")||0);
       })
       .then(games=>{ setSavedGames(games||[]); setSavedLoading(false); })
       .catch(()=>setSavedLoading(false));
