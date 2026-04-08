@@ -369,7 +369,8 @@ const BOOMERS_SCHED = [
   {date:"Jun 20",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
   {date:"Jul 11",time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
   {date:"Jul 25",time:"3:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"Clark Field — Long Beach"},
-  {date:"Aug 8", time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
+  {date:"Aug 8", time:"12:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
+  {date:"Aug 22",time:"8:00 AM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
 ];
 
 const RULES_DATA = [
