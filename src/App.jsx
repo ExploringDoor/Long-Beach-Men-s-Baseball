@@ -633,10 +633,10 @@ function Ticker({ setTab }) {
 
   return (
     <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
-      <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 14px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:1}}>
+      <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 14px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
         <span style={{fontSize:18,lineHeight:1}}>⚾</span>
         <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>LBDC</span>
-        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:10,color:"rgba(255,255,255,0.45)",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
+        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
       </div>
       <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
         {games.map((g,i) => (
@@ -644,8 +644,12 @@ function Ticker({ setTab }) {
             <div style={{fontSize:10,fontWeight:700,letterSpacing:".07em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap"}}>
               {g.time}{g.status==="PPD" ? " · PPD" : ""}
             </div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",whiteSpace:"nowrap",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>
-              {g.away} <span style={{color:"rgba(255,255,255,0.35)",fontWeight:400,fontSize:14}}>vs</span> {g.home}
+            <div style={{display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}>
+              <TLogo name={g.away} size={20} />
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>{g.away}</span>
+              <span style={{color:"rgba(255,255,255,0.35)",fontWeight:400,fontSize:13,fontFamily:"'Barlow Condensed',sans-serif"}}>vs</span>
+              <TLogo name={g.home} size={20} />
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>{g.home}</span>
             </div>
           </div>
         ))}
