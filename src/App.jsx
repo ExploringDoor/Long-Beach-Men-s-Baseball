@@ -2964,15 +2964,21 @@ function PlayerEligibilityPage({ onBack }) {
 
 function TournamentManagerPage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
+
+  // Load/save tournament metadata (name + location) from localStorage
+  const loadTournMeta = () => { try { return JSON.parse(localStorage.getItem("lbdc_tourn_meta") || "[]"); } catch(e) { return []; } };
+  const saveTournMeta = (list) => localStorage.setItem("lbdc_tourn_meta", JSON.stringify(list));
+
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({tournament_name:"", game_date:"", game_time:"9:00 AM", field:"Clark Field", away_team:TEAMS[0], home_team:TEAMS[1], notes:""});
-  const [newTournName, setNewTournName] = useState("");
+  const [addForm, setAddForm] = useState({tournament_name:"", game_date:"", game_time:"9:00 AM", field:"", away_team:"", home_team:"", notes:""});
+  const [newTournForm, setNewTournForm] = useState({name:"", location:""});
   const [showNewTourn, setShowNewTourn] = useState(false);
+  const [tournMeta, setTournMeta] = useState(loadTournMeta);
 
   const load = () => {
     setLoading(true);
@@ -2983,7 +2989,30 @@ function TournamentManagerPage({ onBack }) {
 
   useEffect(() => { load(); }, []);
 
-  const tournamentNames = [...new Set(games.map(g => g.tournament_name))];
+  const tournamentNames = [...new Set([...tournMeta.map(m=>m.name), ...games.map(g => g.tournament_name)])];
+
+  const createTournament = () => {
+    const name = newTournForm.name.trim();
+    if (!name) return;
+    const updated = [...tournMeta.filter(m=>m.name!==name), {name, location: newTournForm.location.trim()}];
+    saveTournMeta(updated);
+    setTournMeta(updated);
+    setNewTournForm({name:"", location:""});
+    setShowNewTourn(false);
+  };
+
+  const createAndAddGame = () => {
+    const name = newTournForm.name.trim();
+    if (!name) return;
+    const updated = [...tournMeta.filter(m=>m.name!==name), {name, location: newTournForm.location.trim()}];
+    saveTournMeta(updated);
+    setTournMeta(updated);
+    const meta = updated.find(m=>m.name===name);
+    setAddForm(f=>({...f, tournament_name:name, field: meta?.location || ""}));
+    setNewTournForm({name:"", location:""});
+    setShowNewTourn(false);
+    setShowAdd(true);
+  };
 
   const addGame = async () => {
     if (!addForm.tournament_name || !addForm.away_team || !addForm.home_team) return;
@@ -2998,7 +3027,7 @@ function TournamentManagerPage({ onBack }) {
         home_team: addForm.home_team,
         notes: addForm.notes || null,
       });
-      setAddForm({tournament_name:addForm.tournament_name, game_date:"", game_time:"9:00 AM", field:"Clark Field", away_team:TEAMS[0], home_team:TEAMS[1], notes:""});
+      setAddForm(f=>({...f, game_date:"", game_time:"9:00 AM", away_team:"", home_team:"", notes:""}));
       setShowAdd(false);
       load();
     } catch(e) { alert("Save failed: " + e.message); }
@@ -3061,18 +3090,23 @@ function TournamentManagerPage({ onBack }) {
         {showNewTourn && (
           <div style={{background:"#fff8e1",border:"2px solid #b45309",borderRadius:10,padding:"16px 18px",display:"flex",flexDirection:"column",gap:10}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#b45309"}}>🏆 Create New Tournament</div>
-            <div style={{fontSize:13,color:"#555"}}>Enter a tournament name. You can then add games to it using the <strong>+ Add Game</strong> button.</div>
-            <input type="text" placeholder="e.g. Memorial Day Classic, July 4th Tournament" value={newTournName} onChange={e=>setNewTournName(e.target.value)}
-              style={inputStyle}/>
-            <div style={{display:"flex",gap:8}}>
-              <button type="button" onClick={()=>{
-                if(!newTournName.trim()) return;
-                setAddForm(f=>({...f,tournament_name:newTournName.trim()}));
-                setNewTournName("");
-                setShowNewTourn(false);
-                setShowAdd(true);
-              }} disabled={!newTournName.trim()}
-                style={{padding:"9px 20px",background:newTournName.trim()?"#b45309":"#ccc",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:newTournName.trim()?"pointer":"default"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div>
+                <label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Tournament Name</label>
+                <input type="text" placeholder="e.g. Memorial Day Classic" value={newTournForm.name} onChange={e=>setNewTournForm(f=>({...f,name:e.target.value}))} style={inputStyle}/>
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Location</label>
+                <input type="text" placeholder="e.g. Clark Field — Long Beach" value={newTournForm.location} onChange={e=>setNewTournForm(f=>({...f,location:e.target.value}))} style={inputStyle}/>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button type="button" onClick={createTournament} disabled={!newTournForm.name.trim()}
+                style={{padding:"9px 20px",background:newTournForm.name.trim()?"#b45309":"#ccc",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:newTournForm.name.trim()?"pointer":"default"}}>
+                Create Tournament
+              </button>
+              <button type="button" onClick={createAndAddGame} disabled={!newTournForm.name.trim()}
+                style={{padding:"9px 20px",background:newTournForm.name.trim()?"#002d6e":"#ccc",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:newTournForm.name.trim()?"pointer":"default"}}>
                 Create & Add First Game
               </button>
               <button type="button" onClick={()=>setShowNewTourn(false)} style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
@@ -3086,29 +3120,35 @@ function TournamentManagerPage({ onBack }) {
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#002d6e"}}>➕ Add Game</div>
             <div>
               <label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Tournament</label>
-              <input type="text" list="tourn-names" placeholder="Tournament name" value={addForm.tournament_name} onChange={e=>setAddForm(f=>({...f,tournament_name:e.target.value}))} style={inputStyle}/>
+              <input type="text" list="tourn-names" placeholder="Tournament name" value={addForm.tournament_name} onChange={e=>{
+                const name = e.target.value;
+                const meta = tournMeta.find(m=>m.name===name);
+                setAddForm(f=>({...f, tournament_name:name, field: meta ? (meta.location || f.field) : f.field}));
+              }} style={inputStyle}/>
               <datalist id="tourn-names">{tournamentNames.map(n=><option key={n} value={n}/>)}</datalist>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              {[["Date","game_date","type","date"],["Time","game_time","placeholder","9:00 AM"],["Field","field","placeholder","Clark Field"]].map(([l,k,pt,pv])=>(
+              {[["Date","game_date","type","date"],["Time","game_time","placeholder","9:00 AM"],["Location / Field","field","placeholder","e.g. Clark Field — Long Beach"]].map(([l,k,pt,pv])=>(
                 <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
                   <input type={pt==="type"?pv:"text"} placeholder={pt==="placeholder"?pv:""} value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/></div>
               ))}
             </div>
+            <datalist id="tourn-teams">
+              {TEAMS.map(t=><option key={t} value={t}/>)}
+            </datalist>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
               {[["Away Team","away_team"],["Home Team","home_team"]].map(([l,k])=>(
                 <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
-                  <select value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}>
-                    {TEAMS.map(t=><option key={t}>{t}</option>)}
-                  </select></div>
+                  <input type="text" list="tourn-teams" placeholder="Team name or enter new" value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/>
+                </div>
               ))}
             </div>
             <div><label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Notes (optional)</label>
               <input type="text" placeholder="e.g. Pool play, Bracket Game 1" value={addForm.notes} onChange={e=>setAddForm(f=>({...f,notes:e.target.value}))} style={inputStyle}/>
             </div>
             <div style={{display:"flex",gap:8}}>
-              <button type="button" onClick={addGame} disabled={!addForm.tournament_name||saving}
-                style={{padding:"9px 22px",background:addForm.tournament_name?"#002d6e":"#ccc",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:addForm.tournament_name?"pointer":"default"}}>
+              <button type="button" onClick={addGame} disabled={!addForm.tournament_name||!addForm.away_team||!addForm.home_team||saving}
+                style={{padding:"9px 22px",background:(addForm.tournament_name&&addForm.away_team&&addForm.home_team)?"#002d6e":"#ccc",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:(addForm.tournament_name&&addForm.away_team&&addForm.home_team)?"pointer":"default"}}>
                 {saving ? "Saving…" : "Save Game"}
               </button>
               <button type="button" onClick={()=>setShowAdd(false)} style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
@@ -3117,16 +3157,26 @@ function TournamentManagerPage({ onBack }) {
         )}
 
         {loading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading…</div>}
-        {!loading && games.length === 0 && (
-          <div style={{textAlign:"center",padding:30,color:"#aaa",fontSize:13}}>No tournament games yet. Click <strong>+ New Tournament</strong> to get started.</div>
+        {!loading && games.length === 0 && tournMeta.length === 0 && (
+          <div style={{textAlign:"center",padding:30,color:"#aaa",fontSize:13}}>No tournaments yet. Click <strong>+ New Tournament</strong> to get started.</div>
         )}
 
-        {/* Games grouped by tournament */}
-        {Object.entries(byTournament).map(([tname, tgames]) => (
+        {/* Games grouped by tournament — includes meta-only tournaments (no games yet) */}
+        {tournamentNames.map(tname => {
+          const tgames = byTournament[tname] || [];
+          const meta = tournMeta.find(m=>m.name===tname);
+          return (
           <div key={tname} style={{border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,overflow:"hidden"}}>
-            <div style={{background:"#002d6e",padding:"10px 18px",display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase"}}>🏆 {tname}</span>
-              <span style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{tgames.length} game{tgames.length!==1?"s":""}</span>
+            <div style={{background:"#002d6e",padding:"10px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              <div>
+                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase"}}>🏆 {tname}</span>
+                {meta?.location && <span style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginLeft:10}}>📍 {meta.location}</span>}
+              </div>
+              <span style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{tgames.length > 0 ? `${tgames.length} game${tgames.length!==1?"s":""}` : "No games yet"}</span>
+              <button type="button" onClick={()=>{setAddForm(f=>({...f,tournament_name:tname,field:meta?.location||""}));setShowAdd(true);setShowNewTourn(false);}}
+                style={{padding:"4px 10px",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:5,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                + Add Game
+              </button>
             </div>
             {tgames.map(g => (
               <div key={g.id}>
@@ -3141,9 +3191,8 @@ function TournamentManagerPage({ onBack }) {
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
                       {[["Away Team","away_team"],["Home Team","home_team"]].map(([l,k])=>(
                         <div key={k}><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>{l}</label>
-                          <select value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}>
-                            {TEAMS.map(t=><option key={t}>{t}</option>)}
-                          </select></div>
+                          <input type="text" list="tourn-teams" placeholder="Team name or enter new" value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/>
+                        </div>
                       ))}
                     </div>
                     <div style={{marginBottom:10}}>
@@ -3175,8 +3224,12 @@ function TournamentManagerPage({ onBack }) {
                 )}
               </div>
             ))}
+            {tgames.length === 0 && (
+              <div style={{padding:"16px 18px",color:"#aaa",fontSize:13,fontStyle:"italic"}}>No games added yet — schedule releases soon.</div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
