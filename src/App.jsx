@@ -620,28 +620,37 @@ function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick }) {
 
 /* ─── TICKER ─────────────────────────────────────────────────────────────── */
 function Ticker({ setTab }) {
-  const satGames = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g, field:f.name})));
-  const games = [...satGames, ...BOOMERS_SCHED];
+  // Find the current or next upcoming week
+  const today = new Date(); today.setHours(0,0,0,0);
+  const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
+  let weekIdx = SCHED.findIndex(w => parseLabel(w.label) >= today);
+  if (weekIdx < 0) weekIdx = SCHED.length - 1;
+  const week = SCHED[weekIdx];
+
+  const satGames = week.fields.flatMap(f => f.games.map(g => ({...g, field:f.name})));
+  const boomerGame = BOOMERS_SCHED.find(g => g.date === week.label);
+  const games = boomerGame ? [...satGames, boomerGame] : satGames;
+
   return (
-    <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%",position:"relative"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"0 12px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0}}>
-        <span style={{fontSize:22,lineHeight:1}}>⚾</span>
-        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700"}}>LBDC</span>
+    <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
+      <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 14px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:1}}>
+        <span style={{fontSize:18,lineHeight:1}}>⚾</span>
+        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>LBDC</span>
+        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:10,color:"rgba(255,255,255,0.45)",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
       </div>
       <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
         {games.map((g,i) => (
-          <div key={i} style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"5px 12px",borderRight:"1px solid rgba(255,255,255,0.1)",flexShrink:0,gap:2}}>
-            <div style={{fontSize:9,fontWeight:700,letterSpacing:".08em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap"}}>{g.time}</div>
-            {[g.away,g.home].map((t,j) => (
-              <div key={j} style={{display:"flex",alignItems:"center",gap:5}}>
-                <TLogo name={t} size={14} />
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:12,color:"#fff",letterSpacing:".02em",whiteSpace:"nowrap"}}>{t}</span>
-              </div>
-            ))}
+          <div key={i} style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"5px 18px",borderRight:"1px solid rgba(255,255,255,0.1)",flexShrink:0,gap:3}}>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".07em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap"}}>
+              {g.time}{g.status==="PPD" ? " · PPD" : ""}
+            </div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",whiteSpace:"nowrap",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>
+              {g.away} <span style={{color:"rgba(255,255,255,0.35)",fontWeight:400,fontSize:14}}>vs</span> {g.home}
+            </div>
           </div>
         ))}
       </div>
-      <div style={{display:"flex",alignItems:"center",padding:"0 12px",flexShrink:0,borderLeft:"1px solid rgba(255,255,255,0.1)",cursor:"pointer"}} onClick={() => setTab("schedule")}>
+      <div style={{display:"flex",alignItems:"center",padding:"0 14px",flexShrink:0,borderLeft:"1px solid rgba(255,255,255,0.1)",cursor:"pointer"}} onClick={() => setTab("schedule")}>
         <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#FFD700",whiteSpace:"nowrap"}}>Schedule »</span>
       </div>
     </div>
