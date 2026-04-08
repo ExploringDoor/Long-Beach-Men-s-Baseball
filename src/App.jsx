@@ -4849,8 +4849,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 /* ─── STATS PAGE ─────────────────────────────────────────────────────────── */
 function StatsPage() {
   const [tab, setTab] = useState(0);
-  const [season, setSeason] = useState("Fall/Winter 2025-26 (Season #10)");
-  const [seasons, setSeasons] = useState(["Fall/Winter 2025-26 (Season #10)"]);
+  const [season, setSeason] = useState("Spring/Summer 2026 Diamond Classics Saturdays");
+  const [seasons, setSeasons] = useState(["Spring/Summer 2026 Diamond Classics Saturdays"]);
   const [batting, setBatting] = useState([]);
   const [pitching, setPitching] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4876,7 +4876,8 @@ function StatsPage() {
     // Get season ID first, then game IDs, then lines — avoids PostgREST join-filter bug
     sbFetch(`seasons?select=id,name&limit=20`)
       .then(allSeasons => {
-        const found = allSeasons.find(s => s.name === season || s.name.includes(season));
+        const found = allSeasons.find(s => s.name === season) ||
+          allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
         if (!found) throw new Error(`Season not found: ${season}`);
         const seasonId = found.id;
         return sbFetch(`games?select=id&season_id=eq.${seasonId}&limit=200`)
@@ -5037,7 +5038,7 @@ function StatsPage() {
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="League Statistics" title="Stats" subtitle="Fall/Winter 2025-26 · Click any column header to sort">
+      <PageHero label="League Statistics" title="Stats" subtitle="Spring/Summer 2026 · Click any column header to sort">
         <TabBar items={["Batting","Pitching"]} active={tab} onChange={setTab} />
       </PageHero>
 
