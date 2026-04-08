@@ -814,10 +814,10 @@ function Ticker({ setTab }) {
           <span className="ticker-lbdc-text" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>LBDC</span>
           <span className="ticker-lbdc-date" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
         </div>
-        <div style={{display:"flex",alignItems:"stretch",overflow:"hidden",flex:"1 1 0",minWidth:0}}>
+        <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
           {games.map((g,i) => (
             <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
-              style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"4px 10px",borderRight:"1px solid rgba(255,255,255,0.1)",flex:"1 1 0",minWidth:0,gap:1,cursor:"pointer",transition:"background .12s"}}
+              style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"4px 10px",borderRight:"1px solid rgba(255,255,255,0.1)",flex:"1 1 120px",minWidth:120,gap:1,cursor:"pointer",transition:"background .12s"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div style={{fontSize:9,fontWeight:700,letterSpacing:".07em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
