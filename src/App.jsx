@@ -37,7 +37,6 @@ const TEAM_COLORS = {
 
 const TEAM_ROSTERS = {
   "Tribe": [],
-  "Dodgers": [],
   "Pirates": [
     {number:"", name:"Ron Arbolida"},
     {number:"", name:"Terrence Herren"},
