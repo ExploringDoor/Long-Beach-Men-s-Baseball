@@ -5633,6 +5633,7 @@ function Diamond({ bases }) {
 function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [view, setView] = useState("pick");
   const [weekIdx, setWeekIdx] = useState(0);
+  const [liveLeague, setLiveLeague] = useState(() => BOOMERS_TEAMS.has(teamFilter) ? 1 : 0);
   const [gs, setGs] = useState(null);
   const [setupInfo, setSetupInfo] = useState(null);
   const [lineupStep, setLineupStep] = useState("away");
@@ -5792,8 +5793,15 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     setSaving(true);
     try {
       const seasons=await sbFetch("seasons?select=id,name&limit=20");
-      let season=seasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
-      if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=r[0];}
+      const isBoomerGame=BOOMERS_TEAMS.has(gs.away)&&BOOMERS_TEAMS.has(gs.home);
+      let season;
+      if(isBoomerGame){
+        season=seasons.find(s=>s.name.includes("Boomers"));
+        if(!season){const r=await sbPost("seasons",[{name:"Boomers 60/70 2026"}]);season=r[0];}
+      }else{
+        season=seasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
+        if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=r[0];}
+      }
       const existing=await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
       const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home,away_linescore:gs.lineScore.away.join("-"),home_linescore:gs.lineScore.home.join("-")};
       let gameId;
@@ -5813,18 +5821,46 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   };
 
   // ── PICK SCREEN ──
+  const boomersGames = BOOMERS_SCHED.filter(g => !teamFilter || g.away===teamFilter || g.home===teamFilter)
+    .map(g => ({away:g.away,home:g.home,field:g.field,time:g.time,date:g.date}));
+
   if (view==="pick") return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
       <PageHero label="Live Scoring" title="Score a Game" subtitle={teamFilter ? `${teamFilter} games · Select a game to start or resume` : "Select a game to start or resume scoring"}>
         {onExit && <button onClick={onExit} style={{marginTop:12,padding:"7px 16px",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:8,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back to Portal</button>}
       </PageHero>
       <div style={{maxWidth:680,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
-        <div style={{display:"flex",gap:8,marginBottom:18,overflowX:"auto",paddingBottom:4}}>
-          {SCHED.map((w,i)=>(
-            <button key={i} onClick={()=>setWeekIdx(i)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,background:weekIdx===i?"#002d6e":"rgba(0,0,0,0.07)",color:weekIdx===i?"#fff":"#333"}}>{w.label}</button>
-          ))}
-        </div>
-        {weekGames.map((g,i)=>{
+        {/* League toggle */}
+        {!teamFilter && (
+          <div style={{display:"flex",gap:8,marginBottom:16}}>
+            {["Saturday Division","Boomers 60/70"].map((label,i)=>(
+              <button key={i} onClick={()=>setLiveLeague(i)} style={{
+                padding:"7px 18px",borderRadius:20,border:"none",cursor:"pointer",
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",
+                background:liveLeague===i?"#002d6e":"rgba(0,0,0,0.07)",
+                color:liveLeague===i?"#fff":"#333",
+              }}>{label}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Saturday week pills */}
+        {liveLeague === 0 && (
+          <div style={{display:"flex",gap:8,marginBottom:18,overflowX:"auto",paddingBottom:4}}>
+            {SCHED.map((w,i)=>(
+              <button key={i} onClick={()=>setWeekIdx(i)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,background:weekIdx===i?"#002d6e":"rgba(0,0,0,0.07)",color:weekIdx===i?"#fff":"#333"}}>{w.label}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Boomers header */}
+        {liveLeague === 1 && (
+          <div style={{background:"#f3e8ff",border:"1px solid #d8b4fe",borderRadius:8,padding:"10px 16px",marginBottom:16,fontSize:13,color:"#6b21a8",fontWeight:700}}>
+            👴 Boomers 60/70 · All 2026 games
+          </div>
+        )}
+
+        {(liveLeague === 1 ? boomersGames : weekGames).map((g,i)=>{
           const saved=loadSaved(g.away,g.home,g.date);
           const isFinal=saved?.status==="final";
           const inProg=saved&&!isFinal;
@@ -6436,7 +6472,7 @@ export default function App() {
         }
       `}</style>
       <div style={{position:"relative",zIndex:200,overflow:"hidden",width:"100%"}}><Ticker setTab={handleSetTab} /></div>
-      <div style={{position:"sticky",top:0,zIndex:300,overflow:"hidden",width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
+      <div style={{position:"sticky",top:0,zIndex:300,width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="scores"    && <ScoresPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="schedule"  && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
