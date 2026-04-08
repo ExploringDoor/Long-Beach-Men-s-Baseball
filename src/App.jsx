@@ -608,14 +608,17 @@ function FinalCard({ g, onTeamClick }) {
   );
 }
 
-function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick }) {
+function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick, onPreview }) {
   return (
-    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
+    <div onClick={() => onPreview?.({away, home, time, date, field})}
+      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview?"pointer":"default",transition:"box-shadow .12s"}}
+      onMouseEnter={e=>{if(onPreview)e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)";}}
+      onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)";}}>
       <div style={{display:"flex",alignItems:"center",padding:"12px 14px",gap:12,flexWrap:"wrap"}}>
         <div style={{display:"flex",flexDirection:"column",gap:8,flex:"1 1 200px",minWidth:0}}>
           {isNext && <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#c8102e",marginBottom:-2}}>▶ NEXT GAME</div>}
           {[away,home].map((t,i) => (
-            <div key={i} onClick={() => onTeamClick?.(t)} style={{display:"flex",alignItems:"center",gap:10,cursor:onTeamClick?"pointer":"default"}}>
+            <div key={i} onClick={e=>{e.stopPropagation();onTeamClick?.(t);}} style={{display:"flex",alignItems:"center",gap:10,cursor:onTeamClick?"pointer":"default"}}>
               <TLogo name={t} size={60} />
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(14px,2vw,24px)",textTransform:"uppercase",color:"#111",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t}</div>
             </div>
@@ -625,6 +628,7 @@ function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick }) {
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(20px,3vw,32px)",color:"#002d6e",lineHeight:1}}>{time}</div>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:"clamp(12px,1.5vw,15px)",color:"rgba(0,0,0,0.55)",fontWeight:700,marginTop:3}}>{date}</div>
           <div style={{fontSize:"clamp(11px,1.2vw,13px)",color:"rgba(0,0,0,0.4)",marginTop:2,fontWeight:500}}>{field}</div>
+          {onPreview && <div style={{fontSize:10,fontWeight:700,color:"rgba(0,45,110,0.45)",marginTop:4,letterSpacing:".05em"}}>⚾ Preview →</div>}
         </div>
       </div>
     </div>
@@ -954,6 +958,7 @@ function HomePage({ setTab, setTeamDetail }) {
   const [recentGames, setRecentGames] = useState([]);
   const [newsItems, setNewsItems] = useState([]);
   const [standingsDiv, setStandingsDiv] = useState("SAT");
+  const [previewGame, setPreviewGame] = useState(null);
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
@@ -966,6 +971,7 @@ function HomePage({ setTab, setTeamDetail }) {
   }, []);
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      {previewGame && <GamePreviewModal {...previewGame} onClose={()=>setPreviewGame(null)} />}
       {/* HERO */}
       <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
         <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" fetchpriority="high" loading="eager" style={{display:"block"}} />
@@ -1026,7 +1032,7 @@ function HomePage({ setTab, setTeamDetail }) {
                 <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date="Apr 11, 2026" onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
+                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date="Apr 11, 2026" onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />)}
               </div>
             </div>
           </div>
@@ -1510,6 +1516,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers, 2=Tournaments
   const [wk,setWk] = useState(0);
   const [tournGames, setTournGames] = useState([]);
+  const [previewGame, setPreviewGame] = useState(null);
   const week = SCHED[wk];
   const games = week.fields.flatMap(f => f.games.map(g => ({...g,field:f.name})));
   const dateStr = week.label;
@@ -1531,6 +1538,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      {previewGame && <GamePreviewModal {...previewGame} onClose={()=>setPreviewGame(null)} />}
       <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second">
         <TabBar items={["Saturday Division","Boomers 60/70",`Tournaments${tournGames.length>0?" ("+Object.keys(byTournament).length+")":""}`]} active={league} onChange={handleLeagueChange} />
       </PageHero>
@@ -1551,7 +1559,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
         </div>
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {games.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} />)}
+            {games.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />)}
           </div>
           {byeTeams.length > 0 && (
             <div style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"3px solid #c8102e",borderRadius:8,padding:"12px 18px",marginTop:16}}>
@@ -1580,7 +1588,10 @@ function SchedulePage({ setTab, setTeamDetail }) {
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {BOOMERS_SCHED.map((g,i) => (
-              <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #c8102e",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
+              <div key={i} onClick={()=>setPreviewGame({away:g.away,home:g.home,time:g.time,date:g.date,field:g.field})}
+                style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #c8102e",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:"pointer",transition:"box-shadow .12s"}}
+                onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
+                onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)"}>
                 <div style={{display:"flex",alignItems:"center",padding:"14px 18px",gap:12,flexWrap:"wrap"}}>
                   <div style={{display:"flex",flexDirection:"column",gap:8,flex:"1 1 220px",minWidth:0}}>
                     {i===0 && <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#c8102e",marginBottom:-2}}>▶ NEXT GAME</div>}
@@ -1595,6 +1606,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
                     <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",lineHeight:1}}>{g.time}</div>
                     <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,color:"rgba(0,0,0,0.55)",fontWeight:700,marginTop:3}}>{g.date}</div>
                     <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.field}</div>
+                    <div style={{fontSize:10,fontWeight:700,color:"rgba(0,45,110,0.45)",marginTop:4}}>⚾ Preview →</div>
                   </div>
                 </div>
               </div>
@@ -6812,7 +6824,7 @@ export default function App() {
           .bs-order-btn{padding:5px 10px!important;font-size:13px!important;}
         }
       `}</style>
-      <div style={{position:"relative",zIndex:200,overflow:"hidden",width:"100%"}}><Ticker setTab={handleSetTab} /></div>
+      <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
       <div style={{position:"sticky",top:0,zIndex:300,width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="scores"    && <ScoresPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
