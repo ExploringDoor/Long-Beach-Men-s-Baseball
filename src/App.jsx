@@ -5560,16 +5560,32 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           const isFinal=saved?.status==="final";
           const inProg=saved&&!isFinal;
           return (
-            <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:`4px solid ${inProg?"#b45309":"#002d6e"}`,borderRadius:10,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-              <div style={{flex:1,minWidth:160}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <TLogo name={g.away} size={32}/><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase"}}>{g.away}</span>
-                  <span style={{color:"#bbb",fontWeight:600}}>@</span>
-                  <TLogo name={g.home} size={32}/><span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase"}}>{g.home}</span>
+            <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:`4px solid ${inProg?"#b45309":"#002d6e"}`,borderRadius:10,padding:"12px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                {/* Teams row with time/field on right */}
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    {/* Away */}
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                      <TLogo name={g.away} size={26}/>
+                      <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away}</span>
+                      <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",fontWeight:600}}>{(()=>{const t=ALL_TEAMS.find(t=>t.name===g.away);return t&&(t.w||t.l)?`${t.w}-${t.l}`:""})()}</span>
+                    </div>
+                    {/* Home */}
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <TLogo name={g.home} size={26}/>
+                      <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.home}</span>
+                      <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",fontWeight:600}}>{(()=>{const t=ALL_TEAMS.find(t=>t.name===g.home);return t&&(t.w||t.l)?`${t.w}-${t.l}`:""})()}</span>
+                    </div>
+                  </div>
+                  {/* Time / field */}
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:"#002d6e"}}>{g.time}</div>
+                    <div style={{fontSize:11,color:"#888",marginTop:2,maxWidth:110,textAlign:"right"}}>{g.field}</div>
+                    {inProg&&<div style={{fontSize:11,color:"#b45309",fontWeight:700,marginTop:3}}>⚡ {saved.inning} {saved.topBottom==="top"?"T":"B"} · {saved.score.away}–{saved.score.home}</div>}
+                    {isFinal&&<div style={{fontSize:11,color:"#16a34a",fontWeight:700,marginTop:3}}>✅ {saved.score.away}–{saved.score.home}</div>}
+                  </div>
                 </div>
-                <div style={{fontSize:12,color:"#888",marginTop:3}}>{g.time} · {g.field}</div>
-                {inProg&&<div style={{fontSize:12,color:"#b45309",fontWeight:700,marginTop:4}}>⚡ Inn {saved.inning} {saved.topBottom==="top"?"Top":"Bot"} · {saved.score.away}–{saved.score.home}</div>}
-                {isFinal&&<div style={{fontSize:12,color:"#16a34a",fontWeight:700,marginTop:4}}>✅ Final · {saved.score.away}–{saved.score.home}</div>}
               </div>
               <div>
                 {isFinal?(
@@ -5964,16 +5980,18 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
 
       {/* ── MODALS ── */}
       {modal==="loc"&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-          <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.88)",zIndex:9000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onTouchStart={e=>e.stopPropagation()}>
+          <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 40px",width:"100%",maxWidth:500}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:14,textAlign:"center"}}>{pendingOutcome} — Where was it hit?</div>
             {LOC_ROWS.map((row,ri)=>(
-              <div key={ri} style={{display:"flex",justifyContent:"center",gap:6,marginBottom:6}}>
-                {row.map((loc,ci)=>loc?<button key={ci} onClick={()=>onLocation(loc)} style={{padding:"10px 14px",background:"rgba(0,45,110,0.55)",border:"1px solid rgba(100,160,255,0.3)",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",minWidth:52}}>{loc}</button>:<div key={ci} style={{minWidth:52}}/>)}
+              <div key={ri} style={{display:"flex",justifyContent:"center",gap:8,marginBottom:8}}>
+                {row.map((loc,ci)=>loc
+                  ? <button key={ci} onTouchEnd={e=>{e.preventDefault();onLocation(loc);}} onClick={()=>onLocation(loc)} style={{padding:"14px 16px",background:"rgba(0,45,110,0.55)",border:"1px solid rgba(100,160,255,0.3)",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,cursor:"pointer",minWidth:60,touchAction:"manipulation"}}>{loc}</button>
+                  : <div key={ci} style={{minWidth:60}}/>)}
               </div>
             ))}
-            <button onClick={()=>onLocation(null)} style={{width:"100%",marginTop:8,padding:"10px",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:"#999",fontWeight:700,cursor:"pointer"}}>Skip</button>
-            <button onClick={()=>{setModal(null);setPO(null);setPL(null);}} style={{width:"100%",marginTop:6,padding:"8px",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:12}}>Cancel</button>
+            <button onTouchEnd={e=>{e.preventDefault();onLocation(null);}} onClick={()=>onLocation(null)} style={{width:"100%",marginTop:10,padding:"13px",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,color:"#999",fontWeight:700,cursor:"pointer",touchAction:"manipulation"}}>Skip</button>
+            <button onTouchEnd={e=>{e.preventDefault();setModal(null);setPO(null);setPL(null);}} onClick={()=>{setModal(null);setPO(null);setPL(null);}} style={{width:"100%",marginTop:6,padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:13,touchAction:"manipulation"}}>Cancel</button>
           </div>
         </div>
       )}
