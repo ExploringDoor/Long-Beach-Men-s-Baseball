@@ -3405,30 +3405,57 @@ function AdminPage({ onAlertChange }) {
   );
 
   // ── CAPTAIN SCREEN ──
-  if (screen === "captain") return (
-    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden"}}>
-      <div style={{background:"#2d6a4f",borderBottom:"3px solid #1b4332",padding:"16px clamp(12px,3vw,40px)"}}>
-        <div style={{maxWidth:900,margin:"0 auto",display:"flex",alignItems:"center",gap:14}}>
-          <div style={{fontSize:28}}>⚾</div>
-          <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>Captain Portal — {captainTeam}</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Submitting as: {captainTeam} captain</div>
-          </div>
-          <button type="button" onClick={()=>{setScreen("login");setCaptainTeam("");}} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.7)",fontSize:13,cursor:"pointer"}}>Log out</button>
-        </div>
-      </div>
-      <div style={{maxWidth:900,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
-          <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>⚾ Enter Box Score</div>
-          </div>
-          <div style={{padding:"20px"}}>
-            <BoxScoreEntry onClose={()=>setScreen("captain")} captainTeam={captainTeam} />
+  if (screen === "captain") {
+    const [captainView, setCaptainView] = React.useState("menu"); // "menu" | "live" | "boxscore"
+    if (captainView === "live") return <LiveScorerPage teamFilter={captainTeam} onExit={()=>setCaptainView("menu")} />;
+    return (
+      <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden"}}>
+        <div style={{background:"#2d6a4f",borderBottom:"3px solid #1b4332",padding:"16px clamp(12px,3vw,40px)"}}>
+          <div style={{maxWidth:900,margin:"0 auto",display:"flex",alignItems:"center",gap:14}}>
+            <div style={{fontSize:28}}>⚾</div>
+            <div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>Captain Portal — {captainTeam}</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Logged in as {captainTeam} captain</div>
+            </div>
+            <button type="button" onClick={()=>{setScreen("login");setCaptainTeam("");}} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.7)",fontSize:13,cursor:"pointer"}}>Log out</button>
           </div>
         </div>
+        <div style={{maxWidth:600,margin:"0 auto",padding:"32px clamp(12px,3vw,40px) 60px"}}>
+          {captainView === "menu" && (
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              <button onClick={()=>setCaptainView("live")}
+                style={{background:"#002d6e",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
+                <div style={{fontSize:40}}>⚡</div>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#FFD700",textTransform:"uppercase",marginBottom:4}}>Score Live</div>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)"}}>Score pitch-by-pitch in real time — shows only your team's games</div>
+                </div>
+              </button>
+              <button onClick={()=>setCaptainView("boxscore")}
+                style={{background:"#374151",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
+                <div style={{fontSize:40}}>📋</div>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase",marginBottom:4}}>Submit Box Score</div>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Enter final stats after the game</div>
+                </div>
+              </button>
+            </div>
+          )}
+          {captainView === "boxscore" && (
+            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+                <button onClick={()=>setCaptainView("menu")} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>📋 Submit Box Score</div>
+              </div>
+              <div style={{padding:"20px"}}>
+                <BoxScoreEntry onClose={()=>setCaptainView("menu")} captainTeam={captainTeam} />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   // ── ADMIN SCREEN ──
   return (
@@ -5334,7 +5361,7 @@ function Diamond({ bases }) {
   );
 }
 
-function LiveScorerPage() {
+function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [view, setView] = useState("pick");
   const [weekIdx, setWeekIdx] = useState(0);
   const [gs, setGs] = useState(null);
@@ -5367,7 +5394,9 @@ function LiveScorerPage() {
   const loadSaved = (a,h,d) => { try { return JSON.parse(localStorage.getItem(lsKey(a,h,d))); } catch { return null; } };
   const clearSaved = (a,h,d) => localStorage.removeItem(lsKey(a,h,d));
 
-  const weekGames = (SCHED[weekIdx]?.fields||[]).flatMap(f => f.games.map(g => ({...g,field:f.name,date:SCHED[weekIdx].label})));
+  const weekGames = (SCHED[weekIdx]?.fields||[])
+    .flatMap(f => f.games.map(g => ({...g,field:f.name,date:SCHED[weekIdx].label})))
+    .filter(g => !teamFilter || g.away===teamFilter || g.home===teamFilter);
 
   const getBatter = (s) => { const side=s.topBottom==="top"?"away":"home"; const lu=s.lineup[side]; return lu.length?lu[s.batterIdx[side]%lu.length]:"—"; };
   const getOnDeck = (s) => { const side=s.topBottom==="top"?"away":"home"; const lu=s.lineup[side]; return lu.length?lu[(s.batterIdx[side]+1)%lu.length]:"—"; };
@@ -5517,7 +5546,9 @@ function LiveScorerPage() {
   // ── PICK SCREEN ──
   if (view==="pick") return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="Live Scoring" title="Score a Game" subtitle="Select a game to start or resume scoring"/>
+      <PageHero label="Live Scoring" title="Score a Game" subtitle={teamFilter ? `${teamFilter} games · Select a game to start or resume` : "Select a game to start or resume scoring"}>
+        {onExit && <button onClick={onExit} style={{marginTop:12,padding:"7px 16px",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:8,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back to Portal</button>}
+      </PageHero>
       <div style={{maxWidth:680,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
         <div style={{display:"flex",gap:8,marginBottom:18,overflowX:"auto",paddingBottom:4}}>
           {SCHED.map((w,i)=>(
