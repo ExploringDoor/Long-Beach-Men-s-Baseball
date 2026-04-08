@@ -631,8 +631,154 @@ function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick }) {
   );
 }
 
+/* ─── GAME PREVIEW MODAL ─────────────────────────────────────────────────── */
+function GamePreviewModal({ away, home, time, field, date, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [awayRec, setAwayRec] = useState(null);
+  const [homeRec, setHomeRec] = useState(null);
+  const [h2h, setH2H] = useState(null);
+  const [playerModal, setPlayerModal] = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
+        const isBoomers = BOOMERS_TEAMS.has(away) || BOOMERS_TEAMS.has(home);
+        const season = isBoomers
+          ? allSeasons.find(x => x.name.includes("Boomers"))
+          : allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+        if (!season) { setLoading(false); return; }
+        const games = await sbFetch(`games?select=away_team,home_team,away_score,home_score&season_id=eq.${season.id}&away_score=not.is.null&limit=200`);
+        const rec = {};
+        [away, home].forEach(t => { rec[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
+        let awayW=0, homeW=0, ties=0;
+        (games||[]).forEach(g => {
+          const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
+          if(rec[a]){rec[a].rs+=as;rec[a].ra+=hs;rec[a].gp++;if(as>hs)rec[a].w++;else if(hs>as)rec[a].l++;else rec[a].t++;}
+          if(rec[h]){rec[h].rs+=hs;rec[h].ra+=as;rec[h].gp++;if(hs>as)rec[h].w++;else if(as>hs)rec[h].l++;else rec[h].t++;}
+          const bothMatch = new Set([a,h]);
+          if(bothMatch.has(away)&&bothMatch.has(home)){
+            const awayScore=a===away?as:hs, homeScore=a===home?as:hs;
+            if(awayScore>homeScore)awayW++;else if(homeScore>awayScore)homeW++;else ties++;
+          }
+        });
+        setAwayRec(rec[away]); setHomeRec(rec[home]); setH2H({awayW,homeW,ties});
+      } catch(e) {}
+      setLoading(false);
+    }
+    load();
+  }, [away, home]);
+
+  const fmtRec = (r) => r ? `${r.w}-${r.l}${r.t>0?`-${r.t}`:""}` : "0-0";
+  const fmtPct = (r) => {
+    if(!r||r.gp===0) return ".---";
+    return Number((r.w*2+r.t)/((r.gp||1)*2)).toFixed(3).replace(/^0/,"");
+  };
+  const awayRoster = TEAM_ROSTERS[away]||[];
+  const homeRoster = TEAM_ROSTERS[home]||[];
+  const h2hTotal = h2h ? h2h.awayW+h2h.homeW+h2h.ties : 0;
+  const h2hLeader = h2h && h2hTotal>0 ? (h2h.awayW>h2h.homeW?away:h2h.homeW>h2h.awayW?home:"Even") : null;
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+      {playerModal && <PlayerStatsModal playerName={playerModal} onClose={()=>setPlayerModal(null)} />}
+      <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:680,maxHeight:"90vh",overflow:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.5)"}} onClick={e=>e.stopPropagation()}>
+        {/* Header */}
+        <div style={{background:"#001a3e",padding:"16px 20px",borderRadius:"14px 14px 0 0",display:"flex",alignItems:"flex-start",justifyContent:"space-between",position:"sticky",top:0,zIndex:1}}>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#FFD700",marginBottom:6}}>⚾ Game Preview</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <TLogo name={away} size={36} />
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",textTransform:"uppercase",lineHeight:1}}>{away}</span>
+              <span style={{color:"rgba(255,255,255,0.35)",fontSize:13,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:400}}>vs</span>
+              <TLogo name={home} size={36} />
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",textTransform:"uppercase",lineHeight:1}}>{home}</span>
+            </div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:5,letterSpacing:".03em"}}>
+              {[time, field, date].filter(Boolean).join(" · ")}
+            </div>
+          </div>
+          <button onClick={onClose} style={{background:"rgba(255,255,255,0.12)",border:"none",color:"#fff",borderRadius:6,width:30,height:30,cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:12}}>×</button>
+        </div>
+
+        {loading ? (
+          <div style={{padding:48,textAlign:"center",color:"#999",fontSize:14}}>Loading preview…</div>
+        ) : (
+          <div style={{padding:"16px 20px 24px"}}>
+            {/* Records row */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",background:"#f8fafc",border:"1px solid rgba(0,0,0,0.07)",borderRadius:10,padding:"16px 12px",marginBottom:16}}>
+              {/* Away */}
+              <div style={{textAlign:"center"}}>
+                <TLogo name={away} size={56} />
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,textTransform:"uppercase",color:"#111",marginTop:4,lineHeight:1}}>{away}</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",lineHeight:1,marginTop:4}}>{fmtRec(awayRec)}</div>
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",fontWeight:600,marginTop:2}}>{fmtPct(awayRec)} PCT</div>
+                {awayRec&&awayRec.gp>0&&<div style={{fontSize:10,color:"rgba(0,0,0,0.35)",marginTop:2}}>{awayRec.rs} RS · {awayRec.ra} RA · {awayRec.rs-awayRec.ra>=0?"+":""}{awayRec.rs-awayRec.ra} DIFF</div>}
+              </div>
+              {/* H2H */}
+              <div style={{textAlign:"center",padding:"0 10px",borderLeft:"1px solid rgba(0,0,0,0.07)",borderRight:"1px solid rgba(0,0,0,0.07)"}}>
+                <div style={{fontSize:9,fontWeight:700,letterSpacing:".12em",color:"rgba(0,0,0,0.35)",textTransform:"uppercase",marginBottom:6}}>Head to Head</div>
+                {h2hTotal>0 ? (
+                  <>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#111",lineHeight:1}}>{h2h.awayW}–{h2h.homeW}{h2h.ties>0?`–${h2h.ties}`:""}</div>
+                    <div style={{fontSize:10,color:"rgba(0,0,0,0.4)",marginTop:3,lineHeight:1.3,maxWidth:80}}>
+                      {h2hLeader==="Even" ? "Series even" : `${h2hLeader} leads`}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",fontStyle:"italic",lineHeight:1.3}}>First<br/>meeting</div>
+                )}
+              </div>
+              {/* Home */}
+              <div style={{textAlign:"center"}}>
+                <TLogo name={home} size={56} />
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,textTransform:"uppercase",color:"#111",marginTop:4,lineHeight:1}}>{home}</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",lineHeight:1,marginTop:4}}>{fmtRec(homeRec)}</div>
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",fontWeight:600,marginTop:2}}>{fmtPct(homeRec)} PCT</div>
+                {homeRec&&homeRec.gp>0&&<div style={{fontSize:10,color:"rgba(0,0,0,0.35)",marginTop:2}}>{homeRec.rs} RS · {homeRec.ra} RA · {homeRec.rs-homeRec.ra>=0?"+":""}{homeRec.rs-homeRec.ra} DIFF</div>}
+              </div>
+            </div>
+
+            {/* Rosters */}
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(0,0,0,0.35)",marginBottom:10}}>Rosters — click a player for stats</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              {[[away,awayRoster],[home,homeRoster]].map(([teamName,roster])=>(
+                <div key={teamName} style={{background:"#f8fafc",border:"1px solid rgba(0,0,0,0.07)",borderRadius:10,overflow:"hidden"}}>
+                  <div style={{background:"#002d6e",padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+                    <TLogo name={teamName} size={22} />
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,textTransform:"uppercase",color:"#fff",letterSpacing:".06em"}}>{teamName}</span>
+                  </div>
+                  {roster.length===0 ? (
+                    <div style={{padding:"12px 14px",fontSize:12,color:"rgba(0,0,0,0.35)",fontStyle:"italic"}}>Roster not listed</div>
+                  ) : (
+                    <div>
+                      {roster.map((p,i)=>(
+                        <div key={i} onClick={()=>setPlayerModal(p.name)}
+                          style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",borderBottom:i<roster.length-1?"1px solid rgba(0,0,0,0.05)":"none",cursor:"pointer",transition:"background .1s"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="#e8f0ff"}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          {p.number
+                            ? <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,color:"rgba(0,0,0,0.3)",width:22,textAlign:"right",flexShrink:0}}>#{p.number}</span>
+                            : <span style={{width:22,flexShrink:0}}/>}
+                          <span style={{fontSize:13,fontWeight:600,color:"#002d6e",flex:1}}>{p.name}</span>
+                          <span style={{fontSize:10,color:"rgba(0,45,110,0.4)"}}>▸</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── TICKER ─────────────────────────────────────────────────────────────── */
 function Ticker({ setTab }) {
+  const [preview, setPreview] = useState(null);
   // Find the current or next upcoming week
   const today = new Date(); today.setHours(0,0,0,0);
   const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
@@ -645,32 +791,38 @@ function Ticker({ setTab }) {
   const games = boomerGame ? [...satGames, boomerGame] : satGames;
 
   return (
-    <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
-      <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 14px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
-        <span style={{fontSize:18,lineHeight:1}}>⚾</span>
-        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>LBDC</span>
-        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
-      </div>
-      <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
-        {games.map((g,i) => (
-          <div key={i} style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"5px 18px",borderRight:"1px solid rgba(255,255,255,0.1)",flexShrink:0,gap:3}}>
-            <div style={{fontSize:10,fontWeight:700,letterSpacing:".07em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap"}}>
-              {g.time}{g.status==="PPD" ? " · PPD" : ""}
+    <>
+      {preview && <GamePreviewModal {...preview} onClose={()=>setPreview(null)} />}
+      <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
+        <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 14px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
+          <span style={{fontSize:18,lineHeight:1}}>⚾</span>
+          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>LBDC</span>
+          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
+        </div>
+        <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
+          {games.map((g,i) => (
+            <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
+              style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"5px 18px",borderRight:"1px solid rgba(255,255,255,0.1)",flexShrink:0,gap:3,cursor:"pointer",transition:"background .12s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:".07em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap"}}>
+                {g.time}{g.status==="PPD" ? " · PPD" : ""}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}>
+                <TLogo name={g.away} size={20} />
+                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>{g.away}</span>
+                <span style={{color:"rgba(255,255,255,0.35)",fontWeight:400,fontSize:13,fontFamily:"'Barlow Condensed',sans-serif"}}>vs</span>
+                <TLogo name={g.home} size={20} />
+                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>{g.home}</span>
+              </div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}>
-              <TLogo name={g.away} size={20} />
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>{g.away}</span>
-              <span style={{color:"rgba(255,255,255,0.35)",fontWeight:400,fontSize:13,fontFamily:"'Barlow Condensed',sans-serif"}}>vs</span>
-              <TLogo name={g.home} size={20} />
-              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",letterSpacing:".02em",textTransform:"uppercase",lineHeight:1}}>{g.home}</span>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",padding:"0 14px",flexShrink:0,borderLeft:"1px solid rgba(255,255,255,0.1)",cursor:"pointer"}} onClick={() => setTab("schedule")}>
+          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#FFD700",whiteSpace:"nowrap"}}>Schedule »</span>
+        </div>
       </div>
-      <div style={{display:"flex",alignItems:"center",padding:"0 14px",flexShrink:0,borderLeft:"1px solid rgba(255,255,255,0.1)",cursor:"pointer"}} onClick={() => setTab("schedule")}>
-        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#FFD700",whiteSpace:"nowrap"}}>Schedule »</span>
-      </div>
-    </div>
+    </>
   );
 }
 
