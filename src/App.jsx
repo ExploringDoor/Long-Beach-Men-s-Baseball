@@ -11,8 +11,8 @@ const TEAM_LOGOS = {
   "Brooklyn": "/brooklyn.png",
   "Generals": "/generals.png",
   "Black Sox": "/blacksox.png",
-  "Eddie Murray Mashers '56":   "/mashers56.png",
-  "Greg Maddux Magicians '66":  "/magicians66.png",
+  "Eddie Murray Mashers '56":   "/20.png",
+  "Greg Maddux Magicians '66":  "/21.png",
 };
 
 const BOOMERS_TEAMS = new Set(["Eddie Murray Mashers '56", "Greg Maddux Magicians '66"]);
