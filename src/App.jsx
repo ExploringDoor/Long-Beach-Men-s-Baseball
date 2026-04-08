@@ -4991,22 +4991,41 @@ function StatsPage() {
   const loadPlayer = (playerName, team) => {
     setSelectedPlayer({ playerName, team });
     setPlayerLoading(true);
-    sbFetch(`seasons?select=id,name&limit=20`)
-      .then(allSeasons => {
-        const found = allSeasons.find(s => s.name === season);
-        if (!found) return [];
-        const seasonId = found.id;
-        return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score&season_id=eq.${seasonId}&limit=200`)
-          .then(gs => {
-            if (!gs.length) return [];
-            const gameMap = {};
-            gs.forEach(g => gameMap[g.id] = g);
-            const ids = gs.map(g => g.id).join(",");
-            return sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,game_id&player_name=eq.${encodeURIComponent(playerName)}&team=eq.${encodeURIComponent(team)}&game_id=in.(${ids})&limit=200`)
-              .then(lines => lines.map(l => ({ ...l, games: gameMap[l.game_id] || null }))
-                .sort((a,b) => (a.games?.game_date||"").localeCompare(b.games?.game_date||"")));
+
+    const isAll = season === ALL_SEASONS_KEY;
+
+    const fetchGameLog = isAll
+      ? // All seasons: fetch all batting lines for this player, then join game info
+        sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,game_id&player_name=eq.${encodeURIComponent(playerName)}&team=eq.${encodeURIComponent(team)}&limit=500`)
+          .then(lines => {
+            if (!lines.length) return [];
+            const ids = [...new Set(lines.map(l => l.game_id))].join(",");
+            return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score&id=in.(${ids})&limit=500`)
+              .then(gs => {
+                const gameMap = {};
+                gs.forEach(g => gameMap[g.id] = g);
+                return lines.map(l => ({ ...l, games: gameMap[l.game_id] || null }))
+                  .sort((a,b) => (a.games?.game_date||"").localeCompare(b.games?.game_date||""));
+              });
+          })
+      : // Single season: filter by season first
+        sbFetch(`seasons?select=id,name&limit=100`)
+          .then(allSeasons => {
+            const found = allSeasons.find(s => s.name === season);
+            if (!found) return [];
+            return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score&season_id=eq.${found.id}&limit=200`)
+              .then(gs => {
+                if (!gs.length) return [];
+                const gameMap = {};
+                gs.forEach(g => gameMap[g.id] = g);
+                const ids = gs.map(g => g.id).join(",");
+                return sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,game_id&player_name=eq.${encodeURIComponent(playerName)}&team=eq.${encodeURIComponent(team)}&game_id=in.(${ids})&limit=200`)
+                  .then(lines => lines.map(l => ({ ...l, games: gameMap[l.game_id] || null }))
+                    .sort((a,b) => (a.games?.game_date||"").localeCompare(b.games?.game_date||"")));
+              });
           });
-      })
+
+    fetchGameLog
       .then(d => { setPlayerGames(d); setPlayerLoading(false); })
       .catch(() => setPlayerLoading(false));
   };
@@ -5114,7 +5133,7 @@ function StatsPage() {
               <div style={{background:"#002d6e",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
                 <div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",textTransform:"uppercase"}}>{selectedPlayer.playerName}</div>
-                  <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{selectedPlayer.team} · {season}</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{selectedPlayer.team} · {season === ALL_SEASONS_KEY ? "All Seasons" : season}</div>
                 </div>
                 <button onClick={() => setSelectedPlayer(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16}}>✕</button>
               </div>
