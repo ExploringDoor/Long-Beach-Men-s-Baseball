@@ -1389,9 +1389,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
                     {i===0 && <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#c8102e",marginBottom:-2}}>▶ NEXT GAME</div>}
                     {[g.away, g.home].map((t,j) => (
                       <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{width:32,height:32,borderRadius:6,background:"rgba(0,45,110,0.1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          <span style={{fontSize:14}}>⚾</span>
-                        </div>
+                        <TLogo name={t} size={36} />
                         <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",textTransform:"uppercase",lineHeight:1}}>{t}</span>
                       </div>
                     ))}
