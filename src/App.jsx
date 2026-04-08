@@ -707,7 +707,7 @@ function Navbar({ tab, setTab }) {
               </li>
             ))}
             {/* More dropdown */}
-            <li style={{position:"relative"}}>
+            <li style={{position:"relative"}} onMouseEnter={()=>setMoreOpen(true)} onMouseLeave={()=>setMoreOpen(false)}>
               <button onClick={e=>{e.stopPropagation();setMoreOpen(o=>!o);}} className="nav-btn" style={{
                 fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,
                 letterSpacing:".06em",textTransform:"uppercase",
@@ -1439,17 +1439,31 @@ function SchedulePage({ setTab, setTeamDetail }) {
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           {Object.keys(byTournament).length === 0 ? (
             <div style={{textAlign:"center",padding:"60px 20px",color:"#aaa",fontSize:16}}>No tournaments scheduled yet.</div>
-          ) : Object.entries(byTournament).map(([tname, tgames]) => (
+          ) : Object.entries(byTournament).map(([tname, allTGames]) => {
+            const visibleGames = allTGames.filter(g=>g.notes!=="__placeholder__");
+            const isPlaceholder = visibleGames.length === 0;
+            const locationField = allTGames.find(g=>g.field)?.field;
+            return (
             <div key={tname} style={{marginBottom:32}}>
-              <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
                 <div>
                   <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#b45309",marginBottom:4}}>Tournament</div>
                   <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>🏆 {tname}</h2>
+                  {locationField && <div style={{fontSize:13,color:"#888",marginTop:4}}>📍 {locationField}</div>}
                 </div>
-                <span style={{fontSize:13,color:"#888"}}>{tgames.length} game{tgames.length!==1?"s":""}</span>
+                <span style={{fontSize:13,color:"#888"}}>{isPlaceholder ? "Schedule coming soon" : `${visibleGames.length} game${visibleGames.length!==1?"s":""}`}</span>
               </div>
+              {isPlaceholder ? (
+                <div style={{background:"#fff8e1",border:"1px solid #f59e0b",borderRadius:12,padding:"20px 24px",display:"flex",alignItems:"center",gap:12}}>
+                  <span style={{fontSize:28}}>⏳</span>
+                  <div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#92400e"}}>Schedule Coming Soon</div>
+                    <div style={{fontSize:13,color:"#78350f",marginTop:2}}>Game schedule will be posted here when released. Check back soon!</div>
+                  </div>
+                </div>
+              ) : (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {tgames.map((g,i) => (
+                {visibleGames.map((g,i) => (
                   <div key={g.id} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"4px solid #b45309",borderRadius:12,padding:"14px 20px",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
                     <div style={{flex:1,minWidth:180}}>
                       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>
@@ -1467,8 +1481,10 @@ function SchedulePage({ setTab, setTeamDetail }) {
                   </div>
                 ))}
               </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -3004,27 +3020,44 @@ function TournamentManagerPage({ onBack }) {
 
   const tournamentNames = [...new Set([...tournMeta.map(m=>m.name), ...games.map(g => g.tournament_name)])];
 
-  const createTournament = () => {
+  const createTournament = async () => {
     const name = newTournForm.name.trim();
+    const location = newTournForm.location.trim();
     if (!name) return;
-    const updated = [...tournMeta.filter(m=>m.name!==name), {name, location: newTournForm.location.trim()}];
-    saveTournMeta(updated);
-    setTournMeta(updated);
-    setNewTournForm({name:"", location:""});
-    setShowNewTourn(false);
+    setSaving(true);
+    try {
+      await sbPost("tournament_games", {
+        tournament_name: name, game_date: null, game_time: null,
+        field: location || null, away_team: "TBD", home_team: "TBD", notes: "__placeholder__",
+      });
+      const updated = [...tournMeta.filter(m=>m.name!==name), {name, location}];
+      saveTournMeta(updated); setTournMeta(updated);
+      setNewTournForm({name:"", location:""});
+      setShowNewTourn(false);
+      load();
+    } catch(e) { alert("Save failed: " + e.message); }
+    setSaving(false);
   };
 
-  const createAndAddGame = () => {
+  const createAndAddGame = async () => {
     const name = newTournForm.name.trim();
+    const location = newTournForm.location.trim();
     if (!name) return;
-    const updated = [...tournMeta.filter(m=>m.name!==name), {name, location: newTournForm.location.trim()}];
-    saveTournMeta(updated);
-    setTournMeta(updated);
-    const meta = updated.find(m=>m.name===name);
-    setAddForm(f=>({...f, tournament_name:name, field: meta?.location || ""}));
-    setNewTournForm({name:"", location:""});
-    setShowNewTourn(false);
-    setShowAdd(true);
+    setSaving(true);
+    try {
+      await sbPost("tournament_games", {
+        tournament_name: name, game_date: null, game_time: null,
+        field: location || null, away_team: "TBD", home_team: "TBD", notes: "__placeholder__",
+      });
+      const updated = [...tournMeta.filter(m=>m.name!==name), {name, location}];
+      saveTournMeta(updated); setTournMeta(updated);
+      setAddForm(f=>({...f, tournament_name:name, field: location}));
+      setNewTournForm({name:"", location:""});
+      setShowNewTourn(false);
+      setShowAdd(true);
+      load();
+    } catch(e) { alert("Save failed: " + e.message); }
+    setSaving(false);
   };
 
   const addGame = async () => {
@@ -3040,6 +3073,9 @@ function TournamentManagerPage({ onBack }) {
         home_team: addForm.home_team,
         notes: addForm.notes || null,
       });
+      // Remove placeholder row now that a real game exists
+      const pids = placeholderIds(addForm.tournament_name);
+      for (const pid of pids) { try { await sbDelete(`tournament_games?id=eq.${pid}`); } catch(e) {} }
       setAddForm(f=>({...f, game_date:"", game_time:"9:00 AM", away_team:"", home_team:"", notes:""}));
       setShowAdd(false);
       load();
@@ -3075,6 +3111,9 @@ function TournamentManagerPage({ onBack }) {
 
   const byTournament = {};
   games.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
+  // Real games only (exclude __placeholder__ rows from display/counts)
+  const realGames = (tname) => (byTournament[tname]||[]).filter(g=>g.notes!=="__placeholder__");
+  const placeholderIds = (tname) => (byTournament[tname]||[]).filter(g=>g.notes==="__placeholder__").map(g=>g.id);
 
   const inputStyle = {padding:"7px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
 
@@ -3176,7 +3215,7 @@ function TournamentManagerPage({ onBack }) {
 
         {/* Games grouped by tournament — includes meta-only tournaments (no games yet) */}
         {tournamentNames.map(tname => {
-          const tgames = byTournament[tname] || [];
+          const tgamesReal = realGames(tname);
           const meta = tournMeta.find(m=>m.name===tname);
           return (
           <div key={tname} style={{border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,overflow:"hidden"}}>
@@ -3185,13 +3224,29 @@ function TournamentManagerPage({ onBack }) {
                 <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase"}}>🏆 {tname}</span>
                 {meta?.location && <span style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginLeft:10}}>📍 {meta.location}</span>}
               </div>
-              <span style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{tgames.length > 0 ? `${tgames.length} game${tgames.length!==1?"s":""}` : "No games yet"}</span>
+              <span style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{tgamesReal.length > 0 ? `${tgamesReal.length} game${tgamesReal.length!==1?"s":""}` : "No games yet"}</span>
               <button type="button" onClick={()=>{setAddForm(f=>({...f,tournament_name:tname,field:meta?.location||""}));setShowAdd(true);setShowNewTourn(false);}}
                 style={{padding:"4px 10px",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:5,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 + Add Game
               </button>
+              <button type="button" onClick={async ()=>{
+                  const msg = tgames.length > 0
+                    ? `Delete "${tname}" and all ${tgames.length} game${tgames.length!==1?"s":""}?`
+                    : `Delete "${tname}"?`;
+                  if (!window.confirm(msg)) return;
+                  try {
+                    if (tgames.length > 0) await sbDelete(`tournament_games?tournament_name=eq.${encodeURIComponent(tname)}`);
+                    const updated = tournMeta.filter(m=>m.name!==tname);
+                    saveTournMeta(updated);
+                    setTournMeta(updated);
+                    setGames(prev => prev.filter(g=>g.tournament_name!==tname));
+                  } catch(e) { alert("Delete failed: "+e.message); }
+                }}
+                style={{padding:"4px 10px",background:"rgba(220,38,38,0.25)",border:"1px solid rgba(220,38,38,0.4)",borderRadius:5,color:"#fca5a5",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                🗑 Delete
+              </button>
             </div>
-            {tgames.map(g => (
+            {tgamesReal.map(g => (
               <div key={g.id}>
                 {editId === g.id ? (
                   <div style={{padding:"14px 18px",background:"#eff6ff",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
@@ -3237,8 +3292,11 @@ function TournamentManagerPage({ onBack }) {
                 )}
               </div>
             ))}
-            {tgames.length === 0 && (
-              <div style={{padding:"16px 18px",color:"#aaa",fontSize:13,fontStyle:"italic"}}>No games added yet — schedule releases soon.</div>
+            {tgamesReal.length === 0 && (
+              <div style={{padding:"14px 18px",color:"#999",fontSize:13,display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:16}}>⏳</span>
+                <span>Game schedule not yet released — showing on public schedule as "Coming Soon".</span>
+              </div>
             )}
           </div>
           );
