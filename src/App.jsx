@@ -153,6 +153,17 @@ const TEAM_ROSTERS = {
   ],
 };
 
+// Runtime-editable rosters (localStorage overrides TEAM_ROSTERS)
+function getStoredRosters() {
+  try { return JSON.parse(localStorage.getItem("lbdc_team_rosters") || "null") || null; } catch(e) { return null; }
+}
+function saveStoredRosters(rosters) {
+  try { localStorage.setItem("lbdc_team_rosters", JSON.stringify(rosters)); } catch(e) {}
+}
+function getEffectiveRosters() {
+  return getStoredRosters() || JSON.parse(JSON.stringify(TEAM_ROSTERS));
+}
+
 const TEAM_CAL_LINKS = {
   "Tribe":    "https://calendar.google.com/calendar/r?cid=c595f97c1b49bf9edc22855592ee79225543282bec41c68c18715cb57dd6a109%40group.calendar.google.com",
   "Dodgers":  "https://calendar.google.com/calendar/r?cid=7da402a2fc41e88b5f82a28cc8dc1f1c3424a421e6a8b7227406354079352b17%40group.calendar.google.com",
@@ -837,7 +848,7 @@ function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
-  const moreLinks = [["history","History"],["rules","Rules"],["signup","📋 Player Sign Up"]];
+  const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","🎨 Game Graphics"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
   useEffect(() => {
@@ -1110,7 +1121,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:"#f8f9fb"}}>
-              {["Player","AB","R","H","RBI","BB","SO"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
+              {["Player","AB","R","H","HR","RBI","BB","SO"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
             </tr></thead>
             <tbody>
               {rows.map((r,i)=>(
@@ -1118,15 +1129,16 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
                   <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>
                     <button type="button" onClick={()=>setSelectedPlayer(r.player_name)} style={{background:"none",border:"none",padding:0,fontWeight:600,cursor:"pointer",color:"#002d6e",textDecoration:"underline",textDecorationStyle:"dotted",fontSize:"inherit",fontFamily:"inherit",whiteSpace:"nowrap"}}>{r.player_name}</button>
                   </td>
-                  {[r.ab,r.r,r.h,r.rbi,r.bb,r.k].map((v,j)=>(
+                  {[r.ab,r.r,r.h,r.hr||0,r.rbi,r.bb,r.k].map((v,j)=>(
                     <td key={j} style={{padding:"5px 8px",textAlign:"center",
-                      fontWeight:v>0&&[1,2,3].includes(j)?700:400}}>{v||0}</td>
+                      fontWeight:v>0&&[1,2,4].includes(j)?700:400,
+                      color:j===3&&v>0?"#c8102e":"inherit"}}>{v||0}</td>
                   ))}
                 </tr>
               ))}
               <tr style={{borderTop:"2px solid rgba(0,0,0,0.1)",background:"#f8f9fb",fontWeight:700}}>
                 <td style={{padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:11}}>Totals</td>
-                {["ab","r","h","rbi","bb","k"].map(f=>(
+                {["ab","r","h","hr","rbi","bb","k"].map(f=>(
                   <td key={f} style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{rows.reduce((s,r)=>s+(r[f]||0),0)}</td>
                 ))}
               </tr>
@@ -1224,6 +1236,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
         </div>
         <div style={{padding:"14px 18px"}}>
           {awayBat.length > 0 ? <>
+            <POTGBadge batting={batting} pitching={pitching} awayTeam={game.away_team} homeTeam={game.home_team} />
             <BatTable rows={awayBat} team={game.away_team} />
             <BatTable rows={homeBat} team={game.home_team} />
             <PitTable rows={awayPit} team={game.away_team} />
@@ -1233,6 +1246,46 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
       </div>
     </div>
     </>
+  );
+}
+
+/* ─── PLAYER OF THE GAME ─────────────────────────────────────────────────── */
+function calcPOTG(batting, pitching, awayTeam, homeTeam) {
+  // Score each batter: H×3 + HR×4 + RBI×2 + R×1 + BB×0.5 - K×0.3
+  const batScores = batting
+    .filter(b => !/^totals?$/i.test(b.player_name))
+    .map(b => {
+      const score = (b.h||0)*3 + (b.hr||0)*4 + (b.rbi||0)*2 + (b.r||0)*1 + (b.bb||0)*0.5 - (b.k||0)*0.3;
+      return { name: b.player_name, team: b.team, score, h: b.h||0, hr: b.hr||0, rbi: b.rbi||0, r: b.r||0, bb: b.bb||0, k: b.k||0, type: "batting" };
+    });
+  // Score each pitcher: K×1 + (IP×0.5) + W×3 - ER×1.5
+  const pitScores = pitching
+    .filter(p => !/^totals?$/i.test(p.player_name))
+    .map(p => {
+      const ip = parseFloat(p.ip)||0;
+      const score = (p.k||0)*1 + ip*0.5 + (p.decision==="W"?3:0) - (p.er||0)*1.5;
+      return { name: p.player_name, team: p.team, score, ip: p.ip, k: p.k||0, er: p.er||0, decision: p.decision, type: "pitching" };
+    });
+  const all = [...batScores, ...pitScores].sort((a,b) => b.score - a.score);
+  return all[0] || null;
+}
+
+function POTGBadge({ batting, pitching, awayTeam, homeTeam }) {
+  const potg = calcPOTG(batting, pitching, awayTeam, homeTeam);
+  if (!potg || potg.score < 1) return null;
+  const isBat = potg.type === "batting";
+  const stats = isBat
+    ? [potg.h&&`${potg.h}H`, potg.hr&&`${potg.hr} HR`, potg.rbi&&`${potg.rbi} RBI`, potg.r&&`${potg.r} R`].filter(Boolean).join(", ")
+    : [`${potg.ip} IP`, potg.k&&`${potg.k}K`, potg.decision==="W"&&"W"].filter(Boolean).join(", ");
+  return (
+    <div style={{background:"linear-gradient(135deg,#FFD700 0%,#f59e0b 100%)",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:12,boxShadow:"0 2px 8px rgba(245,158,11,0.3)"}}>
+      <span style={{fontSize:28,flexShrink:0}}>⭐</span>
+      <div>
+        <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",color:"rgba(0,0,0,0.5)",marginBottom:2}}>Player of the Game</div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",lineHeight:1}}>{potg.name}</div>
+        <div style={{fontSize:12,color:"rgba(0,0,0,0.6)",marginTop:2}}>{potg.team} · {isBat?"Batting":"Pitching"}{stats?` · ${stats}`:""}</div>
+      </div>
+    </div>
   );
 }
 
@@ -1912,6 +1965,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
 /* ─── PLAYER STATS MODAL ──────────────────────────────────────────────── */
 function PlayerStatsModal({ playerName, onClose }) {
   const [seasons, setSeasons] = useState(null); // array of {seasonName, gp, ab, r, h, d, t, hr, rbi, bb, k, hbp, sf, sb}
+  const [pitSeasons, setPitSeasons] = useState(null); // array of pitching seasons
 
   useEffect(() => {
     async function load() {
@@ -1947,7 +2001,40 @@ function PlayerStatsModal({ playerName, onClose }) {
         }));
 
         setSeasons(result);
-      } catch(e) { console.error(e); setSeasons([]); }
+
+        // Also fetch pitching lines
+        try {
+          const pitEnc = encodeURIComponent(`*${playerName}*`);
+          const pitLines = await sbFetch(`pitching_lines?player_name=ilike.${pitEnc}&select=game_id,ip,h,r,er,bb,k,hr,decision&order=game_id.asc&limit=500`);
+          if (Array.isArray(pitLines) && pitLines.length > 0) {
+            const pitGameIds = [...new Set(pitLines.map(l => l.game_id))];
+            const pitGames = await sbFetch(`games?id=in.(${pitGameIds.join(",")})&select=id,season_id&order=id.asc`);
+            const pitSeasonIds = [...new Set(pitGames.map(g => g.season_id))];
+            const pitSeasonList = await sbFetch(`seasons?id=in.(${pitSeasonIds.join(",")})&select=id,name&order=id.asc`);
+            const pitSeasonNameMap = Object.fromEntries(pitSeasonList.map(s=>[s.id,s.name]));
+            const pitGameSeasonMap = Object.fromEntries(pitGames.map(g=>[g.id,g.season_id]));
+            const pitBySeason = {};
+            for (const l of pitLines) {
+              const sid = pitGameSeasonMap[l.game_id];
+              if (!sid) continue;
+              if (!pitBySeason[sid]) pitBySeason[sid] = {name:pitSeasonNameMap[sid]||"?",app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,hr:0,w:0,l:0,sv:0};
+              const s = pitBySeason[sid];
+              s.app++; s.ip+=parseFloat(l.ip)||0; s.h+=l.h||0; s.r+=l.r||0; s.er+=l.er||0;
+              s.bb+=l.bb||0; s.k+=l.k||0; s.hr+=l.hr||0;
+              if(l.decision==="W") s.w++; if(l.decision==="L") s.l++; if(l.decision==="S") s.sv++;
+            }
+            const pitResult = Object.entries(pitBySeason).map(([sid,s])=>({
+              ...s, sid,
+              ipDisplay:`${Math.floor(s.ip)}.${Math.round((s.ip%1)*3)}`,
+              era: s.ip>0?((s.er/s.ip)*9).toFixed(2):"---",
+              whip: s.ip>0?((s.h+s.bb)/s.ip).toFixed(2):"---",
+            }));
+            setPitSeasons(pitResult);
+          } else {
+            setPitSeasons([]);
+          }
+        } catch(e) { setPitSeasons([]); }
+      } catch(e) { console.error(e); setSeasons([]); setPitSeasons([]); }
     }
     load();
   }, [playerName]);
@@ -2041,6 +2128,68 @@ function PlayerStatsModal({ playerName, onClose }) {
                 </tbody>
               </table>
             </div>
+            {pitSeasons && pitSeasons.length > 0 && (() => {
+              const pitCareer = pitSeasons.reduce((a,s)=>({
+                app:a.app+s.app, ip:a.ip+s.ip, h:a.h+s.h, r:a.r+s.r, er:a.er+s.er,
+                bb:a.bb+s.bb, k:a.k+s.k, hr:a.hr+s.hr, w:a.w+s.w, l:a.l+s.l, sv:a.sv+s.sv,
+              }),{app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,hr:0,w:0,l:0,sv:0});
+              const fmtIp = ip=>`${Math.floor(ip)}.${Math.round((ip%1)*3)}`;
+              const fmtEra = (er,ip)=>ip>0?((er/ip)*9).toFixed(2):"---";
+              const fmtWhip = (h,bb,ip)=>ip>0?((h+bb)/ip).toFixed(2):"---";
+              const pitCols=["SEASON","APP","IP","W","L","SV","ERA","WHIP","H","R","ER","BB","K","HR"];
+              return (
+                <div>
+                  <div style={{padding:"16px 24px 4px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111",letterSpacing:".06em",borderTop:"2px solid rgba(0,0,0,0.08)",marginTop:8}}>Career Pitching</div>
+                  <div style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
+                      <thead>
+                        <tr style={{background:"#f5f7fa",borderBottom:"2px solid #e5e7eb"}}>
+                          {pitCols.map(c=>(
+                            <th key={c} style={{padding:"9px 12px",textAlign:c==="SEASON"?"left":"center",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap"}}>{c}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pitSeasons.map((s,i)=>(
+                          <tr key={i} style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
+                            <td style={{padding:"10px 12px",fontWeight:600,whiteSpace:"nowrap"}}>{s.name}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.app}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.ipDisplay}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center",color:s.w>0?"#16a34a":"inherit",fontWeight:s.w>0?700:400}}>{s.w}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center",color:s.l>0?"#dc2626":"inherit"}}>{s.l}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.sv}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center",fontWeight:700,color:"#002d6e"}}>{s.era}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center",fontWeight:600}}>{s.whip}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.h}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.r}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.er}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.bb}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center",fontWeight:s.k>0?600:400}}>{s.k}</td>
+                            <td style={{padding:"10px 12px",textAlign:"center",color:s.hr>0?"#c8102e":"inherit"}}>{s.hr}</td>
+                          </tr>
+                        ))}
+                        <tr style={{borderTop:"2px solid #002d6e",background:"#fff",fontWeight:700}}>
+                          <td style={{padding:"10px 12px",color:"#111"}}>Career</td>
+                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.app}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center"}}>{fmtIp(pitCareer.ip)}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center",color:"#16a34a",fontWeight:700}}>{pitCareer.w}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center",color:"#dc2626"}}>{pitCareer.l}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.sv}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtEra(pitCareer.er,pitCareer.ip)}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtWhip(pitCareer.h,pitCareer.bb,pitCareer.ip)}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.h}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.r}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.er}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.bb}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.k}</td>
+                          <td style={{padding:"10px 12px",textAlign:"center",color:"#c8102e"}}>{pitCareer.hr}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
             <div style={{padding:"10px 24px 20px",fontSize:11,color:"#9ca3af"}}>Stats sourced from recorded box scores only. Games without entered stats are not reflected.</div>
           </div>
         )}
@@ -2283,6 +2432,271 @@ function TeamsPage({ setTab, setTeamDetail }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ─── FIELD DIRECTIONS PAGE ──────────────────────────────────────────────── */
+const FIELDS_INFO = [
+  {
+    name: "Clark Field",
+    location: "Long Beach, CA",
+    address: "4700 Park Dr, Long Beach, CA 90804",
+    mapsUrl: "https://maps.google.com/?q=4700+Park+Dr,+Long+Beach,+CA+90804",
+    appleMapsUrl: "https://maps.apple.com/?q=4700+Park+Dr+Long+Beach+CA+90804",
+    notes: [
+      "Free parking available in the lot adjacent to the field.",
+      "Restrooms located near the main entrance.",
+      "Dugouts are on the first and third base lines.",
+      "Home team uses the first base dugout.",
+    ],
+    color: "#002d6e",
+  },
+  {
+    name: "Fromhold Field",
+    location: "San Pedro, CA",
+    address: "1610 S Gaffey St, San Pedro, CA 90731",
+    mapsUrl: "https://maps.google.com/?q=1610+S+Gaffey+St,+San+Pedro,+CA+90731",
+    appleMapsUrl: "https://maps.apple.com/?q=1610+S+Gaffey+St+San+Pedro+CA+90731",
+    notes: [
+      "Street parking available on Gaffey St and surrounding streets.",
+      "Two fields on site — Diamond Classics plays on the upper field.",
+      "Restrooms near the snack shack.",
+    ],
+    color: "#1d4ed8",
+  },
+  {
+    name: "St Pius X",
+    location: "Downey, CA",
+    address: "8140 Niederst Ln, Downey, CA 90240",
+    mapsUrl: "https://maps.google.com/?q=8140+Niederst+Ln,+Downey,+CA+90240",
+    appleMapsUrl: "https://maps.apple.com/?q=8140+Niederst+Ln+Downey+CA+90240",
+    notes: [
+      "Parking is off Consuelo Street — behind the church at the end of the street.",
+      "The home run line appears deceiving. From left field, the yellow marker is actually behind the screen — balls striking the netting is a HOME RUN.",
+      "Please keep the dugout fences closed to keep more balls in play.",
+      "Restrooms are located down the left field line.",
+    ],
+    color: "#7c3aed",
+  },
+];
+
+function FieldDirectionsPage() {
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      <PageHero label="Diamond Classics Baseball" title="Field Directions" subtitle="Locations & directions for all Diamond Classics fields" />
+      <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:20}}>
+          {FIELDS_INFO.map(field => (
+            <div key={field.name} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${field.color}`,borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+              <div style={{padding:"20px 24px",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+                  <div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                      <span style={{fontSize:22}}>🏟️</span>
+                      <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",textTransform:"uppercase",lineHeight:1}}>{field.name}</h2>
+                    </div>
+                    <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:6}}>{field.address}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <a href={field.mapsUrl} target="_blank" rel="noopener noreferrer"
+                      style={{display:"inline-flex",alignItems:"center",gap:6,background:"#4285f4",color:"#fff",borderRadius:8,padding:"9px 16px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,letterSpacing:".04em",textDecoration:"none",transition:"opacity .15s"}}
+                      onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                      📍 Google Maps
+                    </a>
+                    <a href={field.appleMapsUrl} target="_blank" rel="noopener noreferrer"
+                      style={{display:"inline-flex",alignItems:"center",gap:6,background:"#111",color:"#fff",borderRadius:8,padding:"9px 16px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,letterSpacing:".04em",textDecoration:"none",transition:"opacity .15s"}}
+                      onMouseEnter={e=>e.currentTarget.style.opacity=".85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                      🍎 Apple Maps
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <div style={{padding:"16px 24px"}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(0,0,0,0.35)",marginBottom:10}}>Field Notes & Parking</div>
+                <ul style={{listStyle:"none",padding:0,margin:0,display:"flex",flexDirection:"column",gap:8}}>
+                  {field.notes.map((note,i) => (
+                    <li key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                      <span style={{color:field.color,fontWeight:900,fontSize:13,marginTop:1,flexShrink:0}}>→</span>
+                      <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.5}}>{note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:24,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px 20px",textAlign:"center"}}>
+          <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>Questions about field locations? Contact <strong>Todd Harris</strong> at <a href="mailto:toddharris1222@gmail.com" style={{color:"#002d6e"}}>toddharris1222@gmail.com</a></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SPONSORS PAGE ──────────────────────────────────────────────────────── */
+function SponsorsPage() {
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      <PageHero label="Diamond Classics Baseball" title="Sponsors & Contributors" subtitle="With gratitude to those who support Long Beach Diamond Classics" />
+      <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        {/* Featured Founder */}
+        <div style={{background:"linear-gradient(135deg,#001a3e 0%,#002d6e 100%)",borderRadius:16,padding:"32px",marginBottom:28,color:"#fff",position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",right:-20,top:-20,fontSize:120,opacity:.06,lineHeight:1}}>⚾</div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#FFD700",marginBottom:8}}>Diamond Classics Founder</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:36,textTransform:"uppercase",lineHeight:1,marginBottom:8}}>Daniel Gutierrez</div>
+          <div style={{fontSize:14,color:"rgba(255,255,255,0.7)",lineHeight:1.6,maxWidth:600}}>
+            Thank you to Daniel Gutierrez for founding and building the Long Beach Diamond Classics into the league it is today. Your dedication to men's 50+ baseball in Southern California keeps the love of the game alive.
+          </div>
+        </div>
+
+        {/* League Commissioner */}
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+            <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(0,45,110,0.1)",border:"2px solid rgba(0,45,110,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>⚾</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Todd Harris</div>
+              <div style={{fontSize:12,fontWeight:700,color:"rgba(0,45,110,0.7)",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>League Commissioner</div>
+              <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4}}>Keeping the league running smoothly, game in and game out.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Become a Sponsor CTA */}
+        <div style={{background:"#fff",border:"2px dashed rgba(0,45,110,0.2)",borderRadius:12,padding:"28px 24px",textAlign:"center",marginTop:24}}>
+          <div style={{fontSize:32,marginBottom:10}}>🤝</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#002d6e",textTransform:"uppercase",marginBottom:8}}>Interested in Sponsoring?</div>
+          <div style={{fontSize:14,color:"rgba(0,0,0,0.55)",lineHeight:1.6,marginBottom:18,maxWidth:480,margin:"0 auto 18px"}}>
+            Support Long Beach Diamond Classics and get your business in front of 100+ active players and their families. Contact us to learn about sponsorship opportunities.
+          </div>
+          <a href="mailto:toddharris1222@gmail.com?subject=LBDC Sponsorship Inquiry"
+            style={{display:"inline-block",background:"#002d6e",color:"#fff",borderRadius:10,padding:"12px 28px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,letterSpacing:".06em",textDecoration:"none",textTransform:"uppercase"}}>
+            Contact Us
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── PHOTOS PAGE ────────────────────────────────────────────────────────── */
+function PhotosPage() {
+  const [photos, setPhotos] = useState([]);
+  const [lightbox, setLightbox] = useState(null);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("lbdc_photos") || "[]");
+      setPhotos(stored);
+    } catch(e) { setPhotos([]); }
+  }, []);
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      {lightbox !== null && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setLightbox(null)}>
+          <img src={photos[lightbox]?.url} alt={photos[lightbox]?.caption||""} style={{maxWidth:"90vw",maxHeight:"85vh",objectFit:"contain",borderRadius:8}} onClick={e=>e.stopPropagation()} />
+          <button onClick={()=>setLightbox(null)} style={{position:"fixed",top:20,right:20,background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:40,height:40,fontSize:20,cursor:"pointer"}}>✕</button>
+          {photos[lightbox]?.caption && <div style={{position:"fixed",bottom:24,left:0,right:0,textAlign:"center",color:"rgba(255,255,255,0.7)",fontSize:14}}>{photos[lightbox].caption}</div>}
+        </div>
+      )}
+      <PageHero label="Diamond Classics Baseball" title="Photos & Videos" subtitle="Memories from the field" />
+      <div style={{maxWidth:1200,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        {photos.length === 0 ? (
+          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:14,padding:"60px 24px",textAlign:"center",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+            <div style={{fontSize:56,marginBottom:16}}>📸</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",textTransform:"uppercase",marginBottom:10}}>Photos Coming Soon</div>
+            <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>
+              Game photos, team shots, and highlight videos from the 2026 Spring/Summer season will be posted here. Check back after opening day on April 11th!
+            </div>
+          </div>
+        ) : (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:16}}>
+            {photos.map((p,i) => (
+              <div key={i} onClick={()=>setLightbox(i)} style={{background:"#fff",borderRadius:10,overflow:"hidden",cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.08)",transition:"box-shadow .15s"}}
+                onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.15)"}
+                onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.08)"}>
+                <img src={p.url} alt={p.caption||""} style={{width:"100%",aspectRatio:"4/3",objectFit:"cover",display:"block"}} />
+                {p.caption && <div style={{padding:"10px 12px",fontSize:13,color:"rgba(0,0,0,0.6)"}}>{p.caption}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── CAPTAIN ROSTER EDITOR ──────────────────────────────────────────────── */
+function CaptainRosterEditor({ teamName }) {
+  const [players, setPlayers] = useState(() => {
+    const stored = getStoredRosters();
+    return stored?.[teamName] || [...(TEAM_ROSTERS[teamName]||[])];
+  });
+  const [editIdx, setEditIdx] = useState(null);
+  const [editForm, setEditForm] = useState({number:"",name:""});
+  const [saved, setSaved] = useState(false);
+
+  const persist = (newPlayers) => {
+    const all = getStoredRosters() || JSON.parse(JSON.stringify(TEAM_ROSTERS));
+    all[teamName] = newPlayers;
+    saveStoredRosters(all);
+    setPlayers(newPlayers);
+    setSaved(true);
+    setTimeout(()=>setSaved(false),2000);
+  };
+
+  const startEdit = (idx) => { setEditIdx(idx); setEditForm(idx===-1?{number:"",name:""}:{...players[idx]}); };
+  const cancelEdit = () => { setEditIdx(null); setEditForm({number:"",name:""}); };
+
+  const savePlayer = () => {
+    if (!editForm.name.trim()) return;
+    const arr = [...players];
+    if (editIdx === -1) arr.push({number:editForm.number.trim(),name:editForm.name.trim()});
+    else arr[editIdx] = {number:editForm.number.trim(),name:editForm.name.trim()};
+    persist(arr);
+    cancelEdit();
+  };
+
+  const deletePlayer = (idx) => {
+    if (!window.confirm(`Remove ${players[idx]?.name}?`)) return;
+    persist(players.filter((_,i)=>i!==idx));
+  };
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontSize:13,color:"rgba(0,0,0,0.45)"}}>{players.length} players</div>
+        <button onClick={()=>startEdit(-1)} style={{padding:"7px 16px",background:"#2d6a4f",border:"none",borderRadius:8,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>+ Add Player</button>
+      </div>
+
+      {editIdx !== null && (
+        <div style={{background:"#f0fff4",border:"1px solid rgba(22,163,74,0.2)",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+          <div style={{fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase",fontSize:14,color:"#2d6a4f",marginBottom:10}}>{editIdx===-1?"Add Player":"Edit Player"}</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+            <input value={editForm.number} onChange={e=>setEditForm(f=>({...f,number:e.target.value}))}
+              placeholder="#" style={{width:60,padding:"8px 10px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontSize:15}} />
+            <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))}
+              placeholder="Player name" style={{flex:1,minWidth:160,padding:"8px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontSize:15}} />
+            <button onClick={savePlayer} style={{padding:"8px 16px",background:"#16a34a",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>Save</button>
+            <button onClick={cancelEdit} style={{padding:"8px 16px",background:"rgba(0,0,0,0.1)",border:"none",borderRadius:6,fontWeight:700,cursor:"pointer"}}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {players.length === 0 ? (
+        <div style={{textAlign:"center",padding:"24px",color:"rgba(0,0,0,0.4)",fontStyle:"italic"}}>No players yet — click "+ Add Player" to add your first.</div>
+      ) : (
+        players.map((p,i) => (
+          <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid rgba(0,0,0,0.06)",background:i%2===0?"#fff":"#fafafa"}}>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,color:"rgba(0,0,0,0.3)",width:28,textAlign:"right",flexShrink:0}}>#{p.number||"—"}</span>
+            <span style={{flex:1,fontWeight:600}}>{p.name}</span>
+            <button onClick={()=>startEdit(i)} style={{padding:"3px 10px",background:"rgba(0,45,110,0.08)",border:"none",borderRadius:4,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>Edit</button>
+            <button onClick={()=>deletePlayer(i)} style={{padding:"3px 10px",background:"rgba(220,38,38,0.08)",border:"none",borderRadius:4,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
+          </div>
+        ))
+      )}
+      {saved && <div style={{marginTop:10,color:"#16a34a",fontWeight:700,fontSize:13}}>✓ Roster saved!</div>}
     </div>
   );
 }
@@ -2773,8 +3187,31 @@ function PlayerSignUpPage() {
       <PageHero label="Spring/Summer 2026" title="Player Sign Up" subtitle="Get game reminders, score alerts & rainout notices straight to your phone or email" />
       <div style={{maxWidth:560,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         <div style={{background:"#fff",borderRadius:14,padding:"28px 24px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+          {/* Registration fee & payment info */}
+          <div style={{background:"#f0f4ff",border:"1px solid rgba(0,45,110,0.2)",borderLeft:"4px solid #002d6e",borderRadius:8,padding:"14px 16px",marginBottom:20}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#002d6e",textTransform:"uppercase",marginBottom:6}}>💰 Registration Fee: $50</div>
+            <div style={{fontSize:13,color:"rgba(0,0,0,0.65)",lineHeight:1.6,marginBottom:10}}>
+              All players must pay the $50 seasonal registration fee to be eligible for the season and playoffs. Pay via:
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:8,padding:"10px 14px",border:"1px solid rgba(0,0,0,0.1)"}}>
+                <span style={{fontSize:20}}>💸</span>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14,color:"#111"}}>Zelle</div>
+                  <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>Send to Daniel Gutierrez's cell number</div>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:8,padding:"10px 14px",border:"1px solid rgba(0,0,0,0.1)"}}>
+                <span style={{fontSize:20}}>📱</span>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14,color:"#111"}}>Venmo</div>
+                  <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>@Titans-baseball · Daniel Gutierrez</div>
+                </div>
+              </div>
+            </div>
+          </div>
           <p style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:0,marginBottom:24,lineHeight:1.6}}>
-            Fill out this form to receive playoff updates, game reminders, and score alerts directly on your phone or email. Takes 30 seconds. Your info will only be used for Diamond Classics league communications.
+            Fill out this form to register for the Spring/Summer 2026 season and receive game reminders, score alerts & rainout notices. Your info will only be used for Diamond Classics league communications.
           </p>
           <form onSubmit={submit}>
             <div style={{marginBottom:18}}>
@@ -2834,7 +3271,7 @@ function PlayerSignUpPage() {
 
 /* ─── FOOTER ─────────────────────────────────────────────────────────────── */
 function Footer({ setTab }) {
-  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["signup","Player Sign Up"],["history","History"],["rules","Rules"]];
+  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["directions","Directions"],["rules","Rules"],["sponsors","Sponsors"],["signup","Sign Up"]];
   return (
     <div style={{background:"#001a3e",borderTop:"3px solid #002d6e",padding:"32px clamp(12px,3vw,40px)"}}>
       <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
@@ -4008,6 +4445,141 @@ function AdminPage({ onAlertChange }) {
     </div>
   );
 
+  // ── ADMIN ROSTERS SCREEN ──
+  if (screen === "admin_rosters") {
+    const [rosters, setRosters] = useState(() => getEffectiveRosters());
+    const [editTeam, setEditTeam] = useState(Object.keys(rosters)[0] || "");
+    const [editIdx, setEditIdx] = useState(null); // null = new player
+    const [editForm, setEditForm] = useState({number:"",name:""});
+    const [saved, setSaved] = useState(false);
+
+    const teamPlayers = rosters[editTeam] || [];
+
+    const saveAll = () => {
+      saveStoredRosters(rosters);
+      setSaved(true);
+      setTimeout(()=>setSaved(false), 2000);
+    };
+
+    const startEdit = (idx) => {
+      const p = teamPlayers[idx];
+      setEditIdx(idx);
+      setEditForm({number:p.number||"",name:p.name||""});
+    };
+    const startNew = () => { setEditIdx(-1); setEditForm({number:"",name:""}); };
+    const cancelEdit = () => { setEditIdx(null); setEditForm({number:"",name:""}); };
+
+    const savePlayer = () => {
+      if (!editForm.name.trim()) return;
+      const newRosters = {...rosters};
+      const players = [...(newRosters[editTeam]||[])];
+      if (editIdx === -1) {
+        players.push({number:editForm.number.trim(),name:editForm.name.trim()});
+      } else {
+        players[editIdx] = {number:editForm.number.trim(),name:editForm.name.trim()};
+      }
+      newRosters[editTeam] = players;
+      setRosters(newRosters);
+      saveStoredRosters(newRosters);
+      cancelEdit();
+    };
+
+    const deletePlayer = (idx) => {
+      if (!window.confirm(`Remove ${teamPlayers[idx]?.name}?`)) return;
+      const newRosters = {...rosters};
+      newRosters[editTeam] = (newRosters[editTeam]||[]).filter((_,i)=>i!==idx);
+      setRosters(newRosters);
+      saveStoredRosters(newRosters);
+    };
+
+    const movePlayer = (idx, dir) => {
+      const players = [...(rosters[editTeam]||[])];
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= players.length) return;
+      [players[idx], players[newIdx]] = [players[newIdx], players[idx]];
+      const newRosters = {...rosters, [editTeam]: players};
+      setRosters(newRosters);
+      saveStoredRosters(newRosters);
+    };
+
+    return (
+      <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+        <div style={{background:"#001a3e",borderBottom:"3px solid #002d6e",padding:"16px clamp(12px,3vw,32px)"}}>
+          <div style={{maxWidth:1000,margin:"0 auto",display:"flex",alignItems:"center",gap:12}}>
+            <button onClick={()=>setScreen("home")} style={{padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"#fff",fontSize:13,cursor:"pointer",fontWeight:700}}>← Back</button>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase"}}>⚾ Manage Team Rosters</div>
+          </div>
+        </div>
+        <div style={{maxWidth:1000,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 60px"}}>
+          {/* Team selector */}
+          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px",marginBottom:20,display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",marginRight:4}}>Team:</span>
+            {Object.keys(rosters).map(t => (
+              <button key={t} onClick={()=>{setEditTeam(t);setEditIdx(null);}}
+                style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${editTeam===t?"#002d6e":"rgba(0,0,0,0.15)"}`,background:editTeam===t?"#002d6e":"#fff",color:editTeam===t?"#fff":"#333",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all .15s"}}>
+                {t}
+              </button>
+            ))}
+          </div>
+
+          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,overflow:"hidden"}}>
+            <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase"}}>{editTeam} — {teamPlayers.length} players</div>
+              <button onClick={startNew} style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Player</button>
+            </div>
+
+            {/* Add/Edit form */}
+            {editIdx !== null && (
+              <div style={{padding:"16px 20px",background:"#f0f4ff",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12,color:"#002d6e"}}>{editIdx===-1?"Add New Player":"Edit Player"}</div>
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",marginBottom:4}}>Jersey #</div>
+                    <input value={editForm.number} onChange={e=>setEditForm(f=>({...f,number:e.target.value}))}
+                      placeholder="#" style={{width:70,padding:"9px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:15,outline:"none"}} />
+                  </div>
+                  <div style={{flex:1,minWidth:200}}>
+                    <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",marginBottom:4}}>Player Name *</div>
+                    <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))}
+                      placeholder="First Last" style={{width:"100%",padding:"9px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:15,outline:"none",boxSizing:"border-box"}} />
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={savePlayer} style={{padding:"9px 20px",background:"#16a34a",border:"none",borderRadius:8,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>Save</button>
+                    <button onClick={cancelEdit} style={{padding:"9px 20px",background:"rgba(0,0,0,0.1)",border:"none",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer"}}>Cancel</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Player list */}
+            {teamPlayers.length === 0 ? (
+              <div style={{padding:"32px",textAlign:"center",color:"rgba(0,0,0,0.4)",fontStyle:"italic"}}>No players on this roster yet. Click "+ Add Player" to get started.</div>
+            ) : (
+              <div>
+                {teamPlayers.map((p,i) => (
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 20px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:editIdx===i?"#f0f4ff":"transparent"}}>
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"rgba(0,0,0,0.3)",width:28,textAlign:"right",flexShrink:0}}>#{p.number||"—"}</span>
+                    <span style={{flex:1,fontWeight:600,fontSize:15}}>{p.name}</span>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button onClick={()=>movePlayer(i,-1)} disabled={i===0} style={{padding:"4px 8px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:4,cursor:i===0?"not-allowed":"pointer",opacity:i===0?.3:1}}>↑</button>
+                      <button onClick={()=>movePlayer(i,1)} disabled={i===teamPlayers.length-1} style={{padding:"4px 8px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:4,cursor:i===teamPlayers.length-1?"not-allowed":"pointer",opacity:i===teamPlayers.length-1?.3:1}}>↓</button>
+                      <button onClick={()=>startEdit(i)} style={{padding:"4px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:4,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>Edit</button>
+                      <button onClick={()=>deletePlayer(i)} style={{padding:"4px 12px",background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:4,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{padding:"14px 20px",borderTop:"1px solid rgba(0,0,0,0.07)",display:"flex",justifyContent:"flex-end"}}>
+              {saved && <span style={{color:"#16a34a",fontWeight:700,fontSize:13,marginRight:12}}>✓ Saved!</span>}
+              <button onClick={saveAll} style={{padding:"9px 24px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"}}>Save Roster</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── CAPTAIN SCREEN ──
   if (screen === "captain") {
     if (captainView === "live") return <LiveScorerPage teamFilter={captainTeam} onExit={()=>setCaptainView("menu")} />;
@@ -4042,6 +4614,14 @@ function AdminPage({ onAlertChange }) {
                   <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Enter final stats after the game</div>
                 </div>
               </button>
+              <button onClick={()=>setCaptainView("roster")}
+                style={{background:"#1a4332",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
+                <div style={{fontSize:40}}>👥</div>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase",marginBottom:4}}>Manage Roster</div>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Add, edit, or remove players from your team</div>
+                </div>
+              </button>
             </div>
           )}
           {captainView === "boxscore" && (
@@ -4052,6 +4632,17 @@ function AdminPage({ onAlertChange }) {
               </div>
               <div style={{padding:"20px"}}>
                 <BoxScoreEntry onClose={()=>setCaptainView("menu")} captainTeam={captainTeam} />
+              </div>
+            </div>
+          )}
+          {captainView === "roster" && (
+            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+                <button onClick={()=>setCaptainView("menu")} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>👥 {captainTeam} — Roster</div>
+              </div>
+              <div style={{padding:"20px"}}>
+                <CaptainRosterEditor teamName={captainTeam} />
               </div>
             </div>
           )}
@@ -4504,6 +5095,13 @@ function AdminPage({ onAlertChange }) {
                     <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:3}}>{a.desc}</div>
                   </div>
                 ))}
+                <button onClick={()=>setScreen("admin_rosters")} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,padding:"20px",textAlign:"left",cursor:"pointer",transition:"box-shadow .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.1)"}
+                  onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+                  <div style={{fontSize:28,marginBottom:8}}>👥</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",textTransform:"uppercase",marginBottom:4}}>Manage Rosters</div>
+                  <div style={{fontSize:12,color:"rgba(0,0,0,0.45)"}}>Add, edit, reorder players on any team</div>
+                </button>
               </div>
             )}
           </>
@@ -5725,7 +6323,7 @@ function StatsPage() {
     {label:"AVG",col:"avg",highlight:true},{label:"OBP",col:"obp",highlight:true},{label:"SLG",col:"slg",highlight:true},
     {label:"R",col:"r"},{label:"RBI",col:"rbi"},
     {label:"2B",col:"doubles"},{label:"3B",col:"triples"},
-    {label:"HR",col:"hr"},{label:"BB",col:"bb"},{label:"K",col:"k"},{label:"SB",col:"sb"},
+    {label:"HR",col:"hr"},{label:"TB",col:"tb"},{label:"BB",col:"bb"},{label:"K",col:"k"},{label:"SB",col:"sb"},
   ];
   const PIT_COLS = [
     {label:"APP",col:"app"},{label:"IP",col:"ip"},
@@ -5735,11 +6333,15 @@ function StatsPage() {
     {label:"BB",col:"bb"},{label:"K",col:"k"},
   ];
 
-  const batValMap = p => ({
-    gp:p.gp, ab:p.ab, h:p.h, avg:p.avg, obp:p.obp, slg:p.slg,
-    r:p.r, rbi:p.rbi, doubles:p.doubles||0, triples:p.triples||0,
-    hr:p.hr||0, bb:p.bb||0, k:p.k||0, sb:p.sb||0,
-  });
+  const batValMap = p => {
+    const singles = Math.max(0,(p.h||0)-(p.doubles||0)-(p.triples||0)-(p.hr||0));
+    const tb = singles + (p.doubles||0)*2 + (p.triples||0)*3 + (p.hr||0)*4;
+    return {
+      gp:p.gp, ab:p.ab, h:p.h, avg:p.avg, obp:p.obp, slg:p.slg,
+      r:p.r, rbi:p.rbi, doubles:p.doubles||0, triples:p.triples||0,
+      hr:p.hr||0, tb, bb:p.bb||0, k:p.k||0, sb:p.sb||0,
+    };
+  };
   const pitValMap = p => ({
     app:p.app, ip:p.ipDisplay, w:p.w, l:p.l, sv:p.sv||0,
     era:p.era, whip:p.whip, h:p.h, r:p.r, er:p.er, bb:p.bb, k:p.k,
@@ -6731,6 +7333,175 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   );
 }
 
+/* ─── GRAPHICS GENERATOR PAGE ───────────────────────────────────────────── */
+function GraphicsPage() {
+  const canvasRefs = useRef({});
+
+  // Get this week's games
+  const today = new Date(); today.setHours(0,0,0,0);
+  const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
+  let weekIdx = SCHED.findIndex(w => parseLabel(w.label) >= today);
+  if (weekIdx < 0) weekIdx = SCHED.length - 1;
+  const week = SCHED[weekIdx];
+  const satGames = week.fields.flatMap(f => f.games.map(g => ({...g, field: f.name, date: week.label + ", 2026"})));
+  const boomerGame = BOOMERS_SCHED.find(g => g.date === week.label);
+  const allGames = boomerGame ? [...satGames, {...boomerGame, date: boomerGame.date + ", 2026"}] : satGames;
+
+  const drawGraphic = (canvas, game) => {
+    if (!canvas) return;
+    const W = 1080, H = 1080;
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    // Background
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, "#001a3e");
+    bg.addColorStop(1, "#002d6e");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle diamond pattern
+    ctx.strokeStyle = "rgba(255,255,255,0.03)";
+    ctx.lineWidth = 1;
+    for (let i = -H; i < W + H; i += 60) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + H, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i - H, H); ctx.stroke();
+    }
+
+    // Gold accent bar at top
+    ctx.fillStyle = "#FFD700";
+    ctx.fillRect(0, 0, W, 12);
+
+    // LBDC badge
+    ctx.fillStyle = "rgba(255,215,0,0.12)";
+    ctx.beginPath(); ctx.arc(540, 200, 110, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#FFD700";
+    ctx.font = "bold 80px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("⚾", 540, 235);
+
+    // League name
+    ctx.fillStyle = "#FFD700";
+    ctx.font = "900 38px 'Arial Narrow',Arial";
+    ctx.letterSpacing = "6px";
+    ctx.fillText("LONG BEACH DIAMOND CLASSICS", 540, 350);
+
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.font = "500 24px Arial";
+    ctx.fillText("MEN'S 50+ BASEBALL", 540, 385);
+
+    // VS divider
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fillRect(80, 430, W - 160, 2);
+
+    // Away team
+    const awayColor = TEAM_COLORS[game.away] || "#c8102e";
+    ctx.fillStyle = awayColor;
+    ctx.fillRect(80, 440, 4, 140);
+    ctx.fillStyle = "#fff";
+    ctx.font = "900 80px 'Arial Narrow',Arial";
+    ctx.textAlign = "left";
+    ctx.fillText((game.away||"").toUpperCase(), 100, 530);
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.font = "500 28px Arial";
+    ctx.fillText("AWAY", 100, 568);
+
+    // VS
+    ctx.fillStyle = "#FFD700";
+    ctx.font = "900 64px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("VS", 540, 520);
+
+    // Home team
+    const homeColor = TEAM_COLORS[game.home] || "#002d6e";
+    ctx.textAlign = "right";
+    ctx.fillStyle = homeColor;
+    ctx.fillRect(W - 84, 440, 4, 140);
+    ctx.fillStyle = "#fff";
+    ctx.font = "900 80px 'Arial Narrow',Arial";
+    ctx.fillText((game.home||"").toUpperCase(), W - 100, 530);
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.font = "500 28px Arial";
+    ctx.fillText("HOME", W - 100, 568);
+
+    // Divider
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.fillRect(80, 620, W - 160, 2);
+
+    // Game details
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 36px Arial";
+    ctx.fillText(`📅  ${game.date || ""}`, 540, 688);
+    ctx.font = "700 32px Arial";
+    ctx.fillText(`⏰  ${game.time || ""}`, 540, 736);
+    ctx.font = "500 28px Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.fillText(`📍  ${(game.field||"").replace(" — ", " · ")}`, 540, 784);
+
+    // Bottom gold bar
+    ctx.fillStyle = "#FFD700";
+    ctx.fillRect(0, H - 12, W, 12);
+
+    // Bottom text
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.font = "400 22px Arial";
+    ctx.fillText("longbeachdiamondclassics.com", 540, H - 30);
+  };
+
+  useEffect(() => {
+    allGames.forEach((g, i) => {
+      const key = `${g.away}-${g.home}-${i}`;
+      const canvas = canvasRefs.current[key];
+      if (canvas) drawGraphic(canvas, g);
+    });
+  }, []);
+
+  const download = (game, i) => {
+    const key = `${game.away}-${game.home}-${i}`;
+    const canvas = canvasRefs.current[key];
+    if (!canvas) return;
+    const link = document.createElement("a");
+    link.download = `LBDC-${(game.away||"").replace(/\s/g,"-")}-vs-${(game.home||"").replace(/\s/g,"-")}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin Tools" title="Game Graphics" subtitle={`${week.label} · ${allGames.length} game${allGames.length!==1?"s":""} — download and share on social media`} />
+      <div style={{maxWidth:1200,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:24}}>
+          {allGames.map((g, i) => {
+            const key = `${g.away}-${g.home}-${i}`;
+            return (
+              <div key={key} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:14,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
+                <canvas
+                  ref={el => { canvasRefs.current[key] = el; if(el) drawGraphic(el,g); }}
+                  style={{width:"100%",aspectRatio:"1/1",display:"block"}}
+                />
+                <div style={{padding:"14px 16px",borderTop:"1px solid rgba(0,0,0,0.07)"}}>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111",marginBottom:4}}>
+                    {g.away} vs {g.home}
+                  </div>
+                  <div style={{fontSize:12,color:"rgba(0,0,0,0.45)",marginBottom:12}}>{g.time} · {g.field}</div>
+                  <button onClick={()=>download(g,i)}
+                    style={{width:"100%",padding:"10px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",letterSpacing:".04em"}}>
+                    ⬇ Download PNG
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{marginTop:24,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px 20px",fontSize:13,color:"rgba(0,0,0,0.45)",textAlign:"center"}}>
+          Graphics are 1080×1080px — ideal for Instagram, Facebook, and Twitter. Right-click the image or use the Download button.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── APP ────────────────────────────────────────────────────────────────── */
 export default function App() {
   const [tab, setTab] = useState("home");
@@ -6853,7 +7624,11 @@ export default function App() {
       {tab==="admin"     && <AdminPage onAlertChange={(txt) => { setActiveAlert(txt); setActiveAlertStyle((() => { try { return JSON.parse(localStorage.getItem("lbdc_alert_style")||"{}"); } catch(e) { return {}; } })()); }} />}
       {tab==="history"   && <HistoryPage />}
       {tab==="rules"     && <RulesPage />}
+      {tab==="directions"&& <FieldDirectionsPage />}
+      {tab==="sponsors"  && <SponsorsPage />}
+      {tab==="photos"    && <PhotosPage />}
       {tab==="signup"    && <PlayerSignUpPage />}
+      {tab==="graphics"  && <GraphicsPage />}
       <Footer setTab={handleSetTab} />
     </div>
   );
