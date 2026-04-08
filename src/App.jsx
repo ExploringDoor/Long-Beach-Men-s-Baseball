@@ -3204,6 +3204,7 @@ function AdminPage({ onAlertChange }) {
   const [pw, setPw] = useState("");
   const [pwError, setPwError] = useState(false);
   const [captainTeam, setCaptainTeam] = useState("");
+  const [captainView, setCaptainView] = useState("menu"); // "menu" | "live" | "boxscore"
   const [alertText, setAlertText] = useState(() => localStorage.getItem("lbdc_alert") || "");
   const [alertStyle, setAlertStyle] = useState(() => {
     try { return JSON.parse(localStorage.getItem("lbdc_alert_style") || "{}"); } catch(e) { return {}; }
@@ -3406,7 +3407,6 @@ function AdminPage({ onAlertChange }) {
 
   // ── CAPTAIN SCREEN ──
   if (screen === "captain") {
-    const [captainView, setCaptainView] = React.useState("menu"); // "menu" | "live" | "boxscore"
     if (captainView === "live") return <LiveScorerPage teamFilter={captainTeam} onExit={()=>setCaptainView("menu")} />;
     return (
       <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden"}}>
@@ -3417,7 +3417,7 @@ function AdminPage({ onAlertChange }) {
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>Captain Portal — {captainTeam}</div>
               <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Logged in as {captainTeam} captain</div>
             </div>
-            <button type="button" onClick={()=>{setScreen("login");setCaptainTeam("");}} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.7)",fontSize:13,cursor:"pointer"}}>Log out</button>
+            <button type="button" onClick={()=>{setScreen("login");setCaptainTeam("");setCaptainView("menu");}} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.7)",fontSize:13,cursor:"pointer"}}>Log out</button>
           </div>
         </div>
         <div style={{maxWidth:600,margin:"0 auto",padding:"32px clamp(12px,3vw,40px) 60px"}}>
