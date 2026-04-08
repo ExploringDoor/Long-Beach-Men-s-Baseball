@@ -161,6 +161,8 @@ const TEAM_CAL_LINKS = {
   "Brooklyn": "https://calendar.google.com/calendar/r?cid=0474cdc6fd4e9341b1638d7b458b4a3c498c53a42e489a72c652e0c61a58559d%40group.calendar.google.com",
   "Generals": "https://calendar.google.com/calendar/r?cid=87c7cc1dfa649ad6095d8daaaf95db1f1ecb222aeab8849eb6681b3c62f2a8cc%40group.calendar.google.com",
   "Black Sox":"https://calendar.google.com/calendar/r?cid=72509ee387916b56600af826b8e0fd6c11e4227a7c1eee79dae873650a260b29%40group.calendar.google.com",
+  "Eddie Murray Mashers '56":  "https://calendar.google.com/calendar/r?cid=1641f48afa62a1d531486a44b949f194f1dde2eeeb020eb5fb4845b07d70881a%40group.calendar.google.com",
+  "Greg Maddux Magicians '66": "https://calendar.google.com/calendar/r?cid=6d97cb2c2833f83718aa1144af4402b990e998dcbeb4dd9a5d233a3781e8bff5%40group.calendar.google.com",
 };
 
 const SCORES = [
@@ -618,7 +620,8 @@ function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick }) {
 
 /* ─── TICKER ─────────────────────────────────────────────────────────────── */
 function Ticker({ setTab }) {
-  const games = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g, field:f.name})));
+  const satGames = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g, field:f.name})));
+  const games = [...satGames, ...BOOMERS_SCHED];
   return (
     <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%",position:"relative"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,padding:"0 12px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0}}>
@@ -768,9 +771,11 @@ function Navbar({ tab, setTab }) {
 /* ─── HOME PAGE ──────────────────────────────────────────────────────────── */
 function HomePage({ setTab, setTeamDetail }) {
   const topTeams = [...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8);
+  const boomersTeams = [...ALL_TEAMS].filter(t=>t.divKey==="BOM").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct));
   const nextGames = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g,field:f.name}))).slice(0,5);
   const [recentGames, setRecentGames] = useState([]);
   const [newsItems, setNewsItems] = useState([]);
+  const [standingsDiv, setStandingsDiv] = useState("SAT");
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
@@ -855,11 +860,22 @@ function HomePage({ setTab, setTeamDetail }) {
                 <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Standings</span>
                 <span onClick={() => setTab("standings")} style={{color:"#002d6e",fontSize:13,fontWeight:700,cursor:"pointer"}}>Full →</span>
               </div>
-              {topTeams.map((t,i) => (
+              <div style={{display:"flex",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
+                {[["SAT","Saturday"],["BOM","Boomers"]].map(([key,label]) => (
+                  <div key={key} onClick={() => setStandingsDiv(key)}
+                    style={{flex:1,padding:"8px 0",textAlign:"center",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,textTransform:"uppercase",letterSpacing:".06em",
+                      color: standingsDiv===key ? (key==="BOM"?"#7c3aed":"#002d6e") : "rgba(0,0,0,0.4)",
+                      borderBottom: standingsDiv===key ? `2px solid ${key==="BOM"?"#7c3aed":"#002d6e"}` : "2px solid transparent",
+                      transition:"color .15s"}}>
+                    {label}
+                  </div>
+                ))}
+              </div>
+              {(standingsDiv==="SAT" ? topTeams : boomersTeams).map((t,i) => (
                 <div key={t.name+t.divKey} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",transition:"background .15s",cursor:"pointer"}}
                   onMouseEnter={e => e.currentTarget.style.background="rgba(0,45,110,0.03)"}
                   onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e",width:22,textAlign:"center",flexShrink:0}}>{i+1}</span>
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color: standingsDiv==="BOM"?"#7c3aed":"#002d6e",width:22,textAlign:"center",flexShrink:0}}>{i+1}</span>
                   <TLogo name={t.name} size={110} />
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:16,color:"#111",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase"}}>{t.name}</div>
@@ -2502,7 +2518,7 @@ function PlayerSignUpPage() {
         notes: form.notes || null,
       }]);
       setStatus("done");
-    } catch(e) { setStatus("error"); }
+    } catch(e) { console.error("Sign-up error:", e); setStatus("error"); }
   };
 
   const inputStyle = {width:"100%",padding:"13px 16px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:10,fontSize:15,boxSizing:"border-box",outline:"none",background:"#fff"};
