@@ -615,12 +615,22 @@ function Ticker({ setTab }) {
 /* ─── NAVBAR ─────────────────────────────────────────────────────────────── */
 function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["history","History"],["rules","Rules"],["admin","⚙ Admin"]];
-  const handleNav = (id) => { setTab(id); setMenuOpen(false); window.scrollTo(0,0); };
+  const [moreOpen, setMoreOpen] = useState(false);
+  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
+  const moreLinks = [["history","History"],["rules","Rules"],["signup","📋 Player Sign Up"]];
+  const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
+  const moreActive = moreLinks.some(([id]) => id === tab);
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [menuOpen]);
+  // Close more dropdown on outside click
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = () => setMoreOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [moreOpen]);
   return (
     <>
       <nav style={{background:"#fff",borderBottom:"3px solid #002d6e",boxShadow:"0 1px 6px rgba(0,0,0,0.07)",height:62,display:"flex",alignItems:"center",padding:"0 clamp(12px,3vw,32px)",position:"relative",zIndex:400}}>
@@ -635,7 +645,7 @@ function Navbar({ tab, setTab }) {
             </div>
           </div>
           <ul style={{display:"flex",gap:0,listStyle:"none",margin:"0 auto",padding:0,flexShrink:1,minWidth:0}} className="desktop-nav">
-            {links.map(([id,label]) => (
+            {mainLinks.map(([id,label]) => (
               <li key={id}>
                 <button onClick={() => handleNav(id)} style={{
                   fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,
@@ -647,6 +657,30 @@ function Navbar({ tab, setTab }) {
                 }}>{label}</button>
               </li>
             ))}
+            {/* More dropdown */}
+            <li style={{position:"relative"}}>
+              <button onClick={e=>{e.stopPropagation();setMoreOpen(o=>!o);}} style={{
+                fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,
+                letterSpacing:".06em",textTransform:"uppercase",
+                color:moreActive?"#002d6e":"#555",background:"none",border:"none",
+                cursor:"pointer",padding:"7px 12px",borderRadius:6,
+                borderBottom:moreActive?"2px solid #002d6e":"2px solid transparent",
+                whiteSpace:"nowrap",
+              }}>More ▾</button>
+              {moreOpen && (
+                <div style={{position:"absolute",top:"100%",right:0,background:"#fff",border:"1px solid rgba(0,0,0,0.1)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",minWidth:180,zIndex:9999,overflow:"hidden",marginTop:4}}>
+                  {moreLinks.map(([id,label]) => (
+                    <button key={id} onClick={()=>handleNav(id)} style={{
+                      display:"block",width:"100%",textAlign:"left",padding:"12px 18px",
+                      fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
+                      letterSpacing:".04em",textTransform:"uppercase",
+                      color:tab===id?"#002d6e":"#333",background:tab===id?"#f0f4ff":"transparent",
+                      border:"none",borderBottom:"1px solid rgba(0,0,0,0.06)",cursor:"pointer",
+                    }}>{label}</button>
+                  ))}
+                </div>
+              )}
+            </li>
           </ul>
           <button onClick={() => setMenuOpen(!menuOpen)} className="hamburger" style={{
             display:"none",background:"none",border:"none",cursor:"pointer",
@@ -669,7 +703,7 @@ function Navbar({ tab, setTab }) {
             border:"none",borderBottom:"2px solid #002d6e",
             cursor:"pointer",padding:"18px 20px",
           }}>⚾ Home</button>
-          {links.filter(([id])=>id!=="home").map(([id,label]) => (
+          {mainLinks.filter(([id])=>id!=="home").map(([id,label]) => (
             <button key={id} onClick={() => handleNav(id)} style={{
               display:"block",width:"100%",textAlign:"left",
               fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:22,
@@ -677,6 +711,17 @@ function Navbar({ tab, setTab }) {
               color:tab===id?"#002d6e":"#111",background:tab===id?"rgba(0,45,110,0.04)":"none",
               border:"none",borderBottom:"1px solid rgba(0,0,0,0.06)",
               cursor:"pointer",padding:"18px 20px",
+            }}>{label}</button>
+          ))}
+          <div style={{padding:"8px 20px 4px",fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(0,0,0,0.3)"}}>More</div>
+          {moreLinks.map(([id,label]) => (
+            <button key={id} onClick={() => handleNav(id)} style={{
+              display:"block",width:"100%",textAlign:"left",
+              fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:20,
+              letterSpacing:".06em",textTransform:"uppercase",
+              color:tab===id?"#002d6e":"#555",background:tab===id?"rgba(0,45,110,0.04)":"none",
+              border:"none",borderBottom:"1px solid rgba(0,0,0,0.06)",
+              cursor:"pointer",padding:"15px 20px",
             }}>{label}</button>
           ))}
           </div>
@@ -2335,9 +2380,109 @@ function HistoryPage() {
   );
 }
 
+/* ─── PLAYER SIGN UP PAGE ────────────────────────────────────────────────── */
+function PlayerSignUpPage() {
+  const [form, setForm] = useState({name:"",team:"",email:"",phone:"",notes:""});
+  const [prefs, setPrefs] = useState({reminders:false,scores:false,playoffs:false,rainouts:false});
+  const [status, setStatus] = useState(null); // null | "saving" | "done" | "error"
+  const set = (k,v) => setForm(p=>({...p,[k]:v}));
+  const togglePref = (k) => setPrefs(p=>({...p,[k]:!p[k]}));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.name || !form.team || !form.email || !form.phone) { alert("Please fill in all required fields."); return; }
+    setStatus("saving");
+    try {
+      await sbPost("player_signups", [{
+        player_name: form.name, team_name: form.team, email: form.email, phone: form.phone,
+        pref_reminders: prefs.reminders, pref_scores: prefs.scores,
+        pref_playoffs: prefs.playoffs, pref_rainouts: prefs.rainouts,
+        notes: form.notes || null,
+      }]);
+      setStatus("done");
+    } catch(e) { setStatus("error"); }
+  };
+
+  const inputStyle = {width:"100%",padding:"13px 16px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:10,fontSize:15,boxSizing:"border-box",outline:"none",background:"#fff"};
+  const labelStyle = {fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,textTransform:"uppercase",letterSpacing:".1em",color:"#111",display:"block",marginBottom:6};
+
+  if (status === "done") return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{background:"#fff",borderRadius:16,padding:"40px 32px",maxWidth:480,width:"100%",textAlign:"center",boxShadow:"0 4px 20px rgba(0,0,0,0.08)"}}>
+        <div style={{fontSize:56,marginBottom:16}}>⚾</div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,textTransform:"uppercase",color:"#002d6e",marginBottom:10}}>You're on the list!</div>
+        <div style={{fontSize:15,color:"rgba(0,0,0,0.55)",lineHeight:1.6}}>Thanks {form.name.split(" ")[0]}! You'll start receiving updates for the Spring/Summer 2026 season. See you on the field.</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Spring/Summer 2026" title="Player Sign Up" subtitle="Get game reminders, score alerts & rainout notices straight to your phone or email" />
+      <div style={{maxWidth:560,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        <div style={{background:"#fff",borderRadius:14,padding:"28px 24px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
+          <p style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:0,marginBottom:24,lineHeight:1.6}}>
+            Fill out this form to receive playoff updates, game reminders, and score alerts directly on your phone or email. Takes 30 seconds. Your info will only be used for Diamond Classics league communications.
+          </p>
+          <form onSubmit={submit}>
+            <div style={{marginBottom:18}}>
+              <label style={labelStyle}>Full Name <span style={{color:"#dc2626"}}>*</span></label>
+              <input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="John Smith" style={inputStyle} />
+            </div>
+            <div style={{marginBottom:18}}>
+              <label style={labelStyle}>Team Name <span style={{color:"#dc2626"}}>*</span></label>
+              <select value={form.team} onChange={e=>set("team",e.target.value)} style={inputStyle}>
+                <option value="">— Select your team —</option>
+                {Object.keys(TEAM_ROSTERS).map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={{marginBottom:18}}>
+              <label style={labelStyle}>Email Address <span style={{color:"#dc2626"}}>*</span></label>
+              <input type="email" value={form.email} onChange={e=>set("email",e.target.value)} placeholder="you@email.com" style={inputStyle} />
+            </div>
+            <div style={{marginBottom:24}}>
+              <label style={labelStyle}>Cell Phone Number <span style={{color:"#dc2626"}}>*</span></label>
+              <input type="tel" value={form.phone} onChange={e=>set("phone",e.target.value)} placeholder="(310) 555-1234" style={inputStyle} />
+            </div>
+
+            <div style={{marginBottom:24}}>
+              <label style={{...labelStyle,marginBottom:12}}>What would you like to receive?</label>
+              {[
+                ["reminders","📲 Game day reminders (text)"],
+                ["scores","📊 Score & standings updates (email)"],
+                ["playoffs","🏆 Playoff bracket updates (email)"],
+                ["rainouts","🌧️ Rainout alerts (text)"],
+              ].map(([k,label])=>(
+                <label key={k} onClick={()=>togglePref(k)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",border:`1.5px solid ${prefs[k]?"#002d6e":"rgba(0,0,0,0.1)"}`,borderRadius:8,marginBottom:8,cursor:"pointer",background:prefs[k]?"#f0f4ff":"#fff",transition:"all .1s"}}>
+                  <div style={{width:20,height:20,border:`2px solid ${prefs[k]?"#002d6e":"rgba(0,0,0,0.2)"}`,borderRadius:4,background:prefs[k]?"#002d6e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .1s"}}>
+                    {prefs[k] && <span style={{color:"#fff",fontSize:13,fontWeight:900}}>✓</span>}
+                  </div>
+                  <span style={{fontSize:14,color:"#111"}}>{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div style={{marginBottom:24}}>
+              <label style={labelStyle}>Anything else? <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span></label>
+              <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Questions, comments, or anything you'd like us to know..." rows={3}
+                style={{...inputStyle,resize:"vertical",lineHeight:1.5}} />
+            </div>
+
+            <button type="submit" disabled={status==="saving"}
+              style={{width:"100%",padding:"16px",background:status==="saving"?"#9ca3af":"#002d6e",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",cursor:status==="saving"?"not-allowed":"pointer",textTransform:"uppercase",letterSpacing:".06em"}}>
+              {status==="saving" ? "Signing Up…" : "Sign Me Up ⚾"}
+            </button>
+            {status==="error" && <div style={{marginTop:10,fontSize:13,color:"#dc2626",textAlign:"center"}}>Something went wrong. Please try again.</div>}
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── FOOTER ─────────────────────────────────────────────────────────────── */
 function Footer({ setTab }) {
-  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["history","History"],["rules","Rules"]];
+  const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["signup","Player Sign Up"],["history","History"],["rules","Rules"]];
   return (
     <div style={{background:"#001a3e",borderTop:"3px solid #002d6e",padding:"32px clamp(12px,3vw,40px)"}}>
       <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
@@ -6180,6 +6325,7 @@ export default function App() {
       {tab==="admin"     && <AdminPage onAlertChange={(txt) => { setActiveAlert(txt); setActiveAlertStyle((() => { try { return JSON.parse(localStorage.getItem("lbdc_alert_style")||"{}"); } catch(e) { return {}; } })()); }} />}
       {tab==="history"   && <HistoryPage />}
       {tab==="rules"     && <RulesPage />}
+      {tab==="signup"    && <PlayerSignUpPage />}
       <Footer setTab={handleSetTab} />
     </div>
   );
