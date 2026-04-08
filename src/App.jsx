@@ -18,12 +18,11 @@ const DIV = {
     name: "Spring/Summer 2026", accent: "#002d6e",
     teams: [
       {seed:1,name:"Tribe",full:"Tribe",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
-      {seed:2,name:"Dodgers",full:"Dodgers",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
-      {seed:3,name:"Pirates",full:"Pirates",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
-      {seed:4,name:"Titans",full:"Titans",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
-      {seed:5,name:"Brooklyn",full:"Brooklyn",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
-      {seed:6,name:"Generals",full:"Generals",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
-      {seed:7,name:"Black Sox",full:"Black Sox",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:2,name:"Pirates",full:"Pirates",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:3,name:"Titans",full:"Titans",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:4,name:"Brooklyn",full:"Brooklyn",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:5,name:"Generals",full:"Generals",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:6,name:"Black Sox",full:"Black Sox",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
     ]},
 };
 
@@ -619,6 +618,10 @@ function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const links = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["history","History"],["rules","Rules"],["admin","⚙ Admin"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); window.scrollTo(0,0); };
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [menuOpen]);
   return (
     <>
       <nav style={{background:"#fff",borderBottom:"3px solid #002d6e",boxShadow:"0 1px 6px rgba(0,0,0,0.07)",height:62,display:"flex",alignItems:"center",padding:"0 clamp(12px,3vw,32px)",position:"relative",zIndex:400}}>
@@ -5346,6 +5349,14 @@ function LiveScorerPage() {
   const [pendingOutType, setPOT] = useState(null);
   const [runnerDests, setRD] = useState({});
   const [saving, setSaving] = useState(false);
+  // Box score submission
+  const [bsMode, setBsMode] = useState(false); // true = box score entry mode
+  const [bsTab, setBsTab] = useState("batting"); // "batting" | "pitching" | "paste"
+  const [bsScore, setBsScore] = useState({away:"",home:""});
+  const [bsBat, setBsBat] = useState({}); // {playerName: {ab,h,r,rbi,bb,k,doubles,triples,hr,hbp,sf}}
+  const [bsPit, setBsPit] = useState([]); // [{name,team,ip,h,r,er,bb,k,decision}]
+  const [bsPaste, setBsPaste] = useState("");
+  const [bsSaving, setBsSaving] = useState(false);
 
   const lsKey = (a,h,d) => `lbdc_live_${a}_${h}_${d}`.replace(/[\s/]/g,"_");
   const persist = (s) => {
@@ -5529,7 +5540,10 @@ function LiveScorerPage() {
                 ):inProg?(
                   <button onClick={()=>{setGs({...saved,_hist:[]});setView("game");}} style={{padding:"8px 16px",background:"#b45309",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>▶ Resume</button>
                 ):(
-                  <button onClick={()=>{setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep("away");setView("lineup");}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>⚡ Score Live</button>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <button onClick={()=>{setBsMode(false);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep("away");setView("lineup");}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
+                    <button onClick={()=>{setBsMode(true);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep("away");setView("lineup");}} style={{padding:"8px 16px",background:"#374151",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Box Score</button>
+                  </div>
                 )}
               </div>
             </div>
@@ -5549,6 +5563,17 @@ function LiveScorerPage() {
     const doneTeam=()=>{
       if(!cur.length){alert("Add at least 1 player.");return;}
       if(lineupStep==="away"){setLineupStep("home");return;}
+      if(bsMode){
+        // Route to box score entry
+        const initBat={};
+        [...lineupDraft.away,...lineupDraft.home].forEach(n=>{initBat[n]={ab:"",h:"",r:"",rbi:"",bb:"",k:"",doubles:"",triples:"",hr:"",hbp:"",sf:""};});
+        setBsBat(initBat);
+        setBsPit([{name:"",team:g.away,ip:"",h:"",r:"",er:"",bb:"",k:"",decision:""}]);
+        setBsScore({away:"",home:""});
+        setBsTab("batting");
+        setView("boxscore");
+        return;
+      }
       const si={};[...lineupDraft.away,...lineupDraft.home].forEach(n=>{si[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0};});
       const state={away:g.away,home:g.home,date:g.date,field:g.field,time:g.time,inning:1,topBottom:"top",outs:0,bases:[false,false,false],score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,lineup:lineupDraft,batterIdx:{away:0,home:0},stats:si,plays:[],status:"in_progress"};
       persist({...state,_hist:[]});setView("game");
@@ -5587,6 +5612,214 @@ function LiveScorerPage() {
           </div>
           <button onClick={doneTeam} style={{width:"100%",padding:"14px",background:"#002d6e",border:"none",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",cursor:"pointer"}}>
             {lineupStep==="away"?`Next: ${g.home} Order →`:"▶ Start Game!"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── BOX SCORE ENTRY ──
+  if (view==="boxscore") {
+    const g = setupInfo;
+    const awayPlayers = lineupDraft.away;
+    const homePlayers = lineupDraft.home;
+    const batCols = ["ab","h","r","rbi","bb","k","doubles","triples","hr","hbp","sf"];
+    const batLabels = ["AB","H","R","RBI","BB","K","2B","3B","HR","HBP","SF"];
+    const updBat = (name, col, val) => setBsBat(p => ({...p,[name]:{...p[name],[col]:val}}));
+    const updPit = (i, col, val) => setBsPit(p => p.map((r,j) => j===i ? {...r,[col]:val} : r));
+
+    const parsePaste = () => {
+      const lines = bsPaste.split("\n").filter(l => l.trim());
+      const allPlayers = [...awayPlayers,...homePlayers];
+      const newBat = {...bsBat};
+      lines.forEach(line => {
+        const nums = line.match(/\d+\.?\d*/g) || [];
+        const namePart = line.replace(/\d+\.?\d*/g,"").trim().replace(/\s+/g," ");
+        const match = allPlayers.find(p => namePart.toLowerCase().includes(p.split(" ").pop().toLowerCase()));
+        if (match && nums.length >= 4) {
+          newBat[match] = {
+            ab: nums[0]||"", r: nums[1]||"", h: nums[2]||"", rbi: nums[3]||"",
+            bb: nums[4]||"", k: nums[5]||"",
+            doubles: nums[6]||"", triples: nums[7]||"", hr: nums[8]||"", hbp: "", sf: ""
+          };
+        }
+      });
+      setBsBat(newBat);
+      setBsTab("batting");
+      alert("Parsed! Review and correct stats before submitting.");
+    };
+
+    const submitBoxScore = async () => {
+      if (bsScore.away==="" || bsScore.home==="") { alert("Enter final score."); return; }
+      setBsSaving(true);
+      try {
+        const seasons = await sbFetch("seasons?select=id,name&limit=100");
+        let season = seasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
+        if (!season) { const r = await sbPost("seasons",[{name:"Spring/Summer 2026"}]); season=r[0]; }
+        const existing = await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(g.away)}&home_team=eq.${encodeURIComponent(g.home)}&season_id=eq.${season.id}&limit=1`);
+        const gameData = {away_team:g.away,home_team:g.home,season_id:season.id,status:"Final",away_score:parseInt(bsScore.away)||0,home_score:parseInt(bsScore.home)||0};
+        let gameId;
+        if (existing.length) {
+          gameId = existing[0].id;
+          await sbPatch(`games?id=eq.${gameId}`, gameData);
+          await sbDelete(`batting_lines?game_id=eq.${gameId}`);
+          await sbDelete(`pitching_lines?game_id=eq.${gameId}`);
+        } else {
+          const r = await sbPost("games",[gameData]); gameId = r[0].id;
+        }
+        const batRows = [];
+        [...awayPlayers.map(n=>({n,team:g.away})),...homePlayers.map(n=>({n,team:g.home}))].forEach(({n,team},i) => {
+          const s = bsBat[n]||{};
+          if (!s.ab && !s.h) return;
+          batRows.push({game_id:gameId,player_name:n,team,batting_order:i+1,
+            ab:parseInt(s.ab)||0,h:parseInt(s.h)||0,r:parseInt(s.r)||0,rbi:parseInt(s.rbi)||0,
+            bb:parseInt(s.bb)||0,k:parseInt(s.k)||0,doubles:parseInt(s.doubles)||0,
+            triples:parseInt(s.triples)||0,hr:parseInt(s.hr)||0,hbp:parseInt(s.hbp)||0,sf:parseInt(s.sf)||0});
+        });
+        if (batRows.length) await sbPost("batting_lines", batRows);
+        const pitRows = bsPit.filter(p=>p.name&&p.ip).map(p=>({
+          game_id:gameId,player_name:p.name,team:p.team,ip:parseFloat(p.ip)||0,
+          h:parseInt(p.h)||0,r:parseInt(p.r)||0,er:parseInt(p.er)||0,bb:parseInt(p.bb)||0,k:parseInt(p.k)||0,decision:p.decision||null
+        }));
+        if (pitRows.length) await sbPost("pitching_lines", pitRows);
+        alert("Box score saved!");
+        setView("pick"); setBsMode(false);
+      } catch(e) { alert("Save failed: "+e.message); }
+      setBsSaving(false);
+    };
+
+    const inputStyle = {width:"100%",padding:"6px 4px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:4,fontSize:13,textAlign:"center",background:"#fff"};
+
+    return (
+      <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+        <div style={{background:"#002d6e",padding:"14px 16px",display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>setView("lineup")} style={{padding:"6px 12px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>← Back</button>
+          <div style={{flex:1,textAlign:"center"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#fff",textTransform:"uppercase"}}>{g.away} @ {g.home}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.6)"}}>{g.date} · {g.field}</div>
+          </div>
+        </div>
+
+        <div style={{maxWidth:900,margin:"0 auto",padding:"20px 12px 60px"}}>
+          {/* Final Score */}
+          <div style={{background:"#fff",borderRadius:10,padding:"16px",marginBottom:16,border:"1px solid rgba(0,0,0,0.09)"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12}}>Final Score</div>
+            <div style={{display:"flex",gap:16,alignItems:"center"}}>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"rgba(0,0,0,0.5)",marginBottom:4}}>{g.away}</div>
+                <input type="number" min="0" value={bsScore.away} onChange={e=>setBsScore(p=>({...p,away:e.target.value}))}
+                  style={{width:70,padding:"8px",border:"2px solid #002d6e",borderRadius:8,fontSize:22,fontWeight:900,textAlign:"center"}} />
+              </div>
+              <div style={{fontSize:20,color:"#ccc",fontWeight:700}}>–</div>
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"rgba(0,0,0,0.5)",marginBottom:4}}>{g.home}</div>
+                <input type="number" min="0" value={bsScore.home} onChange={e=>setBsScore(p=>({...p,home:e.target.value}))}
+                  style={{width:70,padding:"8px",border:"2px solid #002d6e",borderRadius:8,fontSize:22,fontWeight:900,textAlign:"center"}} />
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{display:"flex",gap:0,marginBottom:0,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:"10px 10px 0 0",overflow:"hidden"}}>
+            {[["batting","🏏 Batting"],["pitching","⚾ Pitching"],["paste","📋 Paste"]].map(([id,label])=>(
+              <button key={id} onClick={()=>setBsTab(id)} style={{flex:1,padding:"11px",border:"none",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,background:bsTab===id?"#002d6e":"#f8f9fb",color:bsTab===id?"#fff":"#555",borderBottom:bsTab===id?"none":"1px solid rgba(0,0,0,0.09)"}}>{label}</button>
+            ))}
+          </div>
+
+          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"none",borderRadius:"0 0 10px 10px",padding:"16px",marginBottom:16}}>
+            {bsTab==="batting" && (
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead>
+                    <tr style={{background:"#f8f9fb"}}>
+                      <th style={{padding:"8px 10px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",whiteSpace:"nowrap",minWidth:140}}>Player</th>
+                      <th style={{padding:"6px 4px",fontSize:11,color:"rgba(0,0,0,0.4)",fontWeight:700}}>Team</th>
+                      {batLabels.map(l=><th key={l} style={{padding:"6px 4px",fontSize:11,color:"rgba(0,0,0,0.4)",fontWeight:700,textAlign:"center",minWidth:40}}>{l}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...awayPlayers.map(n=>({n,team:g.away})),...homePlayers.map(n=>({n,team:g.home}))].map(({n,team},i) => (
+                      <tr key={n} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
+                        <td style={{padding:"6px 10px",fontWeight:600,whiteSpace:"nowrap"}}>{n}</td>
+                        <td style={{padding:"4px",textAlign:"center"}}>
+                          <span style={{background:`${TEAM_COLORS[team]||"#002d6e"}18`,color:TEAM_COLORS[team]||"#002d6e",border:`1px solid ${TEAM_COLORS[team]||"#002d6e"}40`,borderRadius:4,padding:"1px 5px",fontSize:10,fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase",whiteSpace:"nowrap"}}>{team}</span>
+                        </td>
+                        {batCols.map(col => (
+                          <td key={col} style={{padding:"4px 2px"}}>
+                            <input type="number" min="0" value={bsBat[n]?.[col]??""} onChange={e=>updBat(n,col,e.target.value)} style={inputStyle} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {bsTab==="pitching" && (
+              <div>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead>
+                    <tr style={{background:"#f8f9fb"}}>
+                      {["Pitcher","Team","IP","H","R","ER","BB","K","W/L/S"].map(l=>(
+                        <th key={l} style={{padding:"8px 6px",fontSize:11,color:"rgba(0,0,0,0.4)",fontWeight:700,textAlign:"center",whiteSpace:"nowrap"}}>{l}</th>
+                      ))}
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bsPit.map((p,i) => (
+                      <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
+                        <td style={{padding:"4px 6px"}}>
+                          <input value={p.name} onChange={e=>updPit(i,"name",e.target.value)} placeholder="Name" style={{...inputStyle,textAlign:"left",minWidth:120}} />
+                        </td>
+                        <td style={{padding:"4px 6px"}}>
+                          <select value={p.team} onChange={e=>updPit(i,"team",e.target.value)} style={{...inputStyle,textAlign:"left"}}>
+                            <option value={g.away}>{g.away}</option>
+                            <option value={g.home}>{g.home}</option>
+                          </select>
+                        </td>
+                        {["ip","h","r","er","bb","k"].map(col=>(
+                          <td key={col} style={{padding:"4px 6px"}}>
+                            <input type="number" min="0" value={p[col]} onChange={e=>updPit(i,col,e.target.value)} style={inputStyle} />
+                          </td>
+                        ))}
+                        <td style={{padding:"4px 6px"}}>
+                          <select value={p.decision} onChange={e=>updPit(i,"decision",e.target.value)} style={inputStyle}>
+                            <option value="">—</option>
+                            <option value="W">W</option><option value="L">L</option><option value="S">S</option>
+                          </select>
+                        </td>
+                        <td style={{padding:"4px"}}>
+                          <button onClick={()=>setBsPit(p=>p.filter((_,j)=>j!==i))} style={{padding:"4px 8px",background:"#fee2e2",border:"none",borderRadius:4,color:"#991b1b",cursor:"pointer",fontSize:12,fontWeight:700}}>✕</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <button onClick={()=>setBsPit(p=>[...p,{name:"",team:g.away,ip:"",h:"",r:"",er:"",bb:"",k:"",decision:""}])}
+                  style={{marginTop:10,padding:"8px 16px",background:"#f0f4ff",border:"1px solid #002d6e",borderRadius:8,fontWeight:700,fontSize:13,color:"#002d6e",cursor:"pointer"}}>
+                  + Add Pitcher
+                </button>
+              </div>
+            )}
+
+            {bsTab==="paste" && (
+              <div>
+                <p style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginTop:0,marginBottom:10}}>Paste your printed box score text below. We'll try to match player names and fill in stats — review everything before submitting.</p>
+                <textarea value={bsPaste} onChange={e=>setBsPaste(e.target.value)}
+                  placeholder={"Example:\nJohn Smith  4  1  2  1  0  1\nMike Jones  3  0  1  0  1  0\n..."}
+                  style={{width:"100%",minHeight:200,padding:10,border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:13,fontFamily:"monospace",boxSizing:"border-box"}} />
+                <button onClick={parsePaste} style={{marginTop:8,padding:"9px 18px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer"}}>
+                  Parse & Fill Stats →
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button onClick={submitBoxScore} disabled={bsSaving}
+            style={{width:"100%",padding:"14px",background:bsSaving?"#9ca3af":"#16a34a",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#fff",cursor:bsSaving?"not-allowed":"pointer",textTransform:"uppercase",letterSpacing:".05em"}}>
+            {bsSaving ? "Saving…" : "✅ Submit Box Score"}
           </button>
         </div>
       </div>
