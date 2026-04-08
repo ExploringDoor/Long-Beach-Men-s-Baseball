@@ -165,6 +165,19 @@ const TEAM_CAL_LINKS = {
   "Greg Maddux Magicians '66": "https://calendar.google.com/calendar/r?cid=6d97cb2c2833f83718aa1144af4402b990e998dcbeb4dd9a5d233a3781e8bff5%40group.calendar.google.com",
 };
 
+// Apple / iPhone Calendar (webcal ICS feed)
+const TEAM_CAL_ICS = {
+  "Tribe":    "webcal://calendar.google.com/calendar/ical/c595f97c1b49bf9edc22855592ee79225543282bec41c68c18715cb57dd6a109%40group.calendar.google.com/public/basic.ics",
+  "Dodgers":  "webcal://calendar.google.com/calendar/ical/7da402a2fc41e88b5f82a28cc8dc1f1c3424a421e6a8b7227406354079352b17%40group.calendar.google.com/public/basic.ics",
+  "Pirates":  "webcal://calendar.google.com/calendar/ical/9de8fd5874f11ff42f25cf6d92caaee9261c137c8be4c64b0d26083014484010%40group.calendar.google.com/public/basic.ics",
+  "Titans":   "webcal://calendar.google.com/calendar/ical/2a4c0c5588dc9e3b492690304ce6da913ffff3daad4340a83cecafc6111cd6e1%40group.calendar.google.com/public/basic.ics",
+  "Brooklyn": "webcal://calendar.google.com/calendar/ical/0474cdc6fd4e9341b1638d7b458b4a3c498c53a42e489a72c652e0c61a58559d%40group.calendar.google.com/public/basic.ics",
+  "Generals": "webcal://calendar.google.com/calendar/ical/87c7cc1dfa649ad6095d8daaaf95db1f1ecb222aeab8849eb6681b3c62f2a8cc%40group.calendar.google.com/public/basic.ics",
+  "Black Sox":"webcal://calendar.google.com/calendar/ical/72509ee387916b56600af826b8e0fd6c11e4227a7c1eee79dae873650a260b29%40group.calendar.google.com/public/basic.ics",
+  "Eddie Murray Mashers '56":  "webcal://calendar.google.com/calendar/ical/1641f48afa62a1d531486a44b949f194f1dde2eeeb020eb5fb4845b07d70881a%40group.calendar.google.com/public/basic.ics",
+  "Greg Maddux Magicians '66": "webcal://calendar.google.com/calendar/ical/6d97cb2c2833f83718aa1144af4402b990e998dcbeb4dd9a5d233a3781e8bff5%40group.calendar.google.com/public/basic.ics",
+};
+
 const SCORES = [
   {
     season:"Spring/Summer 2026",
@@ -1912,15 +1925,25 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                 <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:2}}>{team.rs} RF · {team.ra} RA</div>
               </div>
               {TEAM_CAL_LINKS[teamName] && (
-                <a href={TEAM_CAL_LINKS[teamName]} target="_blank" rel="noopener noreferrer" style={{
-                  display:"flex",alignItems:"center",gap:8,
-                  background:"#002d6e",borderRadius:8,padding:"12px 20px",
-                  textDecoration:"none",
-                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
-                  letterSpacing:".06em",textTransform:"uppercase",color:"#fff",
-                }}>
-                  📅 Subscribe to Schedule
-                </a>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.4)",textTransform:"uppercase",letterSpacing:".08em"}}>Add to Calendar</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <a href={TEAM_CAL_LINKS[teamName]} target="_blank" rel="noopener noreferrer" style={{
+                      display:"flex",alignItems:"center",gap:7,background:"#4285F4",borderRadius:8,padding:"10px 16px",
+                      textDecoration:"none",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
+                      letterSpacing:".04em",textTransform:"uppercase",color:"#fff",whiteSpace:"nowrap",
+                    }}>
+                      <span style={{fontSize:16}}>📅</span> Google Calendar
+                    </a>
+                    <a href={TEAM_CAL_ICS[teamName]} style={{
+                      display:"flex",alignItems:"center",gap:7,background:"#1c1c1e",borderRadius:8,padding:"10px 16px",
+                      textDecoration:"none",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
+                      letterSpacing:".04em",textTransform:"uppercase",color:"#fff",whiteSpace:"nowrap",
+                    }}>
+                      <span style={{fontSize:16}}>🍎</span> iPhone / Apple
+                    </a>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -2080,11 +2103,16 @@ function TeamsPage({ setTab, setTeamDetail }) {
                       </div>
                       <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:12}}>
                         {TEAM_CAL_LINKS[t.name] && (
-                          <a href={TEAM_CAL_LINKS[t.name]} target="_blank" rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            style={{fontSize:12,fontWeight:700,color:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",textDecoration:"none",border:"1px solid #002d6e",borderRadius:6,padding:"4px 10px",whiteSpace:"nowrap"}}>
-                            📅 Subscribe
-                          </a>
+                          <div style={{display:"flex",gap:6}} onClick={e=>e.stopPropagation()}>
+                            <a href={TEAM_CAL_LINKS[t.name]} target="_blank" rel="noopener noreferrer"
+                              style={{fontSize:11,fontWeight:700,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",textDecoration:"none",background:"#4285F4",borderRadius:6,padding:"4px 9px",whiteSpace:"nowrap"}}>
+                              📅 Google
+                            </a>
+                            <a href={TEAM_CAL_ICS[t.name]}
+                              style={{fontSize:11,fontWeight:700,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",textDecoration:"none",background:"#1c1c1e",borderRadius:6,padding:"4px 9px",whiteSpace:"nowrap"}}>
+                              🍎 iPhone
+                            </a>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2540,13 +2568,28 @@ function PlayerSignUpPage() {
     if (!form.name || !form.team || !form.email || !form.phone) { alert("Please fill in all required fields."); return; }
     setStatus("saving");
     try {
-      await sbPost("player_signups", [{
-        player_name: form.name, team_name: form.team, email: form.email, phone: form.phone,
-        pref_reminders: prefs.reminders, pref_scores: prefs.scores,
-        pref_playoffs: prefs.playoffs, pref_rainouts: prefs.rainouts,
-        notes: form.notes || null,
-      }]);
-      setStatus("done");
+      const res = await fetch("https://formsubmit.co/ajax/toddharris1222@gmail.com", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          _subject: `New Player Sign-Up: ${form.name} (${form.team})`,
+          Name: form.name,
+          Team: form.team,
+          Email: form.email,
+          Phone: form.phone,
+          "Reminders": prefs.reminders ? "Yes" : "No",
+          "Score Alerts": prefs.scores ? "Yes" : "No",
+          "Playoff Updates": prefs.playoffs ? "Yes" : "No",
+          "Rainout Notices": prefs.rainouts ? "Yes" : "No",
+          Notes: form.notes || "",
+        }),
+      });
+      const data = await res.json();
+      if (data.success === "true" || data.success === true) {
+        setStatus("done");
+      } else {
+        throw new Error("FormSubmit returned failure");
+      }
     } catch(e) { console.error("Sign-up error:", e); setStatus("error"); }
   };
 
