@@ -4968,7 +4968,7 @@ function AdminFieldsEditor({ onBack }) {
 function AdminSignupsViewer({ onBack }) {
   const [signups, setSignups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [activeTeam, setActiveTeam] = useState("All");
 
   useEffect(() => {
     sbFetch("lbdc_signups?select=*&order=created_at.desc")
@@ -4976,9 +4976,8 @@ function AdminSignupsViewer({ onBack }) {
       .catch(() => setLoading(false));
   }, []);
 
-  const filtered = signups.filter(s =>
-    !search || [s.name,s.team,s.email,s.phone].some(v => v?.toLowerCase().includes(search.toLowerCase()))
-  );
+  const teams = ["All", ...Array.from(new Set(signups.map(s=>s.team).filter(Boolean))).sort()];
+  const filtered = activeTeam === "All" ? signups : signups.filter(s => s.team === activeTeam);
 
   const badge = (label, val) => val ? (
     <span style={{background:"#e0f2fe",color:"#0369a1",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:20,whiteSpace:"nowrap"}}>{label}</span>
@@ -4988,15 +4987,32 @@ function AdminSignupsViewer({ onBack }) {
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
       <PageHero label="Admin" title="Player Sign-Ups" subtitle={`${signups.length} total submission${signups.length!==1?"s":""}`} />
       <div style={{maxWidth:860,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
-        <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
-          <button onClick={onBack} style={{background:"rgba(0,0,0,0.08)",border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",color:"#333"}}>← Back</button>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search by name, team, email…"
-            style={{flex:1,minWidth:200,padding:"9px 14px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:14,outline:"none"}} />
+        <div style={{marginBottom:20}}>
+          <button onClick={onBack} style={{background:"rgba(0,0,0,0.08)",border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",color:"#333",marginBottom:16}}>← Back</button>
+          {/* Team tabs */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {teams.map(team => {
+              const count = team === "All" ? signups.length : signups.filter(s=>s.team===team).length;
+              const active = activeTeam === team;
+              return (
+                <button key={team} onClick={()=>setActiveTeam(team)} style={{
+                  padding:"7px 14px",border:"none",borderRadius:20,cursor:"pointer",
+                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
+                  background: active ? "#002d6e" : "#fff",
+                  color: active ? "#fff" : "#444",
+                  boxShadow: active ? "0 2px 8px rgba(0,45,110,0.25)" : "0 1px 3px rgba(0,0,0,0.1)",
+                  transition:"all .15s"
+                }}>
+                  {team} <span style={{opacity:.7,fontWeight:400}}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         {loading ? (
           <div style={{textAlign:"center",padding:40,color:"#aaa"}}>Loading…</div>
         ) : filtered.length === 0 ? (
-          <div style={{textAlign:"center",padding:40,color:"#aaa",fontSize:15}}>{search ? "No matches found." : "No sign-ups yet."}</div>
+          <div style={{textAlign:"center",padding:40,color:"#aaa",fontSize:15}}>No sign-ups yet.</div>
         ) : (
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {filtered.map((s,i) => (
