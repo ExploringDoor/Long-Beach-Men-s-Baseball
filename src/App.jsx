@@ -840,7 +840,7 @@ function Ticker({ setTab }) {
       <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
         <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 10px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
           <span className="ticker-lbdc-text" style={{fontSize:18,lineHeight:1}}>⚾</span>
-          <span className="ticker-lbdc-text" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>LBDC</span>
+          <span className="ticker-lbdc-text" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>Diamond Classics</span>
           <span className="ticker-lbdc-date" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
         </div>
         <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
@@ -2820,11 +2820,50 @@ function getFieldsData() {
 
 /* ─── RULES PAGE ─────────────────────────────────────────────────────────── */
 function RulesPage() {
-  const rules = getRulesData();
+  const allRules = getRulesData();
+  const [division, setDivision] = useState("saturday");
+
+  const saturdayRules = allRules.filter(r => !r.section.toLowerCase().startsWith("boomers"));
+  const boomersRules  = allRules.filter(r => r.section.toLowerCase().startsWith("boomers"));
+  const rules = division === "saturday" ? saturdayRules : boomersRules;
+
+  const tabBtn = (key, label, icon) => (
+    <button key={key} onClick={() => setDivision(key)} style={{
+      flex:1, padding:"16px 10px", border:"none", cursor:"pointer",
+      background: division===key ? "#002d6e" : "#fff",
+      color: division===key ? "#fff" : "#002d6e",
+      fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900,
+      fontSize:"clamp(16px,4vw,22px)", textTransform:"uppercase", letterSpacing:".04em",
+      borderRadius: key==="saturday" ? "12px 0 0 12px" : "0 12px 12px 0",
+      borderTop: division===key ? "none" : "2px solid rgba(0,45,110,0.2)",
+      borderBottom: division===key ? "none" : "2px solid rgba(0,45,110,0.2)",
+      borderLeft: key==="saturday" ? (division===key ? "none" : "2px solid rgba(0,45,110,0.2)") : "1px solid rgba(0,45,110,0.15)",
+      borderRight: key==="boomers"  ? (division===key ? "none" : "2px solid rgba(0,45,110,0.2)") : "1px solid rgba(0,45,110,0.15)",
+      transition:"all .2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+      boxShadow: division===key ? "0 4px 18px rgba(0,45,110,0.25)" : "none",
+    }}>
+      <span style={{fontSize:"clamp(18px,5vw,28px)"}}>{icon}</span>
+      <div style={{textAlign:"left"}}>
+        <div>{label}</div>
+        <div style={{fontSize:"clamp(10px,2.5vw,13px)",fontWeight:600,opacity:.7,letterSpacing:".02em",textTransform:"none"}}>
+          {key==="saturday" ? "Saturday League" : "60/70 Division"}
+        </div>
+      </div>
+    </button>
+  );
+
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Field Guide" subtitle="Official rules and guidelines for the 2026 season" />
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+
+        {/* Division picker */}
+        <div style={{display:"flex",marginBottom:24,boxShadow:"0 2px 12px rgba(0,0,0,0.1)",borderRadius:12,overflow:"hidden"}}>
+          {tabBtn("saturday","Saturday Division","⚾")}
+          {tabBtn("boomers","Boomers Rules","🟣")}
+        </div>
+
+        {/* Jump-to nav */}
         <Card style={{marginBottom:24}}>
           <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
             <span style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Jump To</span>
@@ -2833,33 +2872,34 @@ function RulesPage() {
             {rules.map(r => (
               <button key={r.section} type="button"
                 onClick={()=>document.getElementById(`rule-${r.section.replace(/\s+/g,"-").toLowerCase()}`)?.scrollIntoView({behavior:"smooth",block:"start"})}
-                style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(0,45,110,0.06)",border:"1px solid rgba(0,45,110,0.15)",borderRadius:20,padding:"5px 14px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#002d6e",letterSpacing:".04em",transition:"all .15s",cursor:"pointer"}}
-                onMouseEnter={e => e.currentTarget.style.background="rgba(0,45,110,0.12)"}
-                onMouseLeave={e => e.currentTarget.style.background="rgba(0,45,110,0.06)"}>
+                style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(0,45,110,0.06)",border:"1px solid rgba(0,45,110,0.15)",borderRadius:20,padding:"5px 14px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#002d6e",cursor:"pointer"}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.12)"}
+                onMouseLeave={e=>e.currentTarget.style.background="rgba(0,45,110,0.06)"}>
                 {r.icon} {r.section}
               </button>
             ))}
           </div>
         </Card>
+
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           {rules.map(r => (
             <div key={r.section} id={`rule-${r.section.replace(/\s+/g,"-").toLowerCase()}`} style={{scrollMarginTop:72}}>
-            <Card style={{padding:0}}>
-              <div style={{padding:"16px 24px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:12}}>
-                <span style={{fontSize:22}}>{r.icon}</span>
-                <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#111",textTransform:"uppercase"}}>{r.section}</h2>
-              </div>
-              <div style={{padding:"16px 24px"}}>
-                <ol style={{listStyle:"none",display:"flex",flexDirection:"column",gap:10}}>
-                  {r.items.map((item,i) => (
-                    <li key={i} style={{display:"flex",gap:14}}>
-                      <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,color:"#002d6e",minWidth:24,paddingTop:1,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
-                      <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.6}}>{item}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </Card>
+              <Card style={{padding:0}}>
+                <div style={{padding:"16px 24px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:12}}>
+                  <span style={{fontSize:22}}>{r.icon}</span>
+                  <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#111",textTransform:"uppercase"}}>{r.section}</h2>
+                </div>
+                <div style={{padding:"16px 24px"}}>
+                  <ol style={{listStyle:"none",display:"flex",flexDirection:"column",gap:10}}>
+                    {r.items.map((item,i) => (
+                      <li key={i} style={{display:"flex",gap:14}}>
+                        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,color:"#002d6e",minWidth:24,paddingTop:1,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
+                        <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.6}}>{item}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </Card>
             </div>
           ))}
         </div>
@@ -2978,7 +3018,7 @@ function HistoryPage() {
   const hasBoxScores = season && SEASONS_WITH_BOX_SCORES.has(season.name);
 
   return (
-    <div style={{maxWidth:1200,margin:"0 auto",padding:"32px clamp(12px,3vw,32px)"}}>
+    <div style={{maxWidth:1200,margin:"0 auto",padding:"32px clamp(8px,3vw,32px)",overflowX:"hidden"}}>
       {/* Box score loading overlay */}
       {boxModal === "loading" && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -3014,11 +3054,11 @@ function HistoryPage() {
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:20,alignItems:"start"}}>
+      <div style={{display:"grid",gridTemplateColumns:"clamp(160px,22vw,220px) 1fr",gap:20,alignItems:"start"}}>
 
         {/* Season list sidebar */}
         <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",
-          position:"sticky",top:80,maxHeight:"80vh",overflowY:"auto"}}>
+          position:"sticky",top:80,maxHeight:"80vh",overflowY:"auto",fontSize:"clamp(11px,2.5vw,14px)"}}>
           {categorySeasons.map((s,i) => (
             <button key={i} onClick={() => setSelectedSeason(s)}
               style={{display:"block",width:"100%",textAlign:"left",padding:"12px 14px",
@@ -4963,14 +5003,14 @@ function AdminPage({ onAlertChange }) {
     return (
       <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
         <div style={{background:"#001a3e",borderBottom:"3px solid #002d6e",padding:"16px clamp(12px,3vw,32px)"}}>
-          <div style={{maxWidth:1000,margin:"0 auto",display:"flex",alignItems:"center",gap:12}}>
-            <button onClick={()=>setScreen("home")} style={{padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"#fff",fontSize:13,cursor:"pointer",fontWeight:700}}>← Back</button>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase"}}>⚾ Manage Team Rosters</div>
+          <div style={{maxWidth:1000,margin:"0 auto",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            <button onClick={()=>setScreen("admin")} style={{padding:"8px 16px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:8,color:"#fff",fontSize:14,cursor:"pointer",fontWeight:700}}>← Back</button>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(16px,4vw,22px)",color:"#fff",textTransform:"uppercase"}}>⚾ Manage Team Rosters</div>
           </div>
         </div>
         <div style={{maxWidth:1000,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 60px"}}>
           {/* Team selector */}
-          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px",marginBottom:20,display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
+          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"12px 14px",marginBottom:20,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",marginRight:4}}>Team:</span>
             {Object.keys(rosters).map(t => (
               <button key={t} onClick={()=>{setEditTeam(t);setEditIdx(null);}}
@@ -4990,7 +5030,7 @@ function AdminPage({ onAlertChange }) {
             {editIdx !== null && (
               <div style={{padding:"16px 20px",background:"#f0f4ff",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12,color:"#002d6e"}}>{editIdx===-1?"Add New Player":"Edit Player"}</div>
-                <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
                   <div>
                     <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",marginBottom:4}}>Jersey #</div>
                     <input value={editForm.number} onChange={e=>setEditForm(f=>({...f,number:e.target.value}))}
@@ -5015,14 +5055,14 @@ function AdminPage({ onAlertChange }) {
             ) : (
               <div>
                 {teamPlayers.map((p,i) => (
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 20px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:editIdx===i?"#f0f4ff":"transparent"}}>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:editIdx===i?"#f0f4ff":"transparent",flexWrap:"wrap"}}>
                     <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"rgba(0,0,0,0.3)",width:28,textAlign:"right",flexShrink:0}}>#{p.number||"—"}</span>
-                    <span style={{flex:1,fontWeight:600,fontSize:15}}>{p.name}</span>
-                    <div style={{display:"flex",gap:6,flexShrink:0}}>
-                      <button onClick={()=>movePlayer(i,-1)} disabled={i===0} style={{padding:"4px 8px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:4,cursor:i===0?"not-allowed":"pointer",opacity:i===0?.3:1}}>↑</button>
-                      <button onClick={()=>movePlayer(i,1)} disabled={i===teamPlayers.length-1} style={{padding:"4px 8px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:4,cursor:i===teamPlayers.length-1?"not-allowed":"pointer",opacity:i===teamPlayers.length-1?.3:1}}>↓</button>
-                      <button onClick={()=>startEdit(i)} style={{padding:"4px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:4,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>Edit</button>
-                      <button onClick={()=>deletePlayer(i)} style={{padding:"4px 12px",background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:4,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
+                    <span style={{flex:1,minWidth:120,fontWeight:600,fontSize:15}}>{p.name}</span>
+                    <div style={{display:"flex",gap:5,flexShrink:0,flexWrap:"wrap"}}>
+                      <button onClick={()=>movePlayer(i,-1)} disabled={i===0} style={{padding:"6px 10px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:i===0?"not-allowed":"pointer",opacity:i===0?.3:1,fontSize:14}}>↑</button>
+                      <button onClick={()=>movePlayer(i,1)} disabled={i===teamPlayers.length-1} style={{padding:"6px 10px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:i===teamPlayers.length-1?"not-allowed":"pointer",opacity:i===teamPlayers.length-1?.3:1,fontSize:14}}>↓</button>
+                      <button onClick={()=>startEdit(i)} style={{padding:"6px 14px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Edit</button>
+                      <button onClick={()=>deletePlayer(i)} style={{padding:"6px 14px",background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:13,cursor:"pointer"}}>✕</button>
                     </div>
                   </div>
                 ))}
@@ -7960,6 +8000,8 @@ export default function App() {
           /* Ticker LBDC label compact on mobile */
           .ticker-lbdc-text{display:none!important;}
           .ticker-lbdc-date{font-size:10px!important;}
+          .ticker-brand{display:flex!important;align-items:center;gap:4px;}
+          .ticker-brand-label{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#FFD700;}
           /* Ticker game items: stacked layout on mobile */
           .ticker-game-item{flex-direction:column!important;justify-content:center!important;align-items:flex-start!important;padding:4px 8px!important;min-width:120px!important;gap:1px!important;height:auto!important;}
           .ticker-game-item .ticker-team-name{font-size:13px!important;}
