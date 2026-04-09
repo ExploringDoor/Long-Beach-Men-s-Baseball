@@ -843,7 +843,7 @@ function Ticker({ setTab }) {
           <span className="ticker-lbdc-text" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>Diamond Classics</span>
           <span className="ticker-lbdc-date" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
         </div>
-        <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
+        <div className="ticker-scroll" style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
           {games.map((g,i) => (
             <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
               className="ticker-game-item"
@@ -8025,11 +8025,12 @@ export default function App() {
           .ticker-brand{display:flex!important;align-items:center;gap:4px;}
           .ticker-brand-label{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#FFD700;}
           /* Ticker game items: stacked layout on mobile */
-          .ticker-game-item{flex-direction:row!important;align-items:center!important;padding:6px 10px!important;flex:0 0 auto!important;min-width:0!important;gap:4px!important;height:auto!important;}
-          .ticker-game-item .ticker-team-name{font-size:11px!important;white-space:nowrap!important;}
-          .ticker-game-item .ticker-time{font-size:10px!important;margin-left:3px!important;}
-          .ticker-game-item img{width:18px!important;height:18px!important;display:block!important;}
-          .ticker-vs{font-size:9px!important;}
+          .ticker-scroll{flex-direction:column!important;overflow-x:hidden!important;overflow-y:visible!important;}
+          .ticker-game-item{flex-direction:row!important;align-items:center!important;padding:6px 10px!important;flex:none!important;width:100%!important;border-right:none!important;border-bottom:1px solid rgba(255,255,255,0.08)!important;gap:5px!important;height:auto!important;}
+          .ticker-game-item .ticker-team-name{font-size:12px!important;white-space:nowrap!important;}
+          .ticker-game-item .ticker-time{font-size:10px!important;margin-left:4px!important;}
+          .ticker-game-item img{width:20px!important;height:20px!important;display:block!important;}
+          .ticker-vs{font-size:10px!important;}
         }
       `}</style>
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
