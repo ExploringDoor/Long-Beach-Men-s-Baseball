@@ -476,6 +476,29 @@ const RULES_DATA = [
     "Restrooms are located down the left field line.",
     "Parking is off Consuelo Street (behind the church at the end of the street).",
   ]},
+  {section:"Boomers 60/70 — Game Rules",icon:"🟣",items:[
+    "2:15 hour time limit — finish by 2:30.",
+    "Games are 7 innings, or as many as possible within 2½ hours.",
+    "Free substitution on defense.",
+    "No stealing.",
+    "No advancement on wild pitches.",
+    "Batted ball that hits outfield grass: batter CANNOT be thrown out at first base.",
+    "Overthrows are ONE base only.",
+    "Everyone bats! If someone is injured or must leave, crunch the lineup.",
+    "Unlimited Courtesy Runners (please use as necessary) — Courtesy Runner is the last RECORDED OUT.",
+    "Must be 60 or older to pitch.",
+    "Players 70+ may opt to use aluminum bats.",
+  ]},
+  {section:"Boomers 60/70 — Age & Eligibility",icon:"🎂",items:[
+    "Age is based on Year of Birth: 2026 − YOB = Age.",
+    "2026 − 1966 = 60  |  2026 − 1967 = 59  |  2026 − 1968 = 58",
+    "Age exemptions: teams may carry up to two (2) players who are 58 or 59 years old.",
+    "Exemption players (age 58/59) are NOT permitted to pitch.",
+  ]},
+  {section:"Boomers 60/70 — Costs",icon:"💵",items:[
+    "$25 per player — Registration & Insurance (one-time charge per year).",
+    "$20 per player, per game — covers field rental and umpire. Prepaid is preferred.",
+  ]},
 ];
 
 /* ─── SHARED COMPONENTS ─────────────────────────────────────────────────── */
