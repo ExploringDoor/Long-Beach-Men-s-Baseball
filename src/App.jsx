@@ -2505,6 +2505,15 @@ const FIELDS_INFO = [
   },
 ];
 
+const SPONSORS_DATA = [
+  { name:"Daniel Gutierrez", role:"Diamond Classics Founder", description:"Thank you to Daniel Gutierrez for founding and building the Long Beach Diamond Classics into the league it is today. Your dedication to men's 50+ baseball in Southern California keeps the love of the game alive.", email:"dgutierrez22@yahoo.com", website:"", featured:true },
+  { name:"Adam — Mainline Design", role:"Website Design & Development", description:"A huge thank you to Adam for building this amazing website and bringing the Diamond Classics experience online. 🙌", email:"adam.mainlinewebdesign@gmail.com", website:"" },
+];
+function getSponsorsData() {
+  try { const s = localStorage.getItem("lbdc_sponsors"); if (s) return JSON.parse(s); } catch(e) {}
+  return SPONSORS_DATA;
+}
+
 function FieldDirectionsPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
@@ -2560,46 +2569,34 @@ function FieldDirectionsPage() {
 
 /* ─── SPONSORS PAGE ──────────────────────────────────────────────────────── */
 function SponsorsPage() {
+  const sponsors = getSponsorsData();
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Sponsors & Contributors" subtitle="With gratitude to those who support Long Beach Diamond Classics" />
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
-        {/* Featured Founder */}
-        <div style={{background:"linear-gradient(135deg,#001a3e 0%,#002d6e 100%)",borderRadius:16,padding:"32px",marginBottom:28,color:"#fff",position:"relative",overflow:"hidden"}}>
-          <div style={{position:"absolute",right:-20,top:-20,fontSize:120,opacity:.06,lineHeight:1}}>⚾</div>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#FFD700",marginBottom:8}}>Diamond Classics Founder</div>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:36,textTransform:"uppercase",lineHeight:1,marginBottom:8}}>Daniel Gutierrez</div>
-          <div style={{fontSize:14,color:"rgba(255,255,255,0.7)",lineHeight:1.6,maxWidth:600}}>
-            Thank you to Daniel Gutierrez for founding and building the Long Beach Diamond Classics into the league it is today. Your dedication to men's 50+ baseball in Southern California keeps the love of the game alive.
+        {sponsors.map((sp,i)=> sp.featured ? (
+          <div key={i} style={{background:"linear-gradient(135deg,#001a3e 0%,#002d6e 100%)",borderRadius:16,padding:"32px",marginBottom:28,color:"#fff",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",right:-20,top:-20,fontSize:120,opacity:.06,lineHeight:1}}>⚾</div>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#FFD700",marginBottom:8}}>{sp.role}</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:36,textTransform:"uppercase",lineHeight:1,marginBottom:8}}>{sp.name}</div>
+            <div style={{fontSize:14,color:"rgba(255,255,255,0.7)",lineHeight:1.6,maxWidth:600}}>{sp.description}</div>
           </div>
-        </div>
-
-        {/* Website Credit */}
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #f59e0b",borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-            <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(245,158,11,0.1)",border:"2px solid rgba(245,158,11,0.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>💻</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Adam — Mainline Design</div>
-              <div style={{fontSize:12,fontWeight:700,color:"rgba(245,158,11,0.85)",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>Website Design & Development</div>
-              <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4}}>
-                A huge thank you to Adam for building this amazing website and bringing the Diamond Classics experience online. 🙌
-                {" "}<a href="mailto:adam.mainlinewebdesign@gmail.com" style={{color:"#002d6e",fontWeight:600}}>adam.mainlinewebdesign@gmail.com</a>
+        ) : (
+          <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${i===1?"#f59e0b":"#002d6e"}`,borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+              {i===1 && <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(245,158,11,0.1)",border:"2px solid rgba(245,158,11,0.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>💻</div>}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>{sp.name}</div>
+                {sp.role && <div style={{fontSize:12,fontWeight:700,color:i===1?"rgba(245,158,11,0.85)":"#002d6e",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>{sp.role}</div>}
+                {sp.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4,lineHeight:1.5}}>{sp.description}{" "}
+                  {sp.email && <a href={`mailto:${sp.email}`} style={{color:"#002d6e",fontWeight:600}}>{sp.email}</a>}
+                </div>}
+                {!sp.description && sp.email && <div style={{marginTop:6}}><a href={`mailto:${sp.email}`} style={{fontSize:13,color:"#002d6e"}}>{sp.email}</a></div>}
+                {sp.website && <div style={{marginTop:4}}><a href={sp.website} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:"#002d6e"}}>{sp.website}</a></div>}
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Dynamic sponsors from admin */}
-        {(() => { try { const s=JSON.parse(localStorage.getItem("lbdc_sponsors")||"[]"); return s.map((sp,i)=>(
-          <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>{sp.name}</div>
-            {sp.role && <div style={{fontSize:12,fontWeight:700,color:"#002d6e",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>{sp.role}</div>}
-            {sp.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.6)",marginTop:6,lineHeight:1.6}}>{sp.description}</div>}
-            {sp.email && <div style={{marginTop:8}}><a href={`mailto:${sp.email}`} style={{fontSize:13,color:"#002d6e"}}>{sp.email}</a></div>}
-            {sp.website && <div style={{marginTop:4}}><a href={sp.website} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:"#002d6e"}}>{sp.website}</a></div>}
-          </div>
-        )); } catch(e) { return null; } })()}
-
+        ))}
         {/* Become a Sponsor CTA */}
         <div style={{background:"#fff",border:"2px dashed rgba(0,45,110,0.2)",borderRadius:12,padding:"28px 24px",textAlign:"center",marginTop:24}}>
           <div style={{fontSize:32,marginBottom:10}}>🤝</div>
@@ -4350,6 +4347,7 @@ function AdminPhotosEditor({ onBack }) {
   const [caption, setCaption] = useState("");
   const [mediaType, setMediaType] = useState("photo");
   const [saved, setSaved] = useState(false);
+  const [editIdx, setEditIdx] = useState(null);
   const persist = (arr) => { localStorage.setItem("lbdc_photos", JSON.stringify(arr)); setSaved(true); setTimeout(()=>setSaved(false),2000); };
   const add = () => {
     if (!url.trim()) { alert("Please enter a URL."); return; }
@@ -4357,11 +4355,13 @@ function AdminPhotosEditor({ onBack }) {
     setPhotos(updated); persist(updated); setUrl(""); setCaption(""); setMediaType("photo");
   };
   const del = (i) => { if(!window.confirm("Remove this item?")) return; const u=photos.filter((_,j)=>j!==i); setPhotos(u); persist(u); };
-  const btn=(bg,color="#fff")=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"});
+  const saveEdit = (i) => { persist(photos); setEditIdx(null); };
+  const updPhoto = (i,f,v) => setPhotos(p=>p.map((x,j)=>j!==i?x:{...x,[f]:v}));
+  const btn=(bg,color="#fff",extra={})=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",...extra});
   const inp={fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"8px 12px",width:"100%",boxSizing:"border-box"};
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="Admin" title="Manage Photos & Videos" subtitle="Add or remove items from the gallery" />
+      <PageHero label="Admin" title="Manage Photos & Videos" subtitle="Add, edit or remove items from the gallery" />
       <div style={{maxWidth:700,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
         <div style={{display:"flex",gap:10,marginBottom:24,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
@@ -4382,16 +4382,36 @@ function AdminPhotosEditor({ onBack }) {
         {photos.length === 0 && <div style={{textAlign:"center",color:"rgba(0,0,0,0.4)",padding:"40px 0",fontSize:14}}>No photos or videos yet. Add one above.</div>}
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           {photos.map((p,i)=>(
-            <div key={i} style={{background:"#fff",borderRadius:10,border:"1px solid rgba(0,0,0,0.08)",display:"flex",alignItems:"center",gap:14,padding:"12px 16px"}}>
-              {p.type==="video"
-                ? <div style={{width:72,height:54,background:"#111",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>▶</div>
-                : <img src={p.url} alt="" style={{width:72,height:54,objectFit:"cover",borderRadius:6,flexShrink:0,background:"#eee"}} onError={e=>e.target.style.background="#eee"} />}
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:3}}>{p.type==="video"?"🎥 Video":"📸 Photo"}</div>
-                <div style={{fontSize:13,color:"#111",wordBreak:"break-all",marginBottom:2}}>{p.caption||<em style={{color:"rgba(0,0,0,0.35)"}}>No caption</em>}</div>
-                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",wordBreak:"break-all"}}>{p.url.slice(0,60)}{p.url.length>60?"…":""}</div>
-              </div>
-              <button onClick={()=>del(i)} style={{background:"none",border:"none",color:"#dc2626",fontSize:20,cursor:"pointer",flexShrink:0,padding:"4px 8px"}}>🗑️</button>
+            <div key={i} style={{background:"#fff",borderRadius:10,border:`1px solid ${editIdx===i?"#002d6e":"rgba(0,0,0,0.08)"}`,padding:"12px 16px"}}>
+              {editIdx===i ? (
+                <div style={{display:"flex",flexDirection:"column",gap:9}}>
+                  <div style={{display:"flex",gap:8,marginBottom:4}}>
+                    <button onClick={()=>updPhoto(i,"type","photo")} style={{...btn(p.type==="photo"?"#002d6e":"rgba(0,0,0,0.07)",p.type==="photo"?"#fff":"#333"),padding:"6px 12px",fontSize:13}}>📸 Photo</button>
+                    <button onClick={()=>updPhoto(i,"type","video")} style={{...btn(p.type==="video"?"#002d6e":"rgba(0,0,0,0.07)",p.type==="video"?"#fff":"#333"),padding:"6px 12px",fontSize:13}}>🎥 Video</button>
+                  </div>
+                  <input value={p.url} onChange={e=>updPhoto(i,"url",e.target.value)} placeholder="URL" style={inp} />
+                  <input value={p.caption||""} onChange={e=>updPhoto(i,"caption",e.target.value)} placeholder="Caption (optional)" style={inp} />
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>saveEdit(i)} style={btn("#16a34a",undefined,{padding:"8px 18px",fontSize:14})}>✓ Save</button>
+                    <button onClick={()=>setEditIdx(null)} style={btn("rgba(0,0,0,0.08)","#333",{padding:"8px 14px",fontSize:14})}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display:"flex",alignItems:"center",gap:14}}>
+                  {p.type==="video"
+                    ? <div style={{width:72,height:54,background:"#111",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>▶</div>
+                    : <img src={p.url} alt="" style={{width:72,height:54,objectFit:"cover",borderRadius:6,flexShrink:0,background:"#eee"}} onError={e=>e.target.style.background="#eee"} />}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:3}}>{p.type==="video"?"🎥 Video":"📸 Photo"}</div>
+                    <div style={{fontSize:13,color:"#111",wordBreak:"break-all",marginBottom:2}}>{p.caption||<em style={{color:"rgba(0,0,0,0.35)"}}>No caption</em>}</div>
+                    <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",wordBreak:"break-all"}}>{p.url.slice(0,60)}{p.url.length>60?"…":""}</div>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <button onClick={()=>setEditIdx(i)} style={btn("rgba(0,45,110,0.08)","#002d6e",{padding:"7px 13px",fontSize:13})}>✏️ Edit</button>
+                    <button onClick={()=>del(i)} style={{background:"none",border:"none",color:"#dc2626",fontSize:20,cursor:"pointer",padding:"4px 8px"}}>🗑️</button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -4401,55 +4421,78 @@ function AdminPhotosEditor({ onBack }) {
 }
 
 function AdminSponsorsEditor({ onBack }) {
-  const defaultSponsors = () => { try { return JSON.parse(localStorage.getItem("lbdc_sponsors")||"[]"); } catch(e) { return []; } };
-  const [sponsors, setSponsors] = useState(defaultSponsors);
-  const [form, setForm] = useState({name:"",role:"",description:"",email:"",website:""});
+  const [sponsors, setSponsors] = useState(() => getSponsorsData());
   const [saved, setSaved] = useState(false);
-  const persist = (arr) => { localStorage.setItem("lbdc_sponsors", JSON.stringify(arr)); setSaved(true); setTimeout(()=>setSaved(false),2000); };
-  const add = () => {
-    if (!form.name.trim()) { alert("Sponsor name is required."); return; }
-    const updated = [...sponsors, {...form}];
-    setSponsors(updated); persist(updated);
-    setForm({name:"",role:"",description:"",email:"",website:""});
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({name:"",role:"",description:"",email:"",website:"",featured:false});
+  const save = (arr) => { localStorage.setItem("lbdc_sponsors", JSON.stringify(arr)); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const reset = () => { if(!window.confirm("Reset sponsors to default? All edits will be lost.")) return; localStorage.removeItem("lbdc_sponsors"); setSponsors(SPONSORS_DATA); };
+  const upd = (i,f,v) => setSponsors(p=>p.map((s,j)=>j!==i?s:{...s,[f]:v}));
+  const del = (i) => { if(!window.confirm(`Remove "${sponsors[i].name}"?`)) return; const u=sponsors.filter((_,j)=>j!==i); setSponsors(u); save(u); };
+  const addSponsor = () => {
+    if(!form.name.trim()){alert("Name required.");return;}
+    const u=[...sponsors,{...form}]; setSponsors(u); save(u);
+    setForm({name:"",role:"",description:"",email:"",website:"",featured:false}); setAdding(false);
   };
-  const del = (i) => { if(!window.confirm("Remove this sponsor?")) return; const u=sponsors.filter((_,j)=>j!==i); setSponsors(u); persist(u); };
-  const btn=(bg,color="#fff")=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"});
+  const move = (i,dir) => { const n=i+dir; if(n<0||n>=sponsors.length)return; setSponsors(p=>{const r=[...p];[r[i],r[n]]=[r[n],r[i]];return r;}); };
+  const btn=(bg,color="#fff",extra={})=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",...extra});
   const inp={fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"8px 12px",width:"100%",boxSizing:"border-box"};
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="Admin" title="Manage Sponsors" subtitle="Add or remove sponsors from the Sponsors page" />
-      <div style={{maxWidth:700,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
-        <div style={{display:"flex",gap:10,marginBottom:24,alignItems:"center",flexWrap:"wrap"}}>
+      <PageHero label="Admin" title="Manage Sponsors" subtitle="Edit all sponsor cards on the Sponsors page" />
+      <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
           <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
-          {saved && <span style={{color:"#16a34a",fontWeight:700,fontSize:14}}>✓ Saved!</span>}
+          <button onClick={()=>save(sponsors)} style={btn(saved?"#16a34a":"#002d6e")}>{saved?"✓ Saved!":"💾 Save Changes"}</button>
+          <button onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
         </div>
-        <div style={{background:"rgba(0,45,110,0.05)",borderRadius:10,padding:"12px 16px",marginBottom:20,fontSize:13,color:"rgba(0,0,0,0.55)"}}>
-          ℹ️ The <strong>Daniel Gutierrez</strong> (Founder) and <strong>Adam — Mainline Design</strong> (Website) cards are always shown. Add additional sponsors below.
-        </div>
-        <div style={{background:"#fff",borderRadius:12,padding:"20px",marginBottom:24,border:"1px solid rgba(0,0,0,0.08)"}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",marginBottom:14}}>Add Sponsor</div>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Sponsor name *" style={inp} />
-            <input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="Role / title (e.g. Gold Sponsor)" style={inp} />
-            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Description" rows={2} style={{...inp,resize:"vertical"}} />
-            <input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="Email (optional)" style={inp} />
-            <input value={form.website} onChange={e=>setForm(f=>({...f,website:e.target.value}))} placeholder="Website URL (optional)" style={inp} />
-            <button onClick={add} style={{...btn("#002d6e"),padding:"11px 24px",alignSelf:"flex-start"}}>+ Add Sponsor</button>
-          </div>
-        </div>
-        {sponsors.length === 0 && <div style={{textAlign:"center",color:"rgba(0,0,0,0.4)",padding:"30px 0",fontSize:14}}>No additional sponsors added yet.</div>}
-        {sponsors.map((s,i)=>(
-          <div key={i} style={{background:"#fff",borderRadius:10,border:"1px solid rgba(0,0,0,0.08)",padding:"16px 20px",marginBottom:10,display:"flex",alignItems:"flex-start",gap:14}}>
-            <div style={{flex:1}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#111"}}>{s.name}</div>
-              {s.role && <div style={{fontSize:12,color:"#002d6e",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginTop:2}}>{s.role}</div>}
-              {s.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.6)",marginTop:4}}>{s.description}</div>}
-              {s.email && <div style={{fontSize:12,color:"rgba(0,0,0,0.45)",marginTop:4}}>✉️ {s.email}</div>}
-              {s.website && <div style={{fontSize:12,color:"rgba(0,0,0,0.45)",marginTop:2}}>🌐 {s.website}</div>}
+        {sponsors.map((sp,i)=>(
+          <div key={i} style={{background:"#fff",borderRadius:12,marginBottom:16,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${sp.featured?"#FFD700":"#002d6e"}`}}>
+            <div style={{background:"rgba(0,0,0,0.02)",padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#111",flex:1}}>{sp.name||"Untitled Sponsor"}</span>
+              {sp.featured && <span style={{fontSize:11,background:"#FFD700",color:"#111",borderRadius:4,padding:"2px 8px",fontWeight:700}}>FEATURED</span>}
+              <label style={{fontSize:12,color:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",gap:4,cursor:"pointer"}}>
+                <input type="checkbox" checked={!!sp.featured} onChange={e=>upd(i,"featured",e.target.checked)} /> Featured (dark card)
+              </label>
+              <button onClick={()=>move(i,-1)} disabled={i===0} style={btn("rgba(0,0,0,0.07)","#333",{padding:"7px 11px"})}>↑</button>
+              <button onClick={()=>move(i,1)} disabled={i===sponsors.length-1} style={btn("rgba(0,0,0,0.07)","#333",{padding:"7px 11px"})}>↓</button>
+              <button onClick={()=>del(i)} style={btn("rgba(220,38,38,0.08)","#dc2626",{padding:"7px 11px"})}>🗑️</button>
             </div>
-            <button onClick={()=>del(i)} style={{background:"none",border:"none",color:"#dc2626",fontSize:20,cursor:"pointer",flexShrink:0}}>🗑️</button>
+            <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:9}}>
+              <input value={sp.name} onChange={e=>upd(i,"name",e.target.value)} placeholder="Name *" style={{...inp,fontWeight:700,fontSize:16}} />
+              <input value={sp.role||""} onChange={e=>upd(i,"role",e.target.value)} placeholder="Role / title (e.g. Gold Sponsor)" style={inp} />
+              <textarea value={sp.description||""} onChange={e=>upd(i,"description",e.target.value)} placeholder="Description" rows={2} style={{...inp,resize:"vertical"}} />
+              <input value={sp.email||""} onChange={e=>upd(i,"email",e.target.value)} placeholder="Email (optional)" style={inp} />
+              <input value={sp.website||""} onChange={e=>upd(i,"website",e.target.value)} placeholder="Website URL (optional)" style={inp} />
+            </div>
           </div>
         ))}
+        {adding ? (
+          <div style={{background:"#fff",borderRadius:12,border:"2px solid #002d6e",padding:"18px 16px",marginBottom:16}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12}}>New Sponsor</div>
+            <div style={{display:"flex",flexDirection:"column",gap:9}}>
+              <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Name *" style={{...inp,fontWeight:700}} />
+              <input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="Role / title" style={inp} />
+              <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Description" rows={2} style={{...inp,resize:"vertical"}} />
+              <input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="Email (optional)" style={inp} />
+              <input value={form.website} onChange={e=>setForm(f=>({...f,website:e.target.value}))} placeholder="Website URL (optional)" style={inp} />
+              <label style={{fontSize:13,display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
+                <input type="checkbox" checked={form.featured} onChange={e=>setForm(f=>({...f,featured:e.target.checked}))} /> Featured card (dark blue style)
+              </label>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={addSponsor} style={btn("#002d6e")}>+ Add Sponsor</button>
+                <button onClick={()=>setAdding(false)} style={btn("rgba(0,0,0,0.08)","#333")}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <button onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",background:"none",border:"2px dashed #aaa",borderRadius:12,fontSize:15,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>+ Add New Sponsor</button>
+        )}
+        <div style={{position:"sticky",bottom:20,marginTop:24,textAlign:"center"}}>
+          <button onClick={()=>save(sponsors)} style={{...btn(saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+            {saved?"✓ Saved!":"💾 Save Changes"}
+          </button>
+        </div>
       </div>
     </div>
   );
