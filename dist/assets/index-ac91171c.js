@@ -97,11 +97,12 @@ Mike Jones  3  0  1  0  1  0
           .ticker-brand{display:flex!important;align-items:center;gap:4px;}
           .ticker-brand-label{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#FFD700;}
           /* Ticker game items: stacked layout on mobile */
-          .ticker-scroll{flex-direction:column!important;overflow-x:hidden!important;overflow-y:visible!important;}
-          .ticker-game-item{flex-direction:row!important;align-items:center!important;padding:6px 10px!important;flex:none!important;width:100%!important;border-right:none!important;border-bottom:1px solid rgba(255,255,255,0.08)!important;gap:5px!important;height:auto!important;}
-          .ticker-game-item .ticker-team-name{font-size:12px!important;white-space:nowrap!important;}
-          .ticker-game-item .ticker-time{font-size:10px!important;margin-left:4px!important;}
-          .ticker-game-item img{width:20px!important;height:20px!important;display:block!important;}
-          .ticker-vs{font-size:10px!important;}
+          .ticker-scroll{flex-wrap:wrap!important;overflow-x:hidden!important;overflow-y:visible!important;}
+          .ticker-game-item{flex-direction:column!important;align-items:flex-start!important;flex:0 0 50%!important;width:50%!important;padding:8px 10px!important;gap:1px!important;height:auto!important;border-right:none!important;border-bottom:1px solid rgba(255,255,255,0.1)!important;box-sizing:border-box!important;}
+          .ticker-game-item:nth-child(odd){border-right:1px solid rgba(255,255,255,0.1)!important;}
+          .ticker-game-item .ticker-team-name{font-size:13px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;max-width:100%!important;}
+          .ticker-game-item .ticker-time{font-size:10px!important;margin-left:0!important;margin-top:3px!important;color:#ff6b6b!important;}
+          .ticker-game-item img{display:none!important;}
+          .ticker-vs{display:none!important;}
         }
       `}),n.jsx("div",{style:{width:"100%",overflow:"hidden"},children:n.jsx(Vp,{setTab:w})}),n.jsx("div",{style:{position:"sticky",top:0,zIndex:300,width:"100%"},children:n.jsx(Kp,{tab:e,setTab:w})}),e==="home"&&n.jsx(Jp,{setTab:w,setTeamDetail:b}),e==="scores"&&n.jsx(qp,{setTab:w,setTeamDetail:b}),e==="schedule"&&n.jsx(Zp,{setTab:w,setTeamDetail:b}),e==="standings"&&n.jsx(ef,{setTab:w,setTeamDetail:b}),e==="teams"&&!a&&n.jsx(nf,{setTab:w,setTeamDetail:b}),e==="teams"&&a&&n.jsx(tf,{teamName:a,prevTab:r,onBack:S,setTab:w,setTeamDetail:b}),e==="stats"&&n.jsx(Ff,{}),e==="live"&&n.jsx(mu,{}),e==="subs"&&n.jsx(xf,{}),e==="admin"&&n.jsx(Bf,{onAlertChange:_=>{l(_),h((()=>{try{return JSON.parse(localStorage.getItem("lbdc_alert_style")||"{}")}catch{return{}}})())}}),e==="history"&&n.jsx(hf,{}),e==="rules"&&n.jsx(pf,{}),e==="directions"&&n.jsx(af,{}),e==="sponsors"&&n.jsx(of,{}),e==="photos"&&n.jsx(rf,{}),e==="signup"&&n.jsx(gf,{}),e==="graphics"&&n.jsx(Af,{}),n.jsx(yf,{setTab:w})]})}Ms.createRoot(document.getElementById("root")).render(n.jsx(zu.StrictMode,{children:n.jsx(Wf,{})}));
