@@ -2728,8 +2728,14 @@ function CaptainRosterEditor({ teamName }) {
   );
 }
 
+function getRulesData() {
+  try { const s = localStorage.getItem("lbdc_rules"); if (s) return JSON.parse(s); } catch(e) {}
+  return RULES_DATA;
+}
+
 /* ─── RULES PAGE ─────────────────────────────────────────────────────────── */
 function RulesPage() {
+  const rules = getRulesData();
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Field Guide" subtitle="Official rules and guidelines for the 2026 season" />
@@ -2739,7 +2745,7 @@ function RulesPage() {
             <span style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Jump To</span>
           </div>
           <div style={{padding:"14px 20px",display:"flex",flexWrap:"wrap",gap:8}}>
-            {RULES_DATA.map(r => (
+            {rules.map(r => (
               <button key={r.section} type="button"
                 onClick={()=>document.getElementById(`rule-${r.section.replace(/\s+/g,"-").toLowerCase()}`)?.scrollIntoView({behavior:"smooth",block:"start"})}
                 style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(0,45,110,0.06)",border:"1px solid rgba(0,45,110,0.15)",borderRadius:20,padding:"5px 14px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#002d6e",letterSpacing:".04em",transition:"all .15s",cursor:"pointer"}}
@@ -2751,7 +2757,7 @@ function RulesPage() {
           </div>
         </Card>
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          {RULES_DATA.map(r => (
+          {rules.map(r => (
             <div key={r.section} id={`rule-${r.section.replace(/\s+/g,"-").toLowerCase()}`} style={{scrollMarginTop:72}}>
             <Card style={{padding:0}}>
               <div style={{padding:"16px 24px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:12}}>
@@ -4472,6 +4478,107 @@ function AdminPage({ onAlertChange }) {
     </div>
   );
 
+  // ── ADMIN RULES EDITOR ──
+  if (screen === "admin_rules") {
+    const [rules, setRules] = useState(() => getRulesData());
+    const [saved, setSaved] = useState(false);
+
+    const save = () => {
+      localStorage.setItem("lbdc_rules", JSON.stringify(rules));
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+    };
+    const reset = () => {
+      if (!window.confirm("Reset to original default rules? All edits will be lost.")) return;
+      localStorage.removeItem("lbdc_rules");
+      setRules(RULES_DATA);
+    };
+    const updSection = (si, field, val) =>
+      setRules(prev => prev.map((s,i) => i!==si ? s : {...s,[field]:val}));
+    const updItem = (si, ii, val) =>
+      setRules(prev => prev.map((s,i) => i!==si ? s : {...s, items: s.items.map((x,j)=>j!==ii?x:val)}));
+    const delItem = (si, ii) =>
+      setRules(prev => prev.map((s,i) => i!==si ? s : {...s, items: s.items.filter((_,j)=>j!==ii)}));
+    const addItem = (si) =>
+      setRules(prev => prev.map((s,i) => i!==si ? s : {...s, items:[...s.items,"New rule — click to edit"]}));
+    const delSection = (si) => {
+      if (!window.confirm(`Delete section "${rules[si].section}"?`)) return;
+      setRules(prev => prev.filter((_,i)=>i!==si));
+    };
+    const addSection = () =>
+      setRules(prev => [...prev, {section:"New Section",icon:"📋",items:["New rule — click to edit"]}]);
+    const moveSection = (si, dir) => {
+      const next = si + dir;
+      if (next < 0 || next >= rules.length) return;
+      setRules(prev => { const r=[...prev]; [r[si],r[next]]=[r[next],r[si]]; return r; });
+    };
+
+    const btnStyle = (bg, color="#fff") => ({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",whiteSpace:"nowrap"});
+    const inputStyle = {fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"6px 10px",width:"100%",boxSizing:"border-box"};
+
+    return (
+      <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+        <PageHero label="Admin" title="Edit Rules" subtitle="Update the Field Guide rules page" />
+        <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+
+          {/* Action bar */}
+          <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
+            <button onClick={()=>setScreen("admin")} style={btnStyle("rgba(0,0,0,0.08)","#333")}>← Back</button>
+            <button onClick={save} style={btnStyle(saved?"#16a34a":"#002d6e")}>{saved?"✓ Saved!":"💾 Save Changes"}</button>
+            <button onClick={reset} style={btnStyle("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
+            <div style={{marginLeft:"auto",fontSize:12,color:"rgba(0,0,0,0.4)"}}>Changes are saved to this browser. Save before leaving.</div>
+          </div>
+
+          {/* Sections */}
+          {rules.map((sec, si) => (
+            <div key={si} style={{background:"#fff",borderRadius:12,marginBottom:16,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden"}}>
+              {/* Section header */}
+              <div style={{background:"rgba(0,45,110,0.04)",padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                <input value={sec.icon} onChange={e=>updSection(si,"icon",e.target.value)}
+                  style={{...inputStyle,width:48,textAlign:"center",fontSize:18,padding:"4px 6px"}} title="Icon" />
+                <input value={sec.section} onChange={e=>updSection(si,"section",e.target.value)}
+                  style={{...inputStyle,flex:1,fontWeight:700,fontSize:16}} placeholder="Section name" />
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={()=>moveSection(si,-1)} disabled={si===0} style={btnStyle("rgba(0,0,0,0.07)","#333")} title="Move up">↑</button>
+                  <button onClick={()=>moveSection(si,1)} disabled={si===rules.length-1} style={btnStyle("rgba(0,0,0,0.07)","#333")} title="Move down">↓</button>
+                  <button onClick={()=>delSection(si)} style={btnStyle("rgba(220,38,38,0.09)","#dc2626")} title="Delete section">🗑️</button>
+                </div>
+              </div>
+              {/* Rule items */}
+              {sec.items.map((item, ii) => (
+                <div key={ii} style={{display:"flex",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",alignItems:"flex-start"}}>
+                  <span style={{color:"rgba(0,0,0,0.3)",fontFamily:"monospace",fontSize:12,paddingTop:8,minWidth:20}}>{ii+1}.</span>
+                  <textarea value={item} onChange={e=>updItem(si,ii,e.target.value)} rows={2}
+                    style={{...inputStyle,flex:1,resize:"vertical",lineHeight:1.5}} />
+                  <button onClick={()=>delItem(si,ii)} style={{background:"none",border:"none",color:"#dc2626",fontSize:18,cursor:"pointer",padding:"6px",flexShrink:0}} title="Delete rule">✕</button>
+                </div>
+              ))}
+              {/* Add rule */}
+              <div style={{padding:"10px 16px"}}>
+                <button onClick={()=>addItem(si)}
+                  style={{background:"none",border:"1px dashed #aaa",borderRadius:6,padding:"6px 14px",fontSize:13,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600}}>
+                  + Add Rule
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Add section */}
+          <button onClick={addSection}
+            style={{width:"100%",padding:"14px",background:"none",border:"2px dashed #aaa",borderRadius:12,fontSize:15,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,letterSpacing:".04em"}}>
+            + Add New Section
+          </button>
+
+          {/* Sticky save */}
+          <div style={{position:"sticky",bottom:20,marginTop:24,textAlign:"center"}}>
+            <button onClick={save} style={{...btnStyle(saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+              {saved ? "✓ Saved!" : "💾 Save Changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── ADMIN ROSTERS SCREEN ──
   if (screen === "admin_rosters") {
     const [rosters, setRosters] = useState(() => getEffectiveRosters());
@@ -5112,6 +5219,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"🏅",title:"Player Eligibility",desc:"Track fees paid & game appearances",accent:"#002d6e",action:()=>setQuickView("eligibility")},
                   {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",accent:"#002d6e",action:()=>setQuickView("email")},
                   {icon:"📅",title:"Manage Schedule",desc:"View season schedule",accent:"#002d6e",action:()=>setQuickView("schedule")},
+                  {icon:"📜",title:"Edit Rules",desc:"Update Field Guide rules & sections",accent:"#002d6e",action:()=>setScreen("admin_rules")},
                 ].map((a,i)=>(
                   <div key={i} onClick={a.action} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${a.accent}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s",position:"relative"}}
                     onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
