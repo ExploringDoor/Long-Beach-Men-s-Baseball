@@ -651,7 +651,7 @@ function FinalCard({ g, onTeamClick }) {
 function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick, onPreview }) {
   return (
     <div onClick={() => onPreview?.({away, home, time, date, field})}
-      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview?"pointer":"default",transition:"box-shadow .12s",display:"inline-flex"}}
+      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview?"pointer":"default",transition:"box-shadow .12s",width:"fit-content",minWidth:420}}
       onMouseEnter={e=>{if(onPreview)e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)";}}
       onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)";}}>
       <div style={{display:"flex",alignItems:"center",padding:"12px 14px",gap:60}}>
