@@ -1016,6 +1016,7 @@ function HomePage({ setTab, setTeamDetail }) {
       <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
         <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" fetchpriority="high" loading="eager" style={{display:"block"}} />
       </div>
+      {getPageContent("home_announcement") && <div style={{maxWidth:900,margin:"0 auto",padding:"0 clamp(12px,3vw,40px)"}} dangerouslySetInnerHTML={{__html:getPageContent("home_announcement")}} />}
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         <div className="home-two-col" style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:32,alignItems:"start"}}>
@@ -2579,6 +2580,7 @@ function SponsorsPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Sponsors & Contributors" subtitle="With gratitude to those who support Long Beach Diamond Classics" />
+      {getPageContent("sponsors_intro") && <div style={{maxWidth:900,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={{__html:getPageContent("sponsors_intro")}} />}
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         {sponsors.map((sp,i)=> sp.featured ? (
           <div key={i} style={{background:"linear-gradient(135deg,#001a3e 0%,#002d6e 100%)",borderRadius:16,padding:"32px",marginBottom:28,color:"#fff",position:"relative",overflow:"hidden"}}>
@@ -2814,6 +2816,113 @@ async function sbUpdateGalleryCaption(id, caption) {
   });
 }
 
+/* ─── RICH TEXT EDITOR ───────────────────────────────────────────────────── */
+const PAGE_CONTENT_BLOCKS = [
+  { pageId:"home",      pageLabel:"🏠 Home Page",           blocks:[
+    { id:"home_announcement", label:"Announcement / Welcome Text", placeholder:"Add a welcome message or league announcement that appears on the home page..." },
+  ]},
+  { pageId:"signup",    pageLabel:"📋 Player Sign Up Page",  blocks:[
+    { id:"signup_intro", label:"Sign Up Introduction", placeholder:"Describe how to sign up, what to expect, or any important notes for new players..." },
+  ]},
+  { pageId:"sponsors",  pageLabel:"🤝 Sponsors Page",        blocks:[
+    { id:"sponsors_intro", label:"Sponsors Introduction", placeholder:"Add an intro paragraph for the sponsors page..." },
+  ]},
+  { pageId:"directions",pageLabel:"🏟️ Field Directions Page",blocks:[
+    { id:"directions_intro", label:"Field Directions Introduction", placeholder:"Add notes or intro text for the field directions page..." },
+  ]},
+  { pageId:"rules",     pageLabel:"📜 Rules Page",           blocks:[
+    { id:"rules_intro", label:"Rules Page Note", placeholder:"Add a note or intro that appears above the rules..." },
+  ]},
+  { pageId:"graphics",  pageLabel:"📅 Schedule Graphics",    blocks:[
+    { id:"graphics_intro", label:"Schedule Graphics Note", placeholder:"Add a note about the schedule graphics..." },
+  ]},
+];
+
+function getPageContent(id) {
+  try { return localStorage.getItem("lbdc_content_" + id) || ""; } catch(e) { return ""; }
+}
+function savePageContent(id, html) {
+  try { localStorage.setItem("lbdc_content_" + id, html); } catch(e) {}
+}
+
+function RichTextEditor({ contentId, placeholder }) {
+  const editorRef = useRef();
+  const [active, setActive] = useState({});
+  const exec = (cmd, val) => { editorRef.current?.focus(); document.execCommand(cmd, false, val || null); updateActive(); };
+  const updateActive = () => {
+    setActive({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+      justifyLeft: document.queryCommandState("justifyLeft"),
+      justifyCenter: document.queryCommandState("justifyCenter"),
+      justifyRight: document.queryCommandState("justifyRight"),
+    });
+  };
+  const onInput = (e) => { savePageContent(contentId, e.currentTarget.innerHTML); updateActive(); };
+  const saved = getPageContent(contentId);
+
+  const tbBtn = (label, cmd, val, activeKey, title) => (
+    <button title={title||label} onMouseDown={e=>{e.preventDefault();exec(cmd,val);}}
+      style={{padding:"5px 9px",border:"1px solid #ddd",borderRadius:5,background:active[activeKey||cmd]?"#002d6e":"#fff",
+        color:active[activeKey||cmd]?"#fff":"#333",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,lineHeight:1}}>
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{border:"1px solid #ddd",borderRadius:8,overflow:"hidden",background:"#fff"}}>
+      {/* Toolbar */}
+      <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:"8px 10px",borderBottom:"1px solid #eee",background:"#fafafa",alignItems:"center"}}>
+        {tbBtn("B","bold",null,"bold","Bold")}
+        {tbBtn("I","italic",null,"italic","Italic")}
+        {tbBtn("U","underline",null,"underline","Underline")}
+        <div style={{width:1,height:22,background:"#ddd",margin:"0 2px"}} />
+        <select defaultValue="3" onMouseDown={e=>e.stopPropagation()} onChange={e=>{exec("fontSize",e.target.value);e.target.value="3";}}
+          style={{padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:12,cursor:"pointer",height:30}}>
+          <option value="3">Font Size</option>
+          <option value="1">Tiny</option>
+          <option value="2">Small</option>
+          <option value="3">Normal</option>
+          <option value="4">Large</option>
+          <option value="5">X-Large</option>
+          <option value="6">XX-Large</option>
+          <option value="7">Huge</option>
+        </select>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          <span style={{fontSize:12,color:"#666"}}>Color:</span>
+          <input type="color" defaultValue="#111111" onMouseDown={e=>e.stopPropagation()} onChange={e=>exec("foreColor",e.target.value)}
+            style={{width:28,height:28,border:"1px solid #ddd",borderRadius:4,cursor:"pointer",padding:1}} />
+        </div>
+        <div style={{width:1,height:22,background:"#ddd",margin:"0 2px"}} />
+        {tbBtn("≡L","justifyLeft",null,"justifyLeft","Align Left")}
+        {tbBtn("≡C","justifyCenter",null,"justifyCenter","Center")}
+        {tbBtn("≡R","justifyRight",null,"justifyRight","Align Right")}
+        <div style={{width:1,height:22,background:"#ddd",margin:"0 2px"}} />
+        {tbBtn("• List","insertUnorderedList",null,null,"Bullet List")}
+        {tbBtn("1. List","insertOrderedList",null,null,"Numbered List")}
+        <div style={{width:1,height:22,background:"#ddd",margin:"0 2px"}} />
+        <button onMouseDown={e=>{e.preventDefault();if(window.confirm("Clear all content in this block?"))editorRef.current.innerHTML="";savePageContent(contentId,"");}}
+          style={{padding:"5px 9px",border:"1px solid #fca5a5",borderRadius:5,background:"#fff",color:"#dc2626",cursor:"pointer",fontSize:12,fontWeight:600}}>
+          Clear
+        </button>
+      </div>
+      {/* Editable area */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={onInput}
+        onKeyUp={updateActive}
+        onMouseUp={updateActive}
+        dangerouslySetInnerHTML={{__html: saved}}
+        data-placeholder={placeholder}
+        style={{minHeight:100,padding:"12px 14px",fontSize:14,lineHeight:1.7,outline:"none",color:"#222"}}
+      />
+    </div>
+  );
+}
+
 function getRulesData() {
   try { const s = localStorage.getItem("lbdc_rules"); if (s) return JSON.parse(s); } catch(e) {}
   return RULES_DATA;
@@ -2861,6 +2970,7 @@ function RulesPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Field Guide" subtitle="Official rules and guidelines for the 2026 season" />
+      {getPageContent("rules_intro") && <div style={{maxWidth:900,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={{__html:getPageContent("rules_intro")}} />}
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
 
         {/* Division picker */}
@@ -3368,6 +3478,7 @@ function PlayerSignUpPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
       <PageHero label="Spring/Summer 2026" title="Player Sign Up" subtitle="Get game reminders, score alerts & rainout notices straight to your phone or email" />
+      {getPageContent("signup_intro") && <div style={{maxWidth:700,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={{__html:getPageContent("signup_intro")}} />}
       <div style={{maxWidth:560,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         <div style={{background:"#fff",borderRadius:14,padding:"28px 24px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
           {/* Registration fee & payment info */}
@@ -4419,6 +4530,56 @@ function WeeklyEmailPage({ onBack }) {
   );
 }
 
+function AdminContentEditor({ onBack }) {
+  const [activePage, setActivePage] = useState(PAGE_CONTENT_BLOCKS[0].pageId);
+  const [saved, setSaved] = useState(false);
+  const flashSaved = () => { setSaved(true); setTimeout(()=>setSaved(false),1500); };
+  const page = PAGE_CONTENT_BLOCKS.find(p=>p.pageId===activePage);
+  const btn=(bg,color="#fff",extra={})=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",...extra});
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin" title="Edit Page Content" subtitle="Add formatted text blocks to any page on the site" />
+      <div style={{maxWidth:780,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
+          <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
+          {saved && <span style={{color:"#16a34a",fontWeight:700,fontSize:14}}>✓ Auto-saved!</span>}
+          <span style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginLeft:"auto"}}>Changes save automatically as you type.</span>
+        </div>
+
+        {/* Page tabs */}
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:20}}>
+          {PAGE_CONTENT_BLOCKS.map(p=>(
+            <button key={p.pageId} onClick={()=>setActivePage(p.pageId)}
+              style={{padding:"7px 14px",borderRadius:20,border:"none",cursor:"pointer",
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
+                background:activePage===p.pageId?"#002d6e":"rgba(0,45,110,0.08)",
+                color:activePage===p.pageId?"#fff":"#444",transition:"all .15s"}}>
+              {p.pageLabel}
+            </button>
+          ))}
+        </div>
+
+        {/* Content blocks for active page */}
+        {page && page.blocks.map(block=>(
+          <div key={block.id} style={{marginBottom:24}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#111",marginBottom:8,letterSpacing:".04em"}}>
+              {block.label}
+            </div>
+            <RichTextEditor contentId={block.id} placeholder={block.placeholder} />
+            <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:5}}>
+              Saved as: <code style={{fontSize:11}}>lbdc_content_{block.id}</code> · Clears on "Reset Site Data"
+            </div>
+          </div>
+        ))}
+
+        <div style={{background:"rgba(0,45,110,0.05)",borderRadius:10,padding:"14px 16px",fontSize:13,color:"rgba(0,0,0,0.5)",lineHeight:1.6}}>
+          💡 <strong>How it works:</strong> Text you add here appears as a formatted block on that page. Leave it empty to hide it. Changes are saved instantly as you type and show immediately on the public site.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── ADMIN SUB-SCREENS ──────────────────────────────────────────────────── */
 function AdminRulesEditor({ onBack }) {
   const [rules, setRules] = useState(() => getRulesData());
@@ -4963,6 +5124,7 @@ function AdminPage({ onAlertChange }) {
     </div>
   );
 
+  if (screen === "admin_content") return <AdminContentEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_rules")   return <AdminRulesEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_photos")  return <AdminPhotosEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_sponsors") return <AdminSponsorsEditor onBack={() => setScreen("admin")} />;
@@ -5608,6 +5770,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"🏅",title:"Player Eligibility",desc:"Track fees paid & game appearances",accent:"#002d6e",action:()=>setQuickView("eligibility")},
                   {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",accent:"#002d6e",action:()=>setQuickView("email")},
                   {icon:"📅",title:"Manage Schedule",desc:"View season schedule",accent:"#002d6e",action:()=>setQuickView("schedule")},
+                  {icon:"📝",title:"Edit Page Content",desc:"Add formatted text to any page — bold, colors, font sizes & more",accent:"#7c3aed",action:()=>setScreen("admin_content")},
                   {icon:"📜",title:"Edit Rules",desc:"Update Field Guide rules & sections",accent:"#002d6e",action:()=>setScreen("admin_rules")},
                   {icon:"📸",title:"Photos & Videos",desc:"Add or remove gallery items",accent:"#002d6e",action:()=>setScreen("admin_photos")},
                   {icon:"🤝",title:"Edit Sponsors",desc:"Add or remove sponsor cards",accent:"#002d6e",action:()=>setScreen("admin_sponsors")},
@@ -7873,6 +8036,7 @@ function GraphicsPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
       <PageHero label="Schedule" title="Schedule Graphics" subtitle="Weekly schedule graphics for social media" />
+      {getPageContent("graphics_intro") && <div style={{maxWidth:700,margin:"0 auto",padding:"16px clamp(12px,3vw,32px) 0"}} dangerouslySetInnerHTML={{__html:getPageContent("graphics_intro")}} />}
       <div style={{maxWidth:700,margin:"0 auto",padding:"28px clamp(12px,3vw,32px) 60px"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:18}}>
           {WEEKS.map((w,i) => (
@@ -7984,6 +8148,7 @@ export default function App() {
         @keyframes alertBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
         @keyframes alertGlow{0%,100%{box-shadow:0 0 20px 6px rgba(255,200,0,0.7)}50%{box-shadow:0 0 40px 14px rgba(255,200,0,0.9)}}
         a{text-decoration:none;}
+        [contenteditable]:empty:before{content:attr(data-placeholder);color:rgba(0,0,0,0.3);pointer-events:none;display:block;}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:#f2f4f8}
         ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.15);border-radius:3px}
