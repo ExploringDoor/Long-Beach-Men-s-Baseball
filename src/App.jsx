@@ -2617,35 +2617,27 @@ function SponsorsPage() {
 /* ─── PHOTOS PAGE ────────────────────────────────────────────────────────── */
 function PhotosPage() {
   const [photos, setPhotos] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState(null);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      // URL-based items from localStorage
-      let urlItems = [];
-      try { urlItems = JSON.parse(localStorage.getItem("lbdc_photos") || "[]"); } catch(e) {}
-      // Uploaded files from IndexedDB
-      const dbItems = await dbLoadPhotos();
-      if (!cancelled) setPhotos([...dbItems, ...urlItems]);
-    }
-    load();
-    return () => { cancelled = true; };
+    sbLoadGallery().then(items => { setPhotos(items || []); setLoading(false); });
   }, []);
 
-  const allPhotos = photos;
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {lightbox !== null && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setLightbox(null)}>
-          <img src={allPhotos[lightbox]?.url} alt={allPhotos[lightbox]?.caption||""} style={{maxWidth:"90vw",maxHeight:"85vh",objectFit:"contain",borderRadius:8}} onClick={e=>e.stopPropagation()} />
+          <img src={photos[lightbox]?.url} alt={photos[lightbox]?.caption||""} style={{maxWidth:"90vw",maxHeight:"85vh",objectFit:"contain",borderRadius:8}} onClick={e=>e.stopPropagation()} />
           <button onClick={()=>setLightbox(null)} style={{position:"fixed",top:20,right:20,background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:40,height:40,fontSize:20,cursor:"pointer"}}>✕</button>
-          {allPhotos[lightbox]?.caption && <div style={{position:"fixed",bottom:24,left:0,right:0,textAlign:"center",color:"rgba(255,255,255,0.7)",fontSize:14}}>{allPhotos[lightbox].caption}</div>}
+          {photos[lightbox]?.caption && <div style={{position:"fixed",bottom:24,left:0,right:0,textAlign:"center",color:"rgba(255,255,255,0.7)",fontSize:14,padding:"0 20px"}}>{photos[lightbox].caption}</div>}
         </div>
       )}
       <PageHero label="Diamond Classics Baseball" title="Photos & Videos" subtitle="Memories from the field" />
       <div style={{maxWidth:1200,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
-        {allPhotos.length === 0 ? (
+        {loading ? (
+          <div style={{textAlign:"center",padding:"60px 0",color:"rgba(0,0,0,0.4)",fontSize:15}}>Loading gallery…</div>
+        ) : photos.length === 0 ? (
           <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:14,padding:"60px 24px",textAlign:"center",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
             <div style={{fontSize:56,marginBottom:16}}>📸</div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",textTransform:"uppercase",marginBottom:10}}>Photos Coming Soon</div>
@@ -2655,9 +2647,9 @@ function PhotosPage() {
           </div>
         ) : (
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:16}}>
-            {allPhotos.map((p, i) => (
+            {photos.map((p, i) => (
               p.type === "video" ? (
-                <div key={i} style={{background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+                <div key={p.id||i} style={{background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
                   <div style={{position:"relative",paddingBottom:"75%",background:"#111"}}>
                     <iframe
                       src={p.url.replace("youtu.be/","www.youtube.com/embed/").replace("watch?v=","embed/")}
@@ -2667,7 +2659,7 @@ function PhotosPage() {
                   {p.caption && <div style={{padding:"10px 12px",fontSize:13,color:"rgba(0,0,0,0.6)"}}>{p.caption}</div>}
                 </div>
               ) : (
-                <div key={i} onClick={()=>setLightbox(i)} style={{background:"#fff",borderRadius:10,overflow:"hidden",cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.08)",transition:"box-shadow .15s"}}
+                <div key={p.id||i} onClick={()=>setLightbox(i)} style={{background:"#fff",borderRadius:10,overflow:"hidden",cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,0.08)",transition:"box-shadow .15s"}}
                   onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.15)"}
                   onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.08)"}>
                   <img src={p.url} alt={p.caption||""} style={{width:"100%",aspectRatio:"4/3",objectFit:"cover",display:"block"}} />
@@ -2756,50 +2748,8 @@ function CaptainRosterEditor({ teamName }) {
   );
 }
 
-/* ─── PHOTO UPLOAD / INDEXEDDB ───────────────────────────────────────────── */
-function openPhotoDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open("lbdc_photos_db", 1);
-    req.onupgradeneeded = e => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains("uploads")) {
-        db.createObjectStore("uploads", { keyPath: "id" });
-      }
-    };
-    req.onsuccess = e => resolve(e.target.result);
-    req.onerror = () => reject(new Error("IndexedDB open failed"));
-  });
-}
-async function dbSavePhoto(item) {
-  const db = await openPhotoDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("uploads", "readwrite");
-    tx.objectStore("uploads").put(item);
-    tx.oncomplete = resolve;
-    tx.onerror = reject;
-  });
-}
-async function dbLoadPhotos() {
-  try {
-    const db = await openPhotoDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction("uploads", "readonly");
-      const req = tx.objectStore("uploads").getAll();
-      req.onsuccess = () => resolve((req.result || []).sort((a, b) => b.id - a.id));
-      req.onerror = reject;
-    });
-  } catch(e) { return []; }
-}
-async function dbDeletePhoto(id) {
-  const db = await openPhotoDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction("uploads", "readwrite");
-    tx.objectStore("uploads").delete(id);
-    tx.oncomplete = resolve;
-    tx.onerror = reject;
-  });
-}
-function compressImage(file, maxWidth = 1400, quality = 0.82) {
+/* ─── PHOTO UPLOAD / SUPABASE STORAGE ───────────────────────────────────── */
+function compressImageToBlob(file, maxWidth = 1400, quality = 0.82) {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = e => {
@@ -2810,11 +2760,51 @@ function compressImage(file, maxWidth = 1400, quality = 0.82) {
         if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
         canvas.width = w; canvas.height = h;
         canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+        canvas.toBlob(blob => resolve(blob), "image/jpeg", quality);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+  });
+}
+async function sbUploadPhotoFile(file, caption) {
+  const blob = await compressImageToBlob(file);
+  const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const uploadRes = await fetch(`${SB_URL}/storage/v1/object/photos/${filename}`, {
+    method: "POST",
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "image/jpeg" },
+    body: blob,
+  });
+  if (!uploadRes.ok) { const t = await uploadRes.text(); throw new Error(`Storage upload failed: ${t}`); }
+  const publicUrl = `${SB_URL}/storage/v1/object/public/photos/${filename}`;
+  const rows = await sbPost("lbdc_gallery", { url: publicUrl, caption: caption || "", type: "photo" });
+  return rows[0];
+}
+async function sbAddVideoLink(url, caption) {
+  const rows = await sbPost("lbdc_gallery", { url, caption: caption || "", type: "video" });
+  return rows[0];
+}
+async function sbLoadGallery() {
+  try { return await sbFetch("lbdc_gallery?order=created_at.desc&select=*"); } catch(e) { return []; }
+}
+async function sbDeleteGalleryItem(id, url) {
+  await fetch(`${SB_URL}/rest/v1/lbdc_gallery?id=eq.${id}`, {
+    method: "DELETE",
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+  });
+  if (url && url.includes("/storage/v1/object/public/photos/")) {
+    const filename = url.split("/storage/v1/object/public/photos/")[1];
+    await fetch(`${SB_URL}/storage/v1/object/photos/${filename}`, {
+      method: "DELETE",
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    });
+  }
+}
+async function sbUpdateGalleryCaption(id, caption) {
+  await fetch(`${SB_URL}/rest/v1/lbdc_gallery?id=eq.${id}`, {
+    method: "PATCH",
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({ caption }),
   });
 }
 
@@ -4424,57 +4414,41 @@ function AdminRulesEditor({ onBack }) {
 }
 
 function AdminPhotosEditor({ onBack }) {
-  const [urlItems, setUrlItems] = useState(() => { try { return JSON.parse(localStorage.getItem("lbdc_photos")||"[]"); } catch(e) { return []; } });
-  const [dbItems, setDbItems] = useState([]);
-  const [url, setUrl] = useState("");
-  const [caption, setCaption] = useState("");
-  const [urlCaption, setUrlCaption] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState([]);
   const [dragOver, setDragOver] = useState(false);
-  const [editIdx, setEditIdx] = useState(null); // {source:"db"|"url", idx}
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoCaption, setVideoCaption] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
   const fileInputRef = React.useRef();
 
-  useEffect(() => {
-    dbLoadPhotos().then(setDbItems);
-  }, []);
+  const reload = () => sbLoadGallery().then(rows => { setItems(rows || []); setLoading(false); });
+  useEffect(() => { reload(); }, []);
 
-  const persistUrl = (arr) => { localStorage.setItem("lbdc_photos", JSON.stringify(arr)); setSaved(true); setTimeout(()=>setSaved(false),2000); };
-
-  const addUrl = () => {
-    if (!url.trim()) { alert("Please enter a URL."); return; }
-    const updated = [{url:url.trim(),caption:urlCaption.trim(),type:"video"},...urlItems];
-    setUrlItems(updated); persistUrl(updated); setUrl(""); setUrlCaption("");
-  };
-
-  const delUrl = (i) => { if(!window.confirm("Remove?")) return; const u=urlItems.filter((_,j)=>j!==i); setUrlItems(u); persistUrl(u); };
-  const delDb = async (id) => { if(!window.confirm("Remove?")) return; await dbDeletePhoto(id); const items = await dbLoadPhotos(); setDbItems(items); };
+  const flash = () => { setSaved(true); setTimeout(()=>setSaved(false),2000); };
 
   const processFiles = async (files) => {
     const imageFiles = Array.from(files).filter(f => f.type.startsWith("image/"));
-    if (!imageFiles.length) { alert("Please drop image files (JPG, PNG, etc.)"); return; }
-    setUploading(true);
-    setUploadProgress(imageFiles.map(f => ({name:f.name, status:"compressing"})));
-    const results = [];
+    if (!imageFiles.length) { setError("Please select image files (JPG, PNG, HEIC, etc.)"); return; }
+    setError(""); setUploading(true);
+    setUploadProgress(imageFiles.map(f => ({name:f.name, status:"uploading"})));
     for (let i = 0; i < imageFiles.length; i++) {
       const f = imageFiles[i];
-      setUploadProgress(p => p.map((x,j) => j===i ? {...x, status:"compressing"} : x));
       try {
-        const dataUrl = await compressImage(f);
-        const item = { id: Date.now() + i, url: dataUrl, caption: f.name.replace(/\.[^.]+$/, "").replace(/[-_]/g," "), type: "photo" };
-        await dbSavePhoto(item);
-        results.push(item);
-        setUploadProgress(p => p.map((x,j) => j===i ? {...x, status:"done"} : x));
+        const defaultCaption = f.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ");
+        await sbUploadPhotoFile(f, defaultCaption);
+        setUploadProgress(p => p.map((x,j) => j===i ? {...x,status:"done"} : x));
       } catch(e) {
-        setUploadProgress(p => p.map((x,j) => j===i ? {...x, status:"error"} : x));
+        setUploadProgress(p => p.map((x,j) => j===i ? {...x,status:"error",msg:e.message} : x));
       }
     }
-    const items = await dbLoadPhotos();
-    setDbItems(items);
+    await reload();
     setUploading(false);
-    setTimeout(() => setUploadProgress([]), 2000);
-    setSaved(true); setTimeout(()=>setSaved(false),2000);
+    flash();
+    setTimeout(() => setUploadProgress([]), 3000);
   };
 
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); processFiles(e.dataTransfer.files); };
@@ -4482,12 +4456,22 @@ function AdminPhotosEditor({ onBack }) {
   const onDragLeave = () => setDragOver(false);
   const onFileInput = (e) => { if (e.target.files?.length) processFiles(e.target.files); e.target.value = ""; };
 
-  const updDbCaption = async (id, cap) => {
-    const item = dbItems.find(x=>x.id===id);
-    if (!item) return;
-    await dbSavePhoto({...item, caption:cap});
-    setDbItems(prev => prev.map(x => x.id===id ? {...x,caption:cap} : x));
-    setSaved(true); setTimeout(()=>setSaved(false),1500);
+  const addVideo = async () => {
+    if (!videoUrl.trim()) { setError("Please enter a YouTube URL."); return; }
+    setError("");
+    try { await sbAddVideoLink(videoUrl.trim(), videoCaption.trim()); setVideoUrl(""); setVideoCaption(""); await reload(); flash(); }
+    catch(e) { setError("Failed to add video: " + e.message); }
+  };
+
+  const delItem = async (item) => {
+    if (!window.confirm(`Remove "${item.caption || item.url.slice(0,40)}"?`)) return;
+    try { await sbDeleteGalleryItem(item.id, item.url); await reload(); flash(); }
+    catch(e) { setError("Delete failed: " + e.message); }
+  };
+
+  const updateCaption = async (item, caption) => {
+    try { await sbUpdateGalleryCaption(item.id, caption); setItems(prev => prev.map(x => x.id===item.id ? {...x,caption} : x)); }
+    catch(e) { setError("Caption update failed."); }
   };
 
   const btn=(bg,color="#fff",extra={})=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",...extra});
@@ -4495,26 +4479,27 @@ function AdminPhotosEditor({ onBack }) {
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="Admin" title="Manage Photos & Videos" subtitle="Upload photos or add video links to the gallery" />
+      <PageHero label="Admin" title="Manage Photos & Videos" subtitle="Photos are stored in the cloud — visible to all visitors" />
       <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
-        <div style={{display:"flex",gap:10,marginBottom:24,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
           <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
           {saved && <span style={{color:"#16a34a",fontWeight:700,fontSize:14}}>✓ Saved!</span>}
         </div>
+        {error && <div style={{background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:"#dc2626"}}>{error}</div>}
 
-        {/* Drag & Drop Upload Zone */}
+        {/* Drag & Drop */}
         <div
           onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
           onClick={()=>!uploading && fileInputRef.current?.click()}
-          style={{background:dragOver?"rgba(0,45,110,0.08)":"#fff",border:`2px dashed ${dragOver?"#002d6e":"#bbb"}`,borderRadius:14,padding:"36px 24px",textAlign:"center",cursor:uploading?"default":"pointer",marginBottom:20,transition:"all .15s"}}>
+          style={{background:dragOver?"rgba(0,45,110,0.07)":"#fff",border:`2px dashed ${dragOver?"#002d6e":"#bbb"}`,borderRadius:14,padding:"36px 24px",textAlign:"center",cursor:uploading?"default":"pointer",marginBottom:20,transition:"all .15s"}}>
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={onFileInput} style={{display:"none"}} />
           {uploading ? (
             <div>
-              <div style={{fontSize:28,marginBottom:10}}>⏳</div>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e",marginBottom:12}}>Uploading…</div>
+              <div style={{fontSize:28,marginBottom:8}}>⏳</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e",marginBottom:12}}>Uploading to cloud…</div>
               {uploadProgress.map((p,i)=>(
-                <div key={i} style={{fontSize:13,color:p.status==="done"?"#16a34a":p.status==="error"?"#dc2626":"#555",marginBottom:4}}>
-                  {p.status==="done"?"✓":p.status==="error"?"✗":"⏳"} {p.name}
+                <div key={i} style={{fontSize:13,color:p.status==="done"?"#16a34a":p.status==="error"?"#dc2626":"#888",marginBottom:4}}>
+                  {p.status==="done"?"✓ ":p.status==="error"?"✗ ":"⏳ "}{p.name}{p.msg?" — "+p.msg:""}
                 </div>
               ))}
             </div>
@@ -4522,72 +4507,52 @@ function AdminPhotosEditor({ onBack }) {
             <>
               <div style={{fontSize:40,marginBottom:10}}>📸</div>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#002d6e",textTransform:"uppercase",marginBottom:6}}>
-                {dragOver ? "Drop to Upload!" : "Drag & Drop Photos Here"}
+                {dragOver?"Drop to Upload!":"Drag & Drop Photos Here"}
               </div>
-              <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginBottom:12}}>or click to browse your computer · JPG, PNG, HEIC supported · multiple files OK</div>
-              <div style={{display:"inline-block",background:"#002d6e",color:"#fff",borderRadius:8,padding:"10px 24px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15}}>
-                Choose Photos
-              </div>
+              <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginBottom:14}}>or click to browse · JPG, PNG, HEIC · multiple files OK · auto-compressed before upload</div>
+              <div style={{display:"inline-block",background:"#002d6e",color:"#fff",borderRadius:8,padding:"10px 24px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15}}>Choose Photos</div>
             </>
           )}
         </div>
 
-        {/* Add Video URL */}
+        {/* Add Video */}
         <div style={{background:"#fff",borderRadius:12,padding:"18px",marginBottom:24,border:"1px solid rgba(0,0,0,0.08)"}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12}}>🎥 Add Video Link</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12}}>🎥 Add YouTube Video</div>
           <div style={{display:"flex",flexDirection:"column",gap:9}}>
-            <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="YouTube URL (e.g. https://youtu.be/...)" style={inp} />
-            <input value={urlCaption} onChange={e=>setUrlCaption(e.target.value)} placeholder="Caption (optional)" style={inp} />
-            <button onClick={addUrl} style={{...btn("#002d6e"),padding:"10px 22px",alignSelf:"flex-start"}}>+ Add Video</button>
+            <input value={videoUrl} onChange={e=>setVideoUrl(e.target.value)} placeholder="YouTube URL (e.g. https://youtu.be/...)" style={inp} />
+            <input value={videoCaption} onChange={e=>setVideoCaption(e.target.value)} placeholder="Caption (optional)" style={inp} />
+            <button onClick={addVideo} style={{...btn("#002d6e"),padding:"10px 22px",alignSelf:"flex-start"}}>+ Add Video</button>
           </div>
         </div>
 
-        {/* Uploaded Photos */}
-        {dbItems.length > 0 && (
-          <div style={{marginBottom:24}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"rgba(0,0,0,0.5)",letterSpacing:".06em",marginBottom:10}}>Uploaded Photos ({dbItems.length})</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
-              {dbItems.map((p)=>(
-                <div key={p.id} style={{background:"#fff",borderRadius:10,overflow:"hidden",border:"1px solid rgba(0,0,0,0.08)",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
-                  <div style={{position:"relative"}}>
-                    <img src={p.url} alt={p.caption||""} style={{width:"100%",aspectRatio:"4/3",objectFit:"cover",display:"block"}} />
-                    <button onClick={()=>delDb(p.id)} style={{position:"absolute",top:6,right:6,background:"rgba(220,38,38,0.85)",border:"none",color:"#fff",borderRadius:6,width:28,height:28,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-                  </div>
-                  <div style={{padding:"8px 10px"}}>
-                    <input
-                      value={p.caption||""}
-                      onChange={e=>setDbItems(prev=>prev.map(x=>x.id===p.id?{...x,caption:e.target.value}:x))}
-                      onBlur={e=>updDbCaption(p.id, e.target.value)}
-                      placeholder="Add caption…"
-                      style={{...inp,fontSize:12,padding:"5px 8px"}} />
-                  </div>
+        {/* Gallery items */}
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",letterSpacing:".06em",marginBottom:12}}>
+          Gallery ({items.length} item{items.length!==1?"s":""})
+        </div>
+        {loading ? (
+          <div style={{textAlign:"center",padding:"30px",color:"rgba(0,0,0,0.4)"}}>Loading…</div>
+        ) : items.length === 0 ? (
+          <div style={{textAlign:"center",color:"rgba(0,0,0,0.35)",padding:"32px 0",fontSize:14}}>No photos or videos yet. Upload some above!</div>
+        ) : (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
+            {items.map((p)=>(
+              <div key={p.id} style={{background:"#fff",borderRadius:10,overflow:"hidden",border:"1px solid rgba(0,0,0,0.08)",boxShadow:"0 1px 3px rgba(0,0,0,0.06)"}}>
+                <div style={{position:"relative"}}>
+                  {p.type==="video"
+                    ? <div style={{width:"100%",aspectRatio:"4/3",background:"#111",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32}}>▶</div>
+                    : <img src={p.url} alt={p.caption||""} style={{width:"100%",aspectRatio:"4/3",objectFit:"cover",display:"block"}} />}
+                  <button onClick={()=>delItem(p)} style={{position:"absolute",top:6,right:6,background:"rgba(220,38,38,0.85)",border:"none",color:"#fff",borderRadius:6,width:28,height:28,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* URL / Video items */}
-        {urlItems.length > 0 && (
-          <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"rgba(0,0,0,0.5)",letterSpacing:".06em",marginBottom:10}}>Video Links ({urlItems.length})</div>
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {urlItems.map((p,i)=>(
-                <div key={i} style={{background:"#fff",borderRadius:10,border:"1px solid rgba(0,0,0,0.08)",display:"flex",alignItems:"center",gap:12,padding:"12px 14px"}}>
-                  <div style={{width:60,height:45,background:"#111",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>▶</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,color:"#111",fontWeight:600,marginBottom:2}}>{p.caption||<em style={{color:"rgba(0,0,0,0.35)"}}>No caption</em>}</div>
-                    <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",wordBreak:"break-all"}}>{p.url.slice(0,55)}{p.url.length>55?"…":""}</div>
-                  </div>
-                  <button onClick={()=>delUrl(i)} style={{background:"none",border:"none",color:"#dc2626",fontSize:20,cursor:"pointer",padding:"4px"}}>🗑️</button>
+                <div style={{padding:"8px 10px"}}>
+                  <input
+                    defaultValue={p.caption||""}
+                    onBlur={e=>updateCaption(p, e.target.value)}
+                    placeholder="Add caption…"
+                    style={{...inp,fontSize:12,padding:"5px 8px"}} />
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        )}
-
-        {dbItems.length===0 && urlItems.length===0 && (
-          <div style={{textAlign:"center",color:"rgba(0,0,0,0.4)",padding:"32px 0",fontSize:14}}>No photos or videos yet. Drag photos above or add a video link.</div>
         )}
       </div>
     </div>
