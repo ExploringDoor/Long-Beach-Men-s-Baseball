@@ -852,7 +852,7 @@ function Ticker({ setTab }) {
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <TLogo name={g.away} size={36} />
               <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.away]||g.away}</span>
-              <span style={{color:"rgba(255,255,255,0.3)",fontSize:13,fontFamily:"'Barlow Condensed',sans-serif",flexShrink:0}}>vs.</span>
+              <span className="ticker-vs" style={{color:"rgba(255,255,255,0.3)",fontSize:13,fontFamily:"'Barlow Condensed',sans-serif",flexShrink:0}}>vs.</span>
               <TLogo name={g.home} size={36} />
               <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.home]||g.home}</span>
               <span className="ticker-time" style={{fontSize:11,color:"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",marginLeft:4,flexShrink:0}}>{g.time}{g.status==="PPD"?" · PPD":""}</span>
@@ -1314,6 +1314,9 @@ function POTGBadge({ batting, pitching, awayTeam, homeTeam }) {
 }
 
 function buildRealRecap(game, batting, pitching) {
+  if (game.status === "PPD") return "This game was postponed.";
+  if (game.away_score == null || game.home_score == null) return "Score not yet available.";
+  if (game.away_score === 0 && game.home_score === 0) return "Final score: 0–0. No runs were scored in this game.";
   const winner = game.away_score > game.home_score ? game.away_team : game.home_team;
   const loser = game.away_score > game.home_score ? game.home_team : game.away_team;
   const winScore = Math.max(game.away_score, game.home_score);
@@ -8022,10 +8025,11 @@ export default function App() {
           .ticker-brand{display:flex!important;align-items:center;gap:4px;}
           .ticker-brand-label{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#FFD700;}
           /* Ticker game items: stacked layout on mobile */
-          .ticker-game-item{flex-direction:column!important;justify-content:center!important;align-items:flex-start!important;padding:4px 8px!important;min-width:120px!important;gap:1px!important;height:auto!important;}
-          .ticker-game-item .ticker-team-name{font-size:13px!important;}
-          .ticker-game-item .ticker-time{font-size:9px!important;margin-left:0!important;}
-          .ticker-game-item img,.ticker-game-item>div:first-child{display:none!important;}
+          .ticker-game-item{flex-direction:row!important;align-items:center!important;padding:6px 10px!important;flex:0 0 auto!important;min-width:0!important;gap:4px!important;height:auto!important;}
+          .ticker-game-item .ticker-team-name{font-size:11px!important;white-space:nowrap!important;}
+          .ticker-game-item .ticker-time{font-size:10px!important;margin-left:3px!important;}
+          .ticker-game-item img{width:18px!important;height:18px!important;display:block!important;}
+          .ticker-vs{font-size:9px!important;}
         }
       `}</style>
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
