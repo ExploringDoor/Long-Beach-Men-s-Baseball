@@ -651,11 +651,11 @@ function FinalCard({ g, onTeamClick }) {
 function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick, onPreview }) {
   return (
     <div onClick={() => onPreview?.({away, home, time, date, field})}
-      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview?"pointer":"default",transition:"box-shadow .12s"}}
+      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview?"pointer":"default",transition:"box-shadow .12s",display:"inline-flex"}}
       onMouseEnter={e=>{if(onPreview)e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)";}}
       onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)";}}>
-      <div style={{display:"flex",alignItems:"center",padding:"12px 14px",gap:12,flexWrap:"wrap"}}>
-        <div style={{display:"flex",flexDirection:"column",gap:8,flex:"1 1 200px",minWidth:0}}>
+      <div style={{display:"flex",alignItems:"center",padding:"12px 14px",gap:40}}>
+        <div style={{display:"flex",flexDirection:"column",gap:8,flex:"0 0 auto",minWidth:0}}>
           {isNext && <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#c8102e",marginBottom:-2}}>▶ NEXT GAME</div>}
           {[away,home].map((t,i) => (
             <div key={i} onClick={e=>{e.stopPropagation();onTeamClick?.(t);}} style={{display:"flex",alignItems:"center",gap:10,cursor:onTeamClick?"pointer":"default"}}>
