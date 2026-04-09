@@ -7877,7 +7877,7 @@ function GraphicsPage() {
               style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,0,0,0.10)",cursor:"pointer",transition:"transform .15s, box-shadow .15s"}}
               onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.18)"}}
               onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="0 2px 12px rgba(0,0,0,0.10)"}}>
-              <img src={w.src} alt={w.label} style={{width:"100%",display:"block",aspectRatio:"2/3",objectFit:"cover"}} />
+              <img src={w.src} alt={w.label} style={{width:"100%",display:"block",objectFit:"contain"}} />
               <div style={{padding:"10px 14px 12px"}}>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#002d6e",textTransform:"uppercase"}}>{w.label}</div>
                 <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:2}}>{w.date}</div>
@@ -7892,8 +7892,8 @@ function GraphicsPage() {
         <div onClick={() => setLightbox(null)}
           style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
           <div onClick={e => e.stopPropagation()}
-            style={{maxWidth:420,width:"100%",background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
-            <img src={lightbox.src} alt={lightbox.label} style={{width:"100%",display:"block"}} />
+            style={{maxWidth:600,width:"100%",background:"#fff",borderRadius:16,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.5)"}}>
+            <img src={lightbox.src} alt={lightbox.label} style={{width:"100%",maxHeight:"75vh",objectFit:"contain",display:"block"}} />
             <div style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
               <div>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e",textTransform:"uppercase"}}>{lightbox.label} — {lightbox.date}</div>
