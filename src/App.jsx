@@ -837,7 +837,7 @@ function Ticker({ setTab }) {
   return (
     <>
       {preview && <GamePreviewModal {...preview} onClose={()=>setPreview(null)} />}
-      <div style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
+      <div className="ticker-outer" style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
         <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 10px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
           <span className="ticker-lbdc-text" style={{fontSize:18,lineHeight:1}}>⚾</span>
           <span className="ticker-lbdc-text" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,letterSpacing:".1em",textTransform:"uppercase",color:"#FFD700",lineHeight:1}}>Diamond Classics</span>
@@ -8025,13 +8025,13 @@ export default function App() {
           .ticker-brand{display:flex!important;align-items:center;gap:4px;}
           .ticker-brand-label{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#FFD700;}
           /* Ticker game items: stacked layout on mobile */
-          .ticker-scroll{flex-wrap:wrap!important;overflow-x:hidden!important;overflow-y:visible!important;}
-          .ticker-game-item{flex-direction:column!important;align-items:flex-start!important;flex:0 0 50%!important;width:50%!important;padding:8px 10px!important;gap:1px!important;height:auto!important;border-right:none!important;border-bottom:1px solid rgba(255,255,255,0.1)!important;box-sizing:border-box!important;}
-          .ticker-game-item:nth-child(odd){border-right:1px solid rgba(255,255,255,0.1)!important;}
-          .ticker-game-item .ticker-team-name{font-size:13px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;max-width:100%!important;}
-          .ticker-game-item .ticker-time{font-size:10px!important;margin-left:0!important;margin-top:3px!important;color:#ff6b6b!important;}
-          .ticker-game-item img{display:none!important;}
-          .ticker-vs{display:none!important;}
+          .ticker-outer{overflow:visible!important;flex-direction:column!important;align-items:stretch!important;}
+          .ticker-scroll{flex-direction:column!important;overflow:visible!important;flex:none!important;}
+          .ticker-game-item{flex-direction:row!important;align-items:center!important;flex:none!important;width:100%!important;padding:7px 12px!important;border-right:none!important;border-bottom:1px solid rgba(255,255,255,0.1)!important;gap:5px!important;height:auto!important;box-sizing:border-box!important;}
+          .ticker-game-item .ticker-team-name{font-size:12px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+          .ticker-game-item .ticker-time{font-size:10px!important;margin-left:auto!important;}
+          .ticker-game-item img{width:18px!important;height:18px!important;display:block!important;}
+          .ticker-vs{font-size:9px!important;opacity:0.5!important;}
         }
       `}</style>
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
