@@ -3626,7 +3626,7 @@ function Footer({ setTab }) {
             </span>
           ))}
         </div>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,color:"rgba(255,255,255,0.25)"}}>© 2026 Long Beach Diamond Classics</div>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,color:"rgba(255,255,255,0.25)"}}>© 2026 Long Beach Diamond Classics &nbsp;·&nbsp; Powered by <a href="https://mainline-webdesign.com/" target="_blank" rel="noopener noreferrer" style={{color:"rgba(255,255,255,0.35)",textDecoration:"none"}}>Mainline Web Design</a></div>
       </div>
     </div>
   );
