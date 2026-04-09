@@ -1688,7 +1688,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
                 onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)"}>
                 <div style={{display:"flex",alignItems:"center",padding:"24px 28px",gap:20,flexWrap:"wrap"}}>
-                  <div style={{display:"flex",flexDirection:"column",gap:14,flex:"1 1 260px",minWidth:0}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:14,flex:"0 0 auto",minWidth:0}}>
                     {[g.away, g.home].map((t,j) => (
                       <div key={j} style={{display:"flex",alignItems:"center",gap:14}}>
                         <TLogo name={t} size={60} />
