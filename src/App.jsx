@@ -840,21 +840,16 @@ function Ticker({ setTab }) {
         <div style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
           {games.map((g,i) => (
             <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
-              style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"4px 10px",borderRight:"1px solid rgba(255,255,255,0.1)",flex:"1 1 120px",minWidth:120,gap:1,cursor:"pointer",transition:"background .12s"}}
+              className="ticker-game-item"
+              style={{display:"flex",alignItems:"center",padding:"0 16px",borderRight:"1px solid rgba(255,255,255,0.1)",flex:"1 1 0",minWidth:0,gap:7,cursor:"pointer",transition:"background .12s",height:"100%"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{fontSize:9,fontWeight:700,letterSpacing:".07em",color:"#ff6b6b",textTransform:"uppercase",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                {g.time}{g.status==="PPD" ? " · PPD" : ""}
-              </div>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"#fff",textTransform:"uppercase",lineHeight:1.15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {g.away}
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:3,minWidth:0,overflow:"hidden"}}>
-                <span style={{fontSize:9,color:"rgba(255,255,255,0.4)",flexShrink:0}}>vs</span>
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",lineHeight:1.15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>
-                  {g.home}
-                </span>
-              </div>
+              <TLogo name={g.away} size={26} />
+              <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{g.away}</span>
+              <span style={{color:"rgba(255,255,255,0.3)",fontSize:13,fontFamily:"'Barlow Condensed',sans-serif",flexShrink:0}}>vs</span>
+              <TLogo name={g.home} size={26} />
+              <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{g.home}</span>
+              <span className="ticker-time" style={{fontSize:11,color:"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",marginLeft:4,flexShrink:0}}>{g.time}{g.status==="PPD"?" · PPD":""}</span>
             </div>
           ))}
         </div>
@@ -912,17 +907,17 @@ function Navbar({ tab, setTab }) {
               </li>
             ))}
             {/* More dropdown */}
-            <li style={{position:"relative"}} onMouseEnter={()=>setMoreOpen(true)} onMouseLeave={()=>setMoreOpen(false)}>
+            <li style={{position:"relative"}}>
               <button onClick={e=>{e.stopPropagation();setMoreOpen(o=>!o);}} className="nav-btn" style={{
                 fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,
                 letterSpacing:".06em",textTransform:"uppercase",
-                color:moreActive?"#002d6e":"#555",background:"none",border:"none",
+                color:moreActive||moreOpen?"#002d6e":"#555",background:"none",border:"none",
                 cursor:"pointer",padding:"7px 12px",borderRadius:6,
-                borderBottom:moreActive?"2px solid #002d6e":"2px solid transparent",
+                borderBottom:moreActive||moreOpen?"2px solid #002d6e":"2px solid transparent",
                 whiteSpace:"nowrap",
-              }}>More ▾</button>
+              }}>More {moreOpen?"▴":"▾"}</button>
               {moreOpen && (
-                <div style={{position:"absolute",top:"100%",right:0,background:"#fff",border:"1px solid rgba(0,0,0,0.1)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",minWidth:180,zIndex:9999,overflow:"hidden",marginTop:4}}>
+                <div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:"100%",right:0,background:"#fff",border:"1px solid rgba(0,0,0,0.1)",borderRadius:10,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",minWidth:200,zIndex:9999,overflow:"hidden",marginTop:2}}>
                   {moreLinks.map(([id,label]) => (
                     <button key={id} onClick={()=>handleNav(id)} style={{
                       display:"block",width:"100%",textAlign:"left",padding:"12px 18px",
@@ -7634,6 +7629,11 @@ export default function App() {
           /* Ticker LBDC label compact on mobile */
           .ticker-lbdc-text{display:none!important;}
           .ticker-lbdc-date{font-size:10px!important;}
+          /* Ticker game items: stacked layout on mobile */
+          .ticker-game-item{flex-direction:column!important;justify-content:center!important;align-items:flex-start!important;padding:4px 8px!important;min-width:120px!important;gap:1px!important;height:auto!important;}
+          .ticker-game-item .ticker-team-name{font-size:13px!important;}
+          .ticker-game-item .ticker-time{font-size:9px!important;margin-left:0!important;}
+          .ticker-game-item img,.ticker-game-item>div:first-child{display:none!important;}
         }
       `}</style>
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
