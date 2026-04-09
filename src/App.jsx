@@ -2969,6 +2969,12 @@ function HistoryPage() {
   const [gameFilter, setGameFilter] = useState("all"); // "all" | "Final" | "Playoff"
   const [search, setSearch] = useState("");
   const [boxModal, setBoxModal] = useState(null); // {game, batting, pitching} or "loading"
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 700);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const openBoxScore = async (seasonName, g) => {
     setBoxModal("loading");
@@ -3054,31 +3060,44 @@ function HistoryPage() {
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"clamp(160px,22vw,220px) 1fr",gap:20,alignItems:"start"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"clamp(180px,22vw,220px) 1fr",gap:isMobile?12:20,alignItems:"start"}}>
 
-        {/* Season list sidebar */}
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",
-          position:"sticky",top:80,maxHeight:"80vh",overflowY:"auto",fontSize:"clamp(11px,2.5vw,14px)"}}>
-          {categorySeasons.map((s,i) => (
-            <button key={i} onClick={() => setSelectedSeason(s)}
-              style={{display:"block",width:"100%",textAlign:"left",padding:"12px 14px",
-                border:"none",borderBottom:"1px solid rgba(0,0,0,0.06)",cursor:"pointer",
-                background:season?.name===s.name?"rgba(0,45,110,0.07)":"#fff",
-                borderLeft:season?.name===s.name?"3px solid #002d6e":"3px solid transparent",
-                transition:"background .1s"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
-                color:season?.name===s.name?"#002d6e":"#222",lineHeight:1.3}}>
-                {s.name}
-              </div>
-              <div style={{fontSize:11,color:"#999",marginTop:3}}>
-                {s.games.length} games · {s.standings.length} teams
-              </div>
-            </button>
-          ))}
-          {categorySeasons.length === 0 && (
-            <div style={{padding:20,textAlign:"center",color:"#aaa",fontSize:13}}>No seasons</div>
-          )}
-        </div>
+        {/* Season list sidebar — desktop only; mobile uses dropdown */}
+        {isMobile ? (
+          <select
+            value={season?.name || ""}
+            onChange={e => setSelectedSeason(categorySeasons.find(s => s.name === e.target.value) || null)}
+            style={{width:"100%",padding:"11px 14px",fontSize:15,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,
+              border:"1px solid rgba(0,45,110,0.25)",borderRadius:10,background:"#fff",color:"#002d6e",
+              appearance:"auto",gridColumn:"1/-1",marginBottom:4}}>
+            {categorySeasons.map((s,i) => (
+              <option key={i} value={s.name}>{s.name} — {s.games.length} games</option>
+            ))}
+          </select>
+        ) : (
+          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",
+            position:"sticky",top:80,maxHeight:"80vh",overflowY:"auto"}}>
+            {categorySeasons.map((s,i) => (
+              <button key={i} onClick={() => setSelectedSeason(s)}
+                style={{display:"block",width:"100%",textAlign:"left",padding:"12px 14px",
+                  border:"none",borderBottom:"1px solid rgba(0,0,0,0.06)",cursor:"pointer",
+                  background:season?.name===s.name?"rgba(0,45,110,0.07)":"#fff",
+                  borderLeft:season?.name===s.name?"3px solid #002d6e":"3px solid transparent",
+                  transition:"background .1s"}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
+                  color:season?.name===s.name?"#002d6e":"#222",lineHeight:1.3}}>
+                  {s.name}
+                </div>
+                <div style={{fontSize:11,color:"#999",marginTop:3}}>
+                  {s.games.length} games · {s.standings.length} teams
+                </div>
+              </button>
+            ))}
+            {categorySeasons.length === 0 && (
+              <div style={{padding:20,textAlign:"center",color:"#aaa",fontSize:13}}>No seasons</div>
+            )}
+          </div>
+        )}
 
         {/* Main content */}
         {season ? (
@@ -3087,13 +3106,13 @@ function HistoryPage() {
             <div style={{background:"#002d6e",borderRadius:12,padding:"16px 20px",marginBottom:16,
               display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
               <div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,
-                  color:"#FFD700",textTransform:"uppercase",letterSpacing:".04em"}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(16px,5vw,26px)",
+                  color:"#FFD700",textTransform:"uppercase",letterSpacing:".04em",lineHeight:1.2}}>
                   {season.name}
                 </div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:3,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:3,display:"flex",flexWrap:"wrap",alignItems:"center",gap:6}}>
                   {season.games.length} games played · {season.standings.length} teams
-                  {hasBoxScores && <span style={{background:"rgba(255,215,0,0.2)",color:"#FFD700",borderRadius:4,padding:"2px 7px",fontSize:11,fontWeight:700,letterSpacing:".04em"}}>📊 Click any game for box score</span>}
+                  {hasBoxScores && <span style={{background:"rgba(255,215,0,0.2)",color:"#FFD700",borderRadius:4,padding:"2px 7px",fontSize:11,fontWeight:700,letterSpacing:".04em"}}>📊 Tap any game for box score</span>}
                 </div>
               </div>
             </div>
