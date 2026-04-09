@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head><title>Pill Scanner</title></head>
+<body>
+<canvas id="c" style="display:none"></canvas>
+<pre id="out">Scanning...</pre>
+<script>
+const img = new Image();
+img.onload = () => {
+  const canvas = document.getElementById('c');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  const W = canvas.width, H = canvas.height;
+  document.getElementById('out').textContent += `\nImage: ${W}x${H}\n`;
+
+  // Sample brightness at multiple x positions across full height
+  // Focus on finding ALL 4 pill borders
+  const xs = [100, 200, 300, 400, 512, 600, 700, 800, 900];
+
+  let results = [];
+  for (let y = 0; y < H; y++) {
+    let maxB = 0;
+    for (const x of xs) {
+      const d = ctx.getImageData(x, y, 1, 1).data;
+      const b = (d[0] + d[1] + d[2]) / 3;
+      if (b > maxB) maxB = b;
+    }
+    results.push({ y, b: Math.round(maxB) });
+  }
+
+  // Find transitions where brightness > 55
+  let out = `Image: ${W}x${H}\n\nBrightness spikes (> 55) — pill borders:\n`;
+  let prevHigh = false;
+  for (const r of results) {
+    const isHigh = r.b > 55;
+    if (isHigh !== prevHigh) {
+      out += `y=${r.y}: ${prevHigh ? 'FALL' : 'RISE'} to ${r.b}\n`;
+      prevHigh = isHigh;
+    }
+  }
+
+  out += '\n\nAll rows with brightness > 40:\n';
+  let prev = false;
+  for (const r of results) {
+    const isHigh = r.b > 40;
+    if (isHigh !== prev) {
+      out += `y=${r.y}: ${prev ? 'end' : 'start'} (b=${r.b})\n`;
+      prev = isHigh;
+    }
+  }
+
+  // Also dump raw data for y=900-1536 to debug lower half
+  out += '\n\nRaw brightness y=900-1540 (max across columns):\n';
+  for (let y = 900; y < Math.min(H, 1540); y += 2) {
+    const r = results[y];
+    if (r && r.b > 30) out += `y=${y}: ${r.b}\n`;
+  }
+
+  document.getElementById('out').textContent = out;
+};
+img.src = '/2026 Diamond Classic schedule template.png';
+</script>
+</body>
+</html>

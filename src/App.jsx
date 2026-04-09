@@ -7365,9 +7365,9 @@ function GraphicsPage() {
   const [lightbox, setLightbox] = useState(null);
 
   const WEEKS = [
-    { label: "Week 1", date: "Apr 11", src: "/week 1.png" },
-    { label: "Week 2", date: "Apr 18", src: "/week 2.png" },
-    { label: "Week 3", date: "Apr 25", src: "/week 3.png" },
+    { label: "Week 1", date: "Apr 11", src: "/week1.png" },
+    { label: "Week 2", date: "Apr 18", src: "/week2.png" },
+    { label: "Week 3", date: "Apr 25", src: "/week3.png" },
   ];
 
   return (
