@@ -8028,9 +8028,11 @@ export default function App() {
           .ticker-brand{display:flex!important;align-items:center;gap:4px;}
           .ticker-brand-label{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#FFD700;}
           /* Ticker game items: stacked layout on mobile */
-          .ticker-game-item{min-width:130px!important;padding:6px 10px!important;}
-          .ticker-game-item .ticker-team-name{font-size:13px!important;}
-          .ticker-game-item .ticker-time{font-size:10px!important;}
+          .ticker-game-item{min-width:108px!important;padding:5px 8px!important;gap:2px!important;}
+          .ticker-game-item .ticker-team-name{font-size:11px!important;}
+          .ticker-game-item .ticker-time{font-size:9px!important;}
+          .ticker-game-item div img{width:16px!important;height:16px!important;}
+          .ticker-lbdc-date{font-size:9px!important;}
         }
       `}</style>
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>

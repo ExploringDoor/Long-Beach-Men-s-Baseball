@@ -97,8 +97,10 @@ Mike Jones  3  0  1  0  1  0
           .ticker-brand{display:flex!important;align-items:center;gap:4px;}
           .ticker-brand-label{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#FFD700;}
           /* Ticker game items: stacked layout on mobile */
-          .ticker-game-item{min-width:130px!important;padding:6px 10px!important;}
-          .ticker-game-item .ticker-team-name{font-size:13px!important;}
-          .ticker-game-item .ticker-time{font-size:10px!important;}
+          .ticker-game-item{min-width:108px!important;padding:5px 8px!important;gap:2px!important;}
+          .ticker-game-item .ticker-team-name{font-size:11px!important;}
+          .ticker-game-item .ticker-time{font-size:9px!important;}
+          .ticker-game-item div img{width:16px!important;height:16px!important;}
+          .ticker-lbdc-date{font-size:9px!important;}
         }
       `}),n.jsx("div",{style:{width:"100%",overflow:"hidden"},children:n.jsx(Vp,{setTab:w})}),n.jsx("div",{style:{position:"sticky",top:0,zIndex:300,width:"100%"},children:n.jsx(Kp,{tab:e,setTab:w})}),e==="home"&&n.jsx(Jp,{setTab:w,setTeamDetail:b}),e==="scores"&&n.jsx(qp,{setTab:w,setTeamDetail:b}),e==="schedule"&&n.jsx(Zp,{setTab:w,setTeamDetail:b}),e==="standings"&&n.jsx(ef,{setTab:w,setTeamDetail:b}),e==="teams"&&!a&&n.jsx(nf,{setTab:w,setTeamDetail:b}),e==="teams"&&a&&n.jsx(tf,{teamName:a,prevTab:r,onBack:S,setTab:w,setTeamDetail:b}),e==="stats"&&n.jsx(Ff,{}),e==="live"&&n.jsx(mu,{}),e==="subs"&&n.jsx(xf,{}),e==="admin"&&n.jsx(Bf,{onAlertChange:_=>{l(_),h((()=>{try{return JSON.parse(localStorage.getItem("lbdc_alert_style")||"{}")}catch{return{}}})())}}),e==="history"&&n.jsx(hf,{}),e==="rules"&&n.jsx(pf,{}),e==="directions"&&n.jsx(af,{}),e==="sponsors"&&n.jsx(of,{}),e==="photos"&&n.jsx(rf,{}),e==="signup"&&n.jsx(gf,{}),e==="graphics"&&n.jsx(Af,{}),n.jsx(yf,{setTab:w})]})}Ms.createRoot(document.getElementById("root")).render(n.jsx(zu.StrictMode,{children:n.jsx(Wf,{})}));
