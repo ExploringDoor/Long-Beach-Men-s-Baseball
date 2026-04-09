@@ -4485,7 +4485,7 @@ function AdminPhotosEditor({ onBack }) {
   const [videoCaption, setVideoCaption] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
-  const fileInputRef = React.useRef();
+  const fileInputRef = useRef();
 
   const reload = () => sbLoadGallery().then(rows => { setItems(rows || []); setLoading(false); });
   useEffect(() => { reload(); }, []);
