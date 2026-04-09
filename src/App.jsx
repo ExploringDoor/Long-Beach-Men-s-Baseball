@@ -2511,7 +2511,7 @@ function FieldDirectionsPage() {
       <PageHero label="Diamond Classics Baseball" title="Field Directions" subtitle="Locations & directions for all Diamond Classics fields" />
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         <div style={{display:"flex",flexDirection:"column",gap:20}}>
-          {FIELDS_INFO.map(field => (
+          {getFieldsData().map(field => (
             <div key={field.name} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${field.color}`,borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
               <div style={{padding:"20px 24px",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
                 <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
@@ -2588,6 +2588,17 @@ function SponsorsPage() {
             </div>
           </div>
         </div>
+
+        {/* Dynamic sponsors from admin */}
+        {(() => { try { const s=JSON.parse(localStorage.getItem("lbdc_sponsors")||"[]"); return s.map((sp,i)=>(
+          <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>{sp.name}</div>
+            {sp.role && <div style={{fontSize:12,fontWeight:700,color:"#002d6e",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>{sp.role}</div>}
+            {sp.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.6)",marginTop:6,lineHeight:1.6}}>{sp.description}</div>}
+            {sp.email && <div style={{marginTop:8}}><a href={`mailto:${sp.email}`} style={{fontSize:13,color:"#002d6e"}}>{sp.email}</a></div>}
+            {sp.website && <div style={{marginTop:4}}><a href={sp.website} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:"#002d6e"}}>{sp.website}</a></div>}
+          </div>
+        )); } catch(e) { return null; } })()}
 
         {/* Become a Sponsor CTA */}
         <div style={{background:"#fff",border:"2px dashed rgba(0,45,110,0.2)",borderRadius:12,padding:"28px 24px",textAlign:"center",marginTop:24}}>
@@ -2731,6 +2742,11 @@ function CaptainRosterEditor({ teamName }) {
 function getRulesData() {
   try { const s = localStorage.getItem("lbdc_rules"); if (s) return JSON.parse(s); } catch(e) {}
   return RULES_DATA;
+}
+
+function getFieldsData() {
+  try { const s = localStorage.getItem("lbdc_fields"); if (s) return JSON.parse(s); } catch(e) {}
+  return FIELDS_INFO;
 }
 
 /* ─── RULES PAGE ─────────────────────────────────────────────────────────── */
@@ -4269,6 +4285,228 @@ function WeeklyEmailPage({ onBack }) {
   );
 }
 
+/* ─── ADMIN SUB-SCREENS ──────────────────────────────────────────────────── */
+function AdminRulesEditor({ onBack }) {
+  const [rules, setRules] = useState(() => getRulesData());
+  const [saved, setSaved] = useState(false);
+  const save = () => { localStorage.setItem("lbdc_rules", JSON.stringify(rules)); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const reset = () => { if(!window.confirm("Reset to original default rules? All edits will be lost.")) return; localStorage.removeItem("lbdc_rules"); setRules(RULES_DATA); };
+  const updSection=(si,f,v)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,[f]:v}));
+  const updItem=(si,ii,v)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,items:s.items.map((x,j)=>j!==ii?x:v)}));
+  const delItem=(si,ii)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,items:s.items.filter((_,j)=>j!==ii)}));
+  const addItem=(si)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,items:[...s.items,"New rule — click to edit"]}));
+  const delSection=(si)=>{if(!window.confirm(`Delete section "${rules[si].section}"?`))return;setRules(p=>p.filter((_,i)=>i!==si));};
+  const addSection=()=>setRules(p=>[...p,{section:"New Section",icon:"📋",items:["New rule — click to edit"]}]);
+  const moveSection=(si,dir)=>{const n=si+dir;if(n<0||n>=rules.length)return;setRules(p=>{const r=[...p];[r[si],r[n]]=[r[n],r[si]];return r;});};
+  const btn=(bg,color="#fff",extra={})=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",whiteSpace:"nowrap",...extra});
+  const inp={fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"6px 10px",width:"100%",boxSizing:"border-box"};
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin" title="Edit Rules" subtitle="Update the Field Guide rules page" />
+      <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
+          <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
+          <button onClick={save} style={btn(saved?"#16a34a":"#002d6e")}>{saved?"✓ Saved!":"💾 Save Changes"}</button>
+          <button onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
+          <div style={{marginLeft:"auto",fontSize:12,color:"rgba(0,0,0,0.4)"}}>Changes are saved to this browser.</div>
+        </div>
+        {rules.map((sec,si)=>(
+          <div key={si} style={{background:"#fff",borderRadius:12,marginBottom:16,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden"}}>
+            <div style={{background:"rgba(0,45,110,0.04)",padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+              <input value={sec.icon} onChange={e=>updSection(si,"icon",e.target.value)} style={{...inp,width:48,textAlign:"center",fontSize:18,padding:"4px 6px"}} />
+              <input value={sec.section} onChange={e=>updSection(si,"section",e.target.value)} style={{...inp,flex:1,fontWeight:700,fontSize:16}} placeholder="Section name" />
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                <button onClick={()=>moveSection(si,-1)} disabled={si===0} style={btn("rgba(0,0,0,0.07)","#333",{padding:"9px 12px"})}>↑</button>
+                <button onClick={()=>moveSection(si,1)} disabled={si===rules.length-1} style={btn("rgba(0,0,0,0.07)","#333",{padding:"9px 12px"})}>↓</button>
+                <button onClick={()=>delSection(si)} style={btn("rgba(220,38,38,0.09)","#dc2626",{padding:"9px 12px"})}>🗑️</button>
+              </div>
+            </div>
+            {sec.items.map((item,ii)=>(
+              <div key={ii} style={{display:"flex",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",alignItems:"flex-start"}}>
+                <span style={{color:"rgba(0,0,0,0.3)",fontSize:12,paddingTop:8,minWidth:20}}>{ii+1}.</span>
+                <textarea value={item} onChange={e=>updItem(si,ii,e.target.value)} rows={2} style={{...inp,flex:1,resize:"vertical",lineHeight:1.5}} />
+                <button onClick={()=>delItem(si,ii)} style={{background:"none",border:"none",color:"#dc2626",fontSize:18,cursor:"pointer",padding:"6px",flexShrink:0}}>✕</button>
+              </div>
+            ))}
+            <div style={{padding:"10px 16px"}}>
+              <button onClick={()=>addItem(si)} style={{background:"none",border:"1px dashed #aaa",borderRadius:6,padding:"6px 14px",fontSize:13,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600}}>+ Add Rule</button>
+            </div>
+          </div>
+        ))}
+        <button onClick={addSection} style={{width:"100%",padding:"14px",background:"none",border:"2px dashed #aaa",borderRadius:12,fontSize:15,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>+ Add New Section</button>
+        <div style={{position:"sticky",bottom:20,marginTop:24,textAlign:"center"}}>
+          <button onClick={save} style={{...btn(saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+            {saved?"✓ Saved!":"💾 Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminPhotosEditor({ onBack }) {
+  const [photos, setPhotos] = useState(() => { try { return JSON.parse(localStorage.getItem("lbdc_photos")||"[]"); } catch(e) { return []; } });
+  const [url, setUrl] = useState("");
+  const [caption, setCaption] = useState("");
+  const [mediaType, setMediaType] = useState("photo");
+  const [saved, setSaved] = useState(false);
+  const persist = (arr) => { localStorage.setItem("lbdc_photos", JSON.stringify(arr)); setSaved(true); setTimeout(()=>setSaved(false),2000); };
+  const add = () => {
+    if (!url.trim()) { alert("Please enter a URL."); return; }
+    const updated = [{url:url.trim(),caption:caption.trim(),type:mediaType},...photos];
+    setPhotos(updated); persist(updated); setUrl(""); setCaption(""); setMediaType("photo");
+  };
+  const del = (i) => { if(!window.confirm("Remove this item?")) return; const u=photos.filter((_,j)=>j!==i); setPhotos(u); persist(u); };
+  const btn=(bg,color="#fff")=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"});
+  const inp={fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"8px 12px",width:"100%",boxSizing:"border-box"};
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin" title="Manage Photos & Videos" subtitle="Add or remove items from the gallery" />
+      <div style={{maxWidth:700,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:24,alignItems:"center",flexWrap:"wrap"}}>
+          <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
+          {saved && <span style={{color:"#16a34a",fontWeight:700,fontSize:14}}>✓ Saved!</span>}
+        </div>
+        <div style={{background:"#fff",borderRadius:12,padding:"20px",marginBottom:24,border:"1px solid rgba(0,0,0,0.08)"}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",marginBottom:14}}>Add New Item</div>
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <button onClick={()=>setMediaType("photo")} style={{...btn(mediaType==="photo"?"#002d6e":"rgba(0,0,0,0.07)",mediaType==="photo"?"#fff":"#333"),padding:"7px 16px",fontSize:14}}>📸 Photo</button>
+            <button onClick={()=>setMediaType("video")} style={{...btn(mediaType==="video"?"#002d6e":"rgba(0,0,0,0.07)",mediaType==="video"?"#fff":"#333"),padding:"7px 16px",fontSize:14}}>🎥 Video</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <input value={url} onChange={e=>setUrl(e.target.value)} placeholder={mediaType==="video"?"YouTube URL (e.g. https://youtu.be/...)":"Image URL (https://...)"} style={inp} />
+            <input value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Caption (optional)" style={inp} />
+            <button onClick={add} style={{...btn("#002d6e"),padding:"11px 24px",fontSize:15,alignSelf:"flex-start"}}>+ Add to Gallery</button>
+          </div>
+        </div>
+        {photos.length === 0 && <div style={{textAlign:"center",color:"rgba(0,0,0,0.4)",padding:"40px 0",fontSize:14}}>No photos or videos yet. Add one above.</div>}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {photos.map((p,i)=>(
+            <div key={i} style={{background:"#fff",borderRadius:10,border:"1px solid rgba(0,0,0,0.08)",display:"flex",alignItems:"center",gap:14,padding:"12px 16px"}}>
+              {p.type==="video"
+                ? <div style={{width:72,height:54,background:"#111",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>▶</div>
+                : <img src={p.url} alt="" style={{width:72,height:54,objectFit:"cover",borderRadius:6,flexShrink:0,background:"#eee"}} onError={e=>e.target.style.background="#eee"} />}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:3}}>{p.type==="video"?"🎥 Video":"📸 Photo"}</div>
+                <div style={{fontSize:13,color:"#111",wordBreak:"break-all",marginBottom:2}}>{p.caption||<em style={{color:"rgba(0,0,0,0.35)"}}>No caption</em>}</div>
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",wordBreak:"break-all"}}>{p.url.slice(0,60)}{p.url.length>60?"…":""}</div>
+              </div>
+              <button onClick={()=>del(i)} style={{background:"none",border:"none",color:"#dc2626",fontSize:20,cursor:"pointer",flexShrink:0,padding:"4px 8px"}}>🗑️</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminSponsorsEditor({ onBack }) {
+  const defaultSponsors = () => { try { return JSON.parse(localStorage.getItem("lbdc_sponsors")||"[]"); } catch(e) { return []; } };
+  const [sponsors, setSponsors] = useState(defaultSponsors);
+  const [form, setForm] = useState({name:"",role:"",description:"",email:"",website:""});
+  const [saved, setSaved] = useState(false);
+  const persist = (arr) => { localStorage.setItem("lbdc_sponsors", JSON.stringify(arr)); setSaved(true); setTimeout(()=>setSaved(false),2000); };
+  const add = () => {
+    if (!form.name.trim()) { alert("Sponsor name is required."); return; }
+    const updated = [...sponsors, {...form}];
+    setSponsors(updated); persist(updated);
+    setForm({name:"",role:"",description:"",email:"",website:""});
+  };
+  const del = (i) => { if(!window.confirm("Remove this sponsor?")) return; const u=sponsors.filter((_,j)=>j!==i); setSponsors(u); persist(u); };
+  const btn=(bg,color="#fff")=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"});
+  const inp={fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"8px 12px",width:"100%",boxSizing:"border-box"};
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin" title="Manage Sponsors" subtitle="Add or remove sponsors from the Sponsors page" />
+      <div style={{maxWidth:700,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:24,alignItems:"center",flexWrap:"wrap"}}>
+          <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
+          {saved && <span style={{color:"#16a34a",fontWeight:700,fontSize:14}}>✓ Saved!</span>}
+        </div>
+        <div style={{background:"rgba(0,45,110,0.05)",borderRadius:10,padding:"12px 16px",marginBottom:20,fontSize:13,color:"rgba(0,0,0,0.55)"}}>
+          ℹ️ The <strong>Daniel Gutierrez</strong> (Founder) and <strong>Adam — Mainline Design</strong> (Website) cards are always shown. Add additional sponsors below.
+        </div>
+        <div style={{background:"#fff",borderRadius:12,padding:"20px",marginBottom:24,border:"1px solid rgba(0,0,0,0.08)"}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",marginBottom:14}}>Add Sponsor</div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Sponsor name *" style={inp} />
+            <input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="Role / title (e.g. Gold Sponsor)" style={inp} />
+            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Description" rows={2} style={{...inp,resize:"vertical"}} />
+            <input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="Email (optional)" style={inp} />
+            <input value={form.website} onChange={e=>setForm(f=>({...f,website:e.target.value}))} placeholder="Website URL (optional)" style={inp} />
+            <button onClick={add} style={{...btn("#002d6e"),padding:"11px 24px",alignSelf:"flex-start"}}>+ Add Sponsor</button>
+          </div>
+        </div>
+        {sponsors.length === 0 && <div style={{textAlign:"center",color:"rgba(0,0,0,0.4)",padding:"30px 0",fontSize:14}}>No additional sponsors added yet.</div>}
+        {sponsors.map((s,i)=>(
+          <div key={i} style={{background:"#fff",borderRadius:10,border:"1px solid rgba(0,0,0,0.08)",padding:"16px 20px",marginBottom:10,display:"flex",alignItems:"flex-start",gap:14}}>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#111"}}>{s.name}</div>
+              {s.role && <div style={{fontSize:12,color:"#002d6e",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginTop:2}}>{s.role}</div>}
+              {s.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.6)",marginTop:4}}>{s.description}</div>}
+              {s.email && <div style={{fontSize:12,color:"rgba(0,0,0,0.45)",marginTop:4}}>✉️ {s.email}</div>}
+              {s.website && <div style={{fontSize:12,color:"rgba(0,0,0,0.45)",marginTop:2}}>🌐 {s.website}</div>}
+            </div>
+            <button onClick={()=>del(i)} style={{background:"none",border:"none",color:"#dc2626",fontSize:20,cursor:"pointer",flexShrink:0}}>🗑️</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminFieldsEditor({ onBack }) {
+  const [fields, setFields] = useState(() => getFieldsData());
+  const [saved, setSaved] = useState(false);
+  const save = () => { localStorage.setItem("lbdc_fields", JSON.stringify(fields)); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const reset = () => { if(!window.confirm("Reset to original field info?")) return; localStorage.removeItem("lbdc_fields"); setFields(FIELDS_INFO); };
+  const updField=(fi,f,v)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,[f]:v}));
+  const updNote=(fi,ni,v)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:x.notes.map((n,j)=>j!==ni?n:v)}));
+  const delNote=(fi,ni)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:x.notes.filter((_,j)=>j!==ni)}));
+  const addNote=(fi)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:[...x.notes,"New note — click to edit"]}));
+  const btn=(bg,color="#fff")=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"});
+  const inp={fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"8px 12px",width:"100%",boxSizing:"border-box"};
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin" title="Edit Field Directions" subtitle="Update field notes, addresses, and directions" />
+      <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
+          <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
+          <button onClick={save} style={btn(saved?"#16a34a":"#002d6e")}>{saved?"✓ Saved!":"💾 Save Changes"}</button>
+          <button onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
+        </div>
+        {fields.map((field,fi)=>(
+          <div key={fi} style={{background:"#fff",borderRadius:12,marginBottom:20,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${field.color}`}}>
+            <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"rgba(0,0,0,0.02)"}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase",marginBottom:10}}>{field.name}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <input value={field.address} onChange={e=>updField(fi,"address",e.target.value)} placeholder="Street address" style={inp} />
+                <input value={field.mapsUrl} onChange={e=>updField(fi,"mapsUrl",e.target.value)} placeholder="Google Maps URL" style={inp} />
+                <input value={field.appleMapsUrl} onChange={e=>updField(fi,"appleMapsUrl",e.target.value)} placeholder="Apple Maps URL" style={inp} />
+              </div>
+            </div>
+            <div style={{padding:"14px 18px"}}>
+              <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:10}}>Field Notes & Parking</div>
+              {field.notes.map((note,ni)=>(
+                <div key={ni} style={{display:"flex",gap:8,marginBottom:8,alignItems:"flex-start"}}>
+                  <textarea value={note} onChange={e=>updNote(fi,ni,e.target.value)} rows={2} style={{...inp,flex:1,resize:"vertical"}} />
+                  <button onClick={()=>delNote(fi,ni)} style={{background:"none",border:"none",color:"#dc2626",fontSize:18,cursor:"pointer",padding:"6px",flexShrink:0}}>✕</button>
+                </div>
+              ))}
+              <button onClick={()=>addNote(fi)} style={{background:"none",border:"1px dashed #aaa",borderRadius:6,padding:"6px 14px",fontSize:13,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600}}>+ Add Note</button>
+            </div>
+          </div>
+        ))}
+        <div style={{position:"sticky",bottom:20,textAlign:"center"}}>
+          <button onClick={save} style={{...btn(saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+            {saved?"✓ Saved!":"💾 Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminPage({ onAlertChange }) {
   const [screen, setScreen] = useState("login"); // "login" | "admin" | "captain"
   const [pw, setPw] = useState("");
@@ -4478,106 +4716,10 @@ function AdminPage({ onAlertChange }) {
     </div>
   );
 
-  // ── ADMIN RULES EDITOR ──
-  if (screen === "admin_rules") {
-    const [rules, setRules] = useState(() => getRulesData());
-    const [saved, setSaved] = useState(false);
-
-    const save = () => {
-      localStorage.setItem("lbdc_rules", JSON.stringify(rules));
-      setSaved(true); setTimeout(() => setSaved(false), 2500);
-    };
-    const reset = () => {
-      if (!window.confirm("Reset to original default rules? All edits will be lost.")) return;
-      localStorage.removeItem("lbdc_rules");
-      setRules(RULES_DATA);
-    };
-    const updSection = (si, field, val) =>
-      setRules(prev => prev.map((s,i) => i!==si ? s : {...s,[field]:val}));
-    const updItem = (si, ii, val) =>
-      setRules(prev => prev.map((s,i) => i!==si ? s : {...s, items: s.items.map((x,j)=>j!==ii?x:val)}));
-    const delItem = (si, ii) =>
-      setRules(prev => prev.map((s,i) => i!==si ? s : {...s, items: s.items.filter((_,j)=>j!==ii)}));
-    const addItem = (si) =>
-      setRules(prev => prev.map((s,i) => i!==si ? s : {...s, items:[...s.items,"New rule — click to edit"]}));
-    const delSection = (si) => {
-      if (!window.confirm(`Delete section "${rules[si].section}"?`)) return;
-      setRules(prev => prev.filter((_,i)=>i!==si));
-    };
-    const addSection = () =>
-      setRules(prev => [...prev, {section:"New Section",icon:"📋",items:["New rule — click to edit"]}]);
-    const moveSection = (si, dir) => {
-      const next = si + dir;
-      if (next < 0 || next >= rules.length) return;
-      setRules(prev => { const r=[...prev]; [r[si],r[next]]=[r[next],r[si]]; return r; });
-    };
-
-    const btnStyle = (bg, color="#fff") => ({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",whiteSpace:"nowrap"});
-    const inputStyle = {fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"6px 10px",width:"100%",boxSizing:"border-box"};
-
-    return (
-      <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-        <PageHero label="Admin" title="Edit Rules" subtitle="Update the Field Guide rules page" />
-        <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
-
-          {/* Action bar */}
-          <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
-            <button onClick={()=>setScreen("admin")} style={btnStyle("rgba(0,0,0,0.08)","#333")}>← Back</button>
-            <button onClick={save} style={btnStyle(saved?"#16a34a":"#002d6e")}>{saved?"✓ Saved!":"💾 Save Changes"}</button>
-            <button onClick={reset} style={btnStyle("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
-            <div style={{marginLeft:"auto",fontSize:12,color:"rgba(0,0,0,0.4)"}}>Changes are saved to this browser. Save before leaving.</div>
-          </div>
-
-          {/* Sections */}
-          {rules.map((sec, si) => (
-            <div key={si} style={{background:"#fff",borderRadius:12,marginBottom:16,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden"}}>
-              {/* Section header */}
-              <div style={{background:"rgba(0,45,110,0.04)",padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                <input value={sec.icon} onChange={e=>updSection(si,"icon",e.target.value)}
-                  style={{...inputStyle,width:48,textAlign:"center",fontSize:18,padding:"4px 6px"}} title="Icon" />
-                <input value={sec.section} onChange={e=>updSection(si,"section",e.target.value)}
-                  style={{...inputStyle,flex:1,fontWeight:700,fontSize:16}} placeholder="Section name" />
-                <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={()=>moveSection(si,-1)} disabled={si===0} style={btnStyle("rgba(0,0,0,0.07)","#333")} title="Move up">↑</button>
-                  <button onClick={()=>moveSection(si,1)} disabled={si===rules.length-1} style={btnStyle("rgba(0,0,0,0.07)","#333")} title="Move down">↓</button>
-                  <button onClick={()=>delSection(si)} style={btnStyle("rgba(220,38,38,0.09)","#dc2626")} title="Delete section">🗑️</button>
-                </div>
-              </div>
-              {/* Rule items */}
-              {sec.items.map((item, ii) => (
-                <div key={ii} style={{display:"flex",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",alignItems:"flex-start"}}>
-                  <span style={{color:"rgba(0,0,0,0.3)",fontFamily:"monospace",fontSize:12,paddingTop:8,minWidth:20}}>{ii+1}.</span>
-                  <textarea value={item} onChange={e=>updItem(si,ii,e.target.value)} rows={2}
-                    style={{...inputStyle,flex:1,resize:"vertical",lineHeight:1.5}} />
-                  <button onClick={()=>delItem(si,ii)} style={{background:"none",border:"none",color:"#dc2626",fontSize:18,cursor:"pointer",padding:"6px",flexShrink:0}} title="Delete rule">✕</button>
-                </div>
-              ))}
-              {/* Add rule */}
-              <div style={{padding:"10px 16px"}}>
-                <button onClick={()=>addItem(si)}
-                  style={{background:"none",border:"1px dashed #aaa",borderRadius:6,padding:"6px 14px",fontSize:13,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600}}>
-                  + Add Rule
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {/* Add section */}
-          <button onClick={addSection}
-            style={{width:"100%",padding:"14px",background:"none",border:"2px dashed #aaa",borderRadius:12,fontSize:15,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,letterSpacing:".04em"}}>
-            + Add New Section
-          </button>
-
-          {/* Sticky save */}
-          <div style={{position:"sticky",bottom:20,marginTop:24,textAlign:"center"}}>
-            <button onClick={save} style={{...btnStyle(saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
-              {saved ? "✓ Saved!" : "💾 Save Changes"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (screen === "admin_rules")   return <AdminRulesEditor onBack={() => setScreen("admin")} />;
+  if (screen === "admin_photos")  return <AdminPhotosEditor onBack={() => setScreen("admin")} />;
+  if (screen === "admin_sponsors") return <AdminSponsorsEditor onBack={() => setScreen("admin")} />;
+  if (screen === "admin_fields")  return <AdminFieldsEditor onBack={() => setScreen("admin")} />;
 
   // ── ADMIN ROSTERS SCREEN ──
   if (screen === "admin_rosters") {
@@ -5220,6 +5362,9 @@ function AdminPage({ onAlertChange }) {
                   {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",accent:"#002d6e",action:()=>setQuickView("email")},
                   {icon:"📅",title:"Manage Schedule",desc:"View season schedule",accent:"#002d6e",action:()=>setQuickView("schedule")},
                   {icon:"📜",title:"Edit Rules",desc:"Update Field Guide rules & sections",accent:"#002d6e",action:()=>setScreen("admin_rules")},
+                  {icon:"📸",title:"Photos & Videos",desc:"Add or remove gallery items",accent:"#002d6e",action:()=>setScreen("admin_photos")},
+                  {icon:"🤝",title:"Edit Sponsors",desc:"Add or remove sponsor cards",accent:"#002d6e",action:()=>setScreen("admin_sponsors")},
+                  {icon:"🏟️",title:"Field Directions",desc:"Edit field notes and addresses",accent:"#002d6e",action:()=>setScreen("admin_fields")},
                 ].map((a,i)=>(
                   <div key={i} onClick={a.action} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${a.accent}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s",position:"relative"}}
                     onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
