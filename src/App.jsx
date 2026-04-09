@@ -1684,10 +1684,10 @@ function SchedulePage({ setTab, setTeamDetail }) {
             const g = BOOMERS_SCHED[boomerWk];
             return (
               <div onClick={()=>setPreviewGame({away:g.away,home:g.home,time:g.time,date:g.date,field:g.field})}
-                style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #7c3aed",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:"pointer",transition:"box-shadow .12s"}}
+                style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #7c3aed",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:"pointer",transition:"box-shadow .12s",display:"inline-flex"}}
                 onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)"}>
-                <div style={{display:"flex",alignItems:"center",padding:"24px 28px",gap:20,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",padding:"24px 28px",gap:40}}>
                   <div style={{display:"flex",flexDirection:"column",gap:14,flex:"0 0 auto",minWidth:0}}>
                     {[g.away, g.home].map((t,j) => (
                       <div key={j} style={{display:"flex",alignItems:"center",gap:14}}>
