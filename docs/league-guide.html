@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LBDC Website Guide — Welcome to Diamond Classics!</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;900&family=Open+Sans:wght@400;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Open Sans',sans-serif;background:#f4f6fb;color:#222;}
+
+  .header{background:linear-gradient(135deg,#002d6e 0%,#003d94 60%,#001f4d 100%);color:#fff;padding:40px 30px 30px;text-align:center;}
+  .header .logo{font-family:'Barlow Condensed',sans-serif;font-size:48px;font-weight:900;color:#FFD700;letter-spacing:2px;text-transform:uppercase;line-height:1;}
+  .header .sub{font-size:18px;color:rgba(255,255,255,0.85);margin-top:8px;font-weight:600;}
+  .header .url{display:inline-block;margin-top:16px;background:#FFD700;color:#002d6e;padding:10px 28px;border-radius:30px;font-weight:700;font-size:16px;text-decoration:none;letter-spacing:.5px;}
+
+  .intro{max-width:780px;margin:36px auto 0;padding:0 24px;}
+  .intro-box{background:#fff;border-left:6px solid #FFD700;border-radius:10px;padding:22px 28px;box-shadow:0 2px 12px rgba(0,0,0,0.07);}
+  .intro-box p{font-size:16px;line-height:1.7;color:#333;}
+  .intro-box p b{color:#002d6e;}
+
+  .section{max-width:780px;margin:30px auto 0;padding:0 24px;}
+  .section-card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 3px 16px rgba(0,0,0,0.09);margin-bottom:10px;}
+  .section-header{display:flex;align-items:center;gap:14px;padding:18px 24px;cursor:pointer;}
+  .section-num{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;color:#fff;flex-shrink:0;}
+  .section-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;text-transform:uppercase;letter-spacing:.5px;}
+  .section-badge{margin-left:auto;font-size:12px;font-weight:700;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;}
+  .section-body{padding:0 24px 24px;}
+
+  .step{display:flex;gap:14px;margin-bottom:18px;align-items:flex-start;}
+  .step-icon{font-size:28px;flex-shrink:0;margin-top:2px;}
+  .step-text h4{font-size:16px;font-weight:700;color:#002d6e;margin-bottom:4px;}
+  .step-text p{font-size:14px;line-height:1.6;color:#444;}
+  .step-text p b{color:#002d6e;}
+
+  .mockup{background:#f0f4ff;border:2px solid #d0d9f0;border-radius:10px;padding:16px 20px;margin:14px 0;font-size:13px;color:#333;line-height:1.7;}
+  .mockup .nav-bar{background:#002d6e;border-radius:6px;padding:8px 14px;color:#FFD700;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:14px;letter-spacing:1px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;}
+  .mockup .nav-bar span{color:rgba(255,255,255,0.7);font-size:12px;font-weight:400;}
+  .mockup .nav-bar .active{color:#FFD700;border-bottom:2px solid #FFD700;padding-bottom:2px;}
+
+  .score-example{background:#fff;border:1px solid #dde3f0;border-radius:8px;padding:12px 16px;margin-bottom:8px;}
+  .score-example .teams{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .score-example .team-name{font-weight:700;font-size:15px;color:#002d6e;}
+  .score-example .score-big{font-size:28px;font-weight:900;color:#002d6e;font-family:'Barlow Condensed',sans-serif;}
+  .score-example .score-lose{color:#aaa;}
+  .score-example .btns{display:flex;gap:8px;margin-top:8px;}
+  .score-example .btn{flex:1;padding:8px;border-radius:6px;background:#002d6e;color:#fff;font-size:12px;font-weight:700;text-align:center;}
+
+  .highlight-box{border-radius:10px;padding:14px 18px;margin:12px 0;font-size:14px;line-height:1.6;}
+  .highlight-box b{display:block;margin-bottom:4px;font-size:15px;}
+
+  .tip{background:#fff9e6;border-left:4px solid #FFD700;border-radius:8px;padding:12px 16px;margin:14px 0;font-size:13px;color:#555;}
+  .tip b{color:#b8860b;}
+
+  .footer{max-width:780px;margin:40px auto 60px;padding:0 24px;text-align:center;}
+  .footer-box{background:linear-gradient(135deg,#002d6e,#001f4d);border-radius:16px;padding:32px;color:#fff;}
+  .footer-box h3{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:#FFD700;margin-bottom:8px;}
+  .footer-box p{font-size:14px;color:rgba(255,255,255,0.8);line-height:1.7;}
+  .footer-box .big-url{display:inline-block;margin-top:16px;background:#FFD700;color:#002d6e;padding:12px 32px;border-radius:30px;font-weight:700;font-size:18px;text-decoration:none;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">⚾ Diamond Classics</div>
+  <div class="sub">Long Beach Men's 50+ Baseball — Your Website Guide</div>
+  <a class="url" href="https://long-beach-men-s-baseball.vercel.app" target="_blank">🌐 long-beach-men-s-baseball.vercel.app</a>
+</div>
+
+<!-- INTRO -->
+<div class="section" style="margin-top:32px;">
+  <div class="intro-box">
+    <p>Welcome to the official <b>Long Beach Diamond Classics website</b>! This is your home for everything league-related — scores, stats, schedules, standings, team info, and more. Bookmark it on your phone and check back every week. This guide walks you through <b>every single section</b> so you know exactly where to find what you're looking for.</p>
+    <p style="margin-top:10px;">Questions or requests? Contact the league commissioner or email <b>adam.mainlinewebdesign@gmail.com</b> — anything you need updated on the site will be handled ASAP.</p>
+  </div>
+</div>
+
+<!-- HOW TO GET THERE -->
+<div class="section" style="margin-top:28px;">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#002d6e,#003d94);">
+      <div class="section-num" style="background:#FFD700;color:#002d6e;">📱</div>
+      <div class="section-title" style="color:#FFD700;">How to Open the Website</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">1️⃣</div>
+        <div class="step-text">
+          <h4>On your phone — open Safari or Chrome</h4>
+          <p>Tap the browser app on your phone (the compass icon for Safari, or the colorful circle for Chrome).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">2️⃣</div>
+        <div class="step-text">
+          <h4>Type in the address</h4>
+          <p>Tap the address bar at the top and type: <b>long-beach-men-s-baseball.vercel.app</b></p>
+          <p>Then press <b>Go</b> on your keyboard.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">3️⃣</div>
+        <div class="step-text">
+          <h4>Save it as a bookmark!</h4>
+          <p>On iPhone: tap the <b>Share button</b> (the box with an arrow pointing up) → then tap <b>"Add to Home Screen"</b>. It'll appear on your home screen just like a regular app!</p>
+        </div>
+      </div>
+      <div class="tip"><b>💡 Tip:</b> The site works great on your phone — everything is designed for mobile. No need to zoom in or squint at tiny text.</div>
+    </div>
+  </div>
+</div>
+
+<!-- NAV BAR OVERVIEW -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#1a3a6e,#2a4a8e);">
+      <div class="section-num" style="background:#e8f0ff;color:#002d6e;">🧭</div>
+      <div class="section-title" style="color:#fff;">The Navigation Bar — Your Map</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <p style="font-size:14px;color:#444;margin-bottom:14px;">At the top of every page you'll see the navigation menu. On a computer it looks like this:</p>
+      <div class="mockup">
+        <div class="nav-bar">
+          <span>HOME</span><span>SCORES</span><span>SCHEDULE</span><span>STANDINGS</span><span>TEAMS</span><span>STATS</span><span>HISTORY</span><span>RULES</span>
+        </div>
+        <p style="font-size:12px;color:#666;margin-top:4px;">👆 Just tap or click any word to go to that section!</p>
+      </div>
+      <p style="font-size:14px;color:#444;margin-top:8px;">On your phone, the same menu is at the top — just scroll it left and right to see all the options.</p>
+    </div>
+  </div>
+</div>
+
+<!-- HOME -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#1565c0,#1976d2);">
+      <div class="section-num" style="background:#fff;color:#1565c0;">🏠</div>
+      <div class="section-title" style="color:#fff;">HOME — The Main Page</div>
+      <div class="section-badge" style="background:rgba(255,255,255,0.2);color:#fff;">Start Here</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">📋</div>
+        <div class="step-text">
+          <h4>Recent Results</h4>
+          <p>The home page shows the most recent game results right when you open the site. You'll see final scores, who won, and a <b>Recap</b> and <b>Box Score</b> button for each game.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📊</div>
+        <div class="step-text">
+          <h4>Standings Snapshot</h4>
+          <p>On the right side (or below on phone) you'll see a quick standings summary showing where every team sits in the current season — wins, losses, and record.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📅</div>
+        <div class="step-text">
+          <h4>Top Ticker Bar</h4>
+          <p>At the very top of the page there's a dark bar showing <b>today's games</b> with the game time — so you know at a glance what's happening that day.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCORES -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#c62828,#e53935);">
+      <div class="section-num" style="background:#fff;color:#c62828;">📋</div>
+      <div class="section-title" style="color:#fff;">SCORES — Game Results</div>
+      <div class="section-badge" style="background:rgba(255,255,255,0.2);color:#fff;">Most Used</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">🗓️</div>
+        <div class="step-text">
+          <h4>Pick Your Season</h4>
+          <p>At the top you'll see tabs for different seasons (e.g., <b>Spring/Summer 2026</b>, <b>Fall/Winter 2026</b>). Tap the season you want to see.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📅</div>
+        <div class="step-text">
+          <h4>Pick a Date</h4>
+          <p>Once you pick a season, you'll see date buttons at the top (Apr 11, Apr 18, May 2, etc.). <b>Tap any date</b> to see the games from that week.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🏆</div>
+        <div class="step-text">
+          <h4>Read the Score Card</h4>
+          <p>Each game shows up as a card with both teams and the final score. The <b>winning team's score is bold</b>. A headline in red across the top tells you what happened.</p>
+        </div>
+      </div>
+
+      <!-- Score card mockup -->
+      <div class="score-example">
+        <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">FINAL &nbsp;&nbsp;&nbsp;&nbsp; <span style="color:#c00;">GENERALS CHAMPS!!</span></div>
+        <div class="teams"><span class="team-name">GENERALS</span><span class="score-big">10</span></div>
+        <div class="teams"><span style="color:#aaa;font-weight:600;">DODGERS</span><span class="score-lose" style="font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:900;">6</span></div>
+        <div class="btns"><div class="btn">📰 RECAP</div><div class="btn">🏟️ BOX SCORE</div></div>
+      </div>
+
+      <div class="step">
+        <div class="step-icon">📰</div>
+        <div class="step-text">
+          <h4>RECAP Button</h4>
+          <p>Tapping <b>RECAP</b> gives you a short written summary of what happened in the game.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🏟️</div>
+        <div class="step-text">
+          <h4>BOX SCORE Button</h4>
+          <p>Tapping <b>BOX SCORE</b> opens a full window with every player's batting stats (AB, R, H, RBI, BB, K) and the pitching stats. <b>You can tap any player's name</b> in the box score to pull up their career stats!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCHEDULE -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#2e7d32,#388e3c);">
+      <div class="section-num" style="background:#fff;color:#2e7d32;">📅</div>
+      <div class="section-title" style="color:#fff;">SCHEDULE — Upcoming Games</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">🏟️</div>
+        <div class="step-text">
+          <h4>See All Your Games for the Season</h4>
+          <p>The Schedule tab shows the <b>full season game by game</b>. Tap any date at the top to jump to that week. Each game shows the teams, time, and field location.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📍</div>
+        <div class="step-text">
+          <h4>Field Location</h4>
+          <p>Each game lists the field — for example <b>"Clark Field — Long Beach"</b> or <b>"St Pius X — Downey"</b>. Know where you're going before game day!</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📲</div>
+        <div class="step-text">
+          <h4>Add Games to Your Calendar</h4>
+          <p>On each team's page you'll find a button to <b>Subscribe</b> to your team's Google Calendar — your games will automatically appear in your phone's calendar!</p>
+          <p style="margin-top:6px;">⚠️ <b>Managers:</b> If a game time, date, or location ever changes and needs to be updated on the calendar, please reach out to the commissioner or email <b>adam.mainlinewebdesign@gmail.com</b> so it can be updated — that way it reflects correctly on everyone's phone.</p>
+        </div>
+      </div>
+      <div class="tip"><b>💡 Note:</b> Away team is listed first, home team second. For example: "Pirates @ Brooklyn" means Pirates are visiting Brooklyn's field.</div>
+    </div>
+  </div>
+</div>
+
+<!-- STANDINGS -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#6a1b9a,#7b1fa2);">
+      <div class="section-num" style="background:#fff;color:#6a1b9a;">🏆</div>
+      <div class="section-title" style="color:#fff;">STANDINGS — League Rankings</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">📊</div>
+        <div class="step-text">
+          <h4>Current Season Standings</h4>
+          <p>See exactly where every team stands in the league — <b>wins (W), losses (L), winning percentage (PCT), runs scored, runs against</b>, and run differential. Updates automatically after each game is entered.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📜</div>
+        <div class="step-text">
+          <h4>Season History Tab</h4>
+          <p>Click <b>"Season History"</b> at the top to see final standings from every past season going all the way back to 2019!</p>
+        </div>
+      </div>
+      <div class="tip"><b>💡 What do the columns mean?</b><br>
+        W = Wins · L = Losses · T = Ties · PCT = Win % · GP = Games Played · RS = Runs Scored · RA = Runs Against · DIFF = Run Differential</div>
+    </div>
+  </div>
+</div>
+
+<!-- TEAMS -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#e65100,#f57c00);">
+      <div class="section-num" style="background:#fff;color:#e65100;">⚾</div>
+      <div class="section-title" style="color:#fff;">TEAMS — Team Directory</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">🔍</div>
+        <div class="step-text">
+          <h4>Find Your Team</h4>
+          <p>The Teams page shows all 7 teams — Tribe, Dodgers, Pirates, Titans, Brooklyn, Generals, and Black Sox. You'll see each team's current record and stats at a glance.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">👥</div>
+        <div class="step-text">
+          <h4>View Team Page</h4>
+          <p>Click <b>"View Team →"</b> on any team card to go to that team's dedicated page. There you'll see: roster, full schedule, season record, and all game results for that team.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📲</div>
+        <div class="step-text">
+          <h4>Subscribe to Team Calendar</h4>
+          <p>On every team card there's a <b>"Subscribe"</b> button. Tap it to add that team's games to your Google Calendar. Never miss a game!</p>
+          <p style="margin-top:6px;">Is there anything else you'd like added or updated on the site? Email <b>adam.mainlinewebdesign@gmail.com</b> and it'll get taken care of ASAP!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#00695c,#00897b);">
+      <div class="section-num" style="background:#fff;color:#00695c;">📈</div>
+      <div class="section-title" style="color:#fff;">STATS — Player Leaderboards</div>
+      <div class="section-badge" style="background:rgba(255,255,255,0.2);color:#fff;">Fan Favorite</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">🥇</div>
+        <div class="step-text">
+          <h4>Batting Leaderboard</h4>
+          <p>See every player ranked by batting average. Shows AB, Hits, AVG, OBP, SLG, R, RBI, 2B, 3B, HR, BB, K. <b>Tap any column header to sort by that stat</b> — e.g., tap "HR" to see who has the most home runs!</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">⚾</div>
+        <div class="step-text">
+          <h4>Pitching Leaderboard</h4>
+          <p>Click the <b>PITCHING</b> tab to see pitcher stats — IP, H, R, ER, BB, SO, ERA, and win/loss record.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🔎</div>
+        <div class="step-text">
+          <h4>Search & Filter</h4>
+          <p>Use the <b>search box</b> to find any specific player or team. Use the <b>season dropdown</b> to switch between seasons — stats go all the way back to 2021!</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">👤</div>
+        <div class="step-text">
+          <h4>Tap a Player's Name</h4>
+          <p>Click on any player's name in the stats table to see their <b>full career stats</b> — all seasons combined, game log, and best performances.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#4527a0,#512da8);">
+      <div class="section-num" style="background:#fff;color:#4527a0;">📜</div>
+      <div class="section-title" style="color:#fff;">HISTORY — The Archive</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">🏅</div>
+        <div class="step-text">
+          <h4>Every Season Going Back to 2019</h4>
+          <p>The History page is the full archive — <b>35+ seasons, 570+ games</b>. On the left side you'll see a list of every season. Click any season to see that year's standings, rosters, and results.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🏆</div>
+        <div class="step-text">
+          <h4>Tournaments & Special Events</h4>
+          <p>Click the <b>"Tournaments & Special Events"</b> tab to see NABA World Series results, Turkey Bowl tournaments, and other special events the guys have participated in.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RULES -->
+<div class="section">
+  <div class="section-card">
+    <div class="section-header" style="background:linear-gradient(90deg,#37474f,#455a64);">
+      <div class="section-num" style="background:#fff;color:#37474f;">📖</div>
+      <div class="section-title" style="color:#fff;">RULES — Field Guide</div>
+    </div>
+    <div class="section-body" style="padding-top:20px;">
+      <div class="step">
+        <div class="step-icon">⚖️</div>
+        <div class="step-text">
+          <h4>Official League Rules</h4>
+          <p>This page has all the official rules for the 2026 season — <b>Playoff Eligibility, Mercy Rule & Time Limit, Courtesy Runners, Defensive Shifts, Rosters & Age requirements, and St. Pius X Ground Rules</b>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🔗</div>
+        <div class="step-text">
+          <h4>Jump Links</h4>
+          <p>At the top of the Rules page are clickable buttons for each section — tap any one to jump straight to that rule. No scrolling required.</p>
+        </div>
+      </div>
+      <div class="tip"><b>📌 Key rule reminder:</b> Players must participate in a minimum of <b>4 games</b> to be eligible for playoffs. This is tracked automatically through box scores!</div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER CTA -->
+<div class="footer">
+  <div class="footer-box">
+    <h3>You're All Set! 🎉</h3>
+    <p>Bookmark the site, check it after every game Saturday, and show your teammates how to use it. Questions or anything you'd like added? Contact the league commissioner or email <b style="color:#FFD700;">adam.mainlinewebdesign@gmail.com</b> and it'll get done ASAP. See you on the field!</p>
+    <a class="big-url" href="https://long-beach-men-s-baseball.vercel.app" target="_blank">🌐 Open the Website</a>
+    <p style="margin-top:20px;font-size:12px;color:rgba(255,255,255,0.5);">Long Beach Diamond Classics · Men's 50+ Baseball · Season opens April 11, 2026</p>
+  </div>
+</div>
+
+</body>
+</html>

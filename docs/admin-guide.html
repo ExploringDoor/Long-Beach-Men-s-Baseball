@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LBDC Commissioner Admin Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;900&family=Open+Sans:wght@400;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Open Sans',sans-serif;background:#1a0a00;color:#222;}
+
+  .header{background:linear-gradient(135deg,#7b1800 0%,#b71c1c 50%,#4a0000 100%);color:#fff;padding:40px 30px 30px;text-align:center;}
+  .header .logo{font-family:'Barlow Condensed',sans-serif;font-size:44px;font-weight:900;color:#FFD700;letter-spacing:2px;text-transform:uppercase;line-height:1;}
+  .header .sub{font-size:18px;color:rgba(255,255,255,0.85);margin-top:8px;font-weight:600;}
+  .header .badge{display:inline-block;margin-top:14px;background:#FFD700;color:#7b1800;padding:8px 24px;border-radius:30px;font-weight:700;font-size:14px;}
+  .header .url{display:inline-block;margin-top:10px;background:rgba(255,255,255,0.15);color:#fff;border:2px solid rgba(255,255,255,0.35);padding:7px 22px;border-radius:30px;font-weight:700;font-size:13px;text-decoration:none;}
+
+  .wrap{max-width:760px;margin:0 auto;padding:0 24px;}
+
+  .intro-box{background:#fff;border-left:6px solid #b71c1c;border-radius:10px;padding:22px 28px;box-shadow:0 2px 12px rgba(0,0,0,0.12);margin:32px 0 0;}
+  .intro-box p{font-size:15px;line-height:1.7;color:#333;margin-bottom:10px;}
+  .intro-box p:last-child{margin-bottom:0;}
+  .intro-box b{color:#7b1800;}
+
+  .pw-box{background:linear-gradient(90deg,#7b1800,#b71c1c);border-radius:12px;padding:20px 28px;margin:20px 0;display:flex;align-items:center;gap:20px;}
+  .pw-box .pw-label{color:rgba(255,255,255,0.7);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+  .pw-box .pw-val{color:#FFD700;font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;letter-spacing:2px;}
+  .pw-box .pw-note{font-size:12px;color:rgba(255,255,255,0.6);margin-top:4px;}
+
+  .section-card{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.13);margin-bottom:24px;}
+  .section-header{display:flex;align-items:center;gap:16px;padding:20px 26px;}
+  .section-num{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:24px;color:#fff;flex-shrink:0;}
+  .section-title{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;text-transform:uppercase;letter-spacing:.5px;}
+  .section-desc{font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;}
+  .section-body{padding:6px 26px 26px;}
+
+  .step{display:flex;gap:14px;margin-bottom:18px;align-items:flex-start;padding-top:16px;border-top:1px solid #f0f0f0;}
+  .step:first-child{border-top:none;padding-top:6px;}
+  .step-icon{font-size:26px;flex-shrink:0;width:34px;text-align:center;margin-top:2px;}
+  .step-text h4{font-size:15px;font-weight:700;margin-bottom:5px;}
+  .step-text p{font-size:14px;line-height:1.65;color:#444;}
+  .step-text p b{color:#b71c1c;}
+
+  .alert{border-radius:10px;padding:14px 18px;margin:12px 0;font-size:14px;line-height:1.6;}
+  .alert-red{background:#fff5f5;border-left:5px solid #b71c1c;}
+  .alert-yellow{background:#fffde7;border-left:5px solid #f9a825;}
+  .alert-green{background:#f1f8f1;border-left:5px solid #2e7d32;}
+  .alert-blue{background:#e8f0fe;border-left:5px solid #1565c0;}
+  .alert b{display:block;font-size:15px;margin-bottom:4px;}
+
+  .mock-dashboard{background:#f4f6f8;border:2px solid #ddd;border-radius:12px;padding:20px;margin:14px 0;}
+  .mock-db-bar{background:#002d6e;border-radius:6px;padding:10px 16px;color:#FFD700;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+  .mock-db-bar span{color:rgba(255,255,255,0.6);font-size:12px;font-weight:400;}
+  .mock-alert-box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px 18px;margin-bottom:12px;}
+  .mock-alert-box .alert-title{font-weight:700;font-size:14px;color:#333;margin-bottom:6px;}
+  .mock-alert-box textarea{width:100%;border:1px solid #ccc;border-radius:6px;padding:8px 12px;font-size:13px;color:#666;resize:none;height:60px;font-family:'Open Sans',sans-serif;}
+  .mock-alert-box .red-btn{background:#c62828;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-weight:700;font-size:13px;width:100%;margin-top:8px;text-align:center;}
+  .mock-quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+  .mock-quick-card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:14px 16px;}
+  .mock-quick-card .qc-icon{font-size:22px;margin-bottom:6px;}
+  .mock-quick-card .qc-title{font-weight:700;font-size:14px;color:#002d6e;}
+  .mock-quick-card .qc-sub{font-size:11px;color:#888;margin-top:2px;}
+
+  .schedule-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:14px;}
+  .schedule-row:last-child{border-bottom:none;}
+  .schedule-row .game-info b{color:#002d6e;}
+  .schedule-row .edit-btn{background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:5px;padding:4px 12px;font-size:12px;font-weight:700;}
+
+  .diff-table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0;}
+  .diff-table th{background:#002d6e;color:#FFD700;padding:10px 14px;text-align:left;}
+  .diff-table td{padding:10px 14px;border-bottom:1px solid #eee;}
+  .diff-table tr:nth-child(even) td{background:#f8f9fb;}
+  .diff-table .check{color:#2e7d32;font-weight:700;}
+  .diff-table .dash{color:#aaa;}
+
+  .footer{background:linear-gradient(135deg,#7b1800,#4a0000);border-radius:16px;padding:32px;color:#fff;text-align:center;margin:32px 0 60px;}
+  .footer h3{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:#FFD700;margin-bottom:8px;}
+  .footer p{font-size:14px;color:rgba(255,255,255,0.8);line-height:1.7;}
+  .footer a{color:#FFD700;font-weight:700;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">🔐 Commissioner Admin Guide</div>
+  <div class="sub">Long Beach Diamond Classics — Full Admin Access</div>
+  <div class="badge">🔒 Commissioner / Adam Only — Do Not Share</div><br>
+  <a class="url" href="https://long-beach-men-s-baseball.vercel.app" target="_blank">🌐 long-beach-men-s-baseball.vercel.app → Admin</a>
+</div>
+
+<div class="wrap">
+
+<!-- INTRO -->
+<div class="intro-box">
+  <p>This guide covers the <b>full Admin login</b> — which gives you access to everything on the site. As commissioner, you have powers that team captains do not: you can post emergency alerts, enter box scores for any team, edit or delete any game, manage the full schedule, and send the weekly email.</p>
+  <p>Keep this password private. Team captains use their own team login — they should never need the admin password.</p>
+</div>
+
+<!-- PASSWORD -->
+<div class="pw-box" style="margin-top:20px;">
+  <div>
+    <div class="pw-label">Admin Password</div>
+    <div class="pw-val">lbdc2026</div>
+    <div class="pw-note">Go to Admin tab → type this in the "Admin Password" box → click LOG IN AS ADMIN</div>
+  </div>
+  <div style="font-size:48px;">🔑</div>
+</div>
+
+<!-- DASHBOARD OVERVIEW -->
+<div style="margin-top:28px;">
+<div class="section-card">
+  <div class="section-header" style="background:linear-gradient(90deg,#37474f,#546e7a);">
+    <div class="section-num" style="background:#FFD700;color:#37474f;">📋</div>
+    <div>
+      <div class="section-title" style="color:#fff;">The Admin Dashboard</div>
+      <div class="section-desc">What you see after logging in</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <p style="font-size:14px;color:#444;padding-top:14px;margin-bottom:14px;">Once you log in as Admin, you'll see two things on the page:</p>
+
+    <div class="mock-dashboard">
+      <div class="mock-db-bar">LBDC ADMIN — Logged in as League Admin <span>Log out</span></div>
+      <div class="mock-alert-box">
+        <div class="alert-title">🚨 LEAGUE ALERT BANNER</div>
+        <textarea placeholder="e.g. ⚠️ RAINOUT — All Saturday April 19 games are CANCELLED due to rain. Makeup dates TBD."></textarea>
+        <div class="red-btn">POST ALERT TO SITE</div>
+      </div>
+      <div style="font-weight:700;font-size:13px;color:#555;margin:10px 0 8px;text-transform:uppercase;letter-spacing:.5px;">Quick Actions</div>
+      <div class="mock-quick-grid">
+        <div class="mock-quick-card"><div class="qc-icon">📊</div><div class="qc-title">Enter Box Score</div><div class="qc-sub">Enter this week's results</div></div>
+        <div class="mock-quick-card"><div class="qc-icon">📁</div><div class="qc-title">Manage Games</div><div class="qc-sub">Edit or delete saved games</div></div>
+        <div class="mock-quick-card"><div class="qc-icon">📧</div><div class="qc-title">Send Weekly Email</div><div class="qc-sub">Copy results to clipboard</div></div>
+        <div class="mock-quick-card"><div class="qc-icon">📅</div><div class="qc-title">Manage Schedule</div><div class="qc-sub">View season schedule</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURE 1: ALERT BANNER -->
+<div class="section-card">
+  <div class="section-header" style="background:linear-gradient(90deg,#b71c1c,#c62828);">
+    <div class="section-num" style="background:#FFD700;color:#b71c1c;">🚨</div>
+    <div>
+      <div class="section-title" style="color:#fff;">League Alert Banner</div>
+      <div class="section-desc">Post emergency notices to the entire site instantly</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-icon">❓</div>
+      <div class="step-text">
+        <h4 style="color:#b71c1c;">What does it do?</h4>
+        <p>When you post an alert, a <b>big red popup</b> appears on the website for every person who opens it. They have to click OK to close it before they can use the site. It's impossible to miss — perfect for urgent news like rainouts.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon">✍️</div>
+      <div class="step-text">
+        <h4 style="color:#b71c1c;">How to post an alert</h4>
+        <p>1. Type your message in the big text box<br>
+        2. Click the red <b>"POST ALERT TO SITE"</b> button<br>
+        3. Done — it goes live on the site immediately for everyone</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon">🗑️</div>
+      <div class="step-text">
+        <h4 style="color:#b71c1c;">How to remove an alert</h4>
+        <p><b>Clear the text box completely</b> (delete everything you typed) and click "POST ALERT TO SITE" again with nothing in the box. The alert disappears from the site.</p>
+      </div>
+    </div>
+    <div class="alert alert-yellow">
+      <b>💡 When to use this:</b>
+      Rainouts · Game cancellations · Field changes · Time changes · Any urgent league-wide notice that everyone needs to see the moment they open the site
+    </div>
+    <div class="alert alert-green">
+      <b>✅ Example messages:</b><br>
+      "⚠️ RAINOUT — All Saturday April 19 games are CANCELLED due to rain. Makeup dates TBD."<br><br>
+      "📍 FIELD CHANGE — April 26 games moved to Blair Field. Same times."
+    </div>
+  </div>
+</div>
+
+<!-- FEATURE 2: ENTER BOX SCORE -->
+<div class="section-card">
+  <div class="section-header" style="background:linear-gradient(90deg,#1b5e20,#2e7d32);">
+    <div class="section-num" style="background:#FFD700;color:#1b5e20;">📊</div>
+    <div>
+      <div class="section-title" style="color:#fff;">Enter Box Score</div>
+      <div class="section-desc">Enter results for any team — you see all games, not just one team</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-icon">🔑</div>
+      <div class="step-text">
+        <h4 style="color:#1b5e20;">Admin vs. Captain — the key difference</h4>
+        <p>When a captain logs in, they only see their own team's games. When <b>you log in as admin</b>, you see every game for every team in the season — all games from all matchups.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon">📋</div>
+      <div class="step-text">
+        <h4 style="color:#1b5e20;">Three tabs at the top</h4>
+        <p>· <b>FROM SCHEDULE</b> — pick any game from this season and enter its box score<br>
+        · <b>EDIT SAVED GAME</b> — find a game already submitted and fix a mistake<br>
+        · <b>CUSTOM GAME</b> — enter a game that wasn't on the schedule (tournaments, makeups, etc.)</p>
+      </div>
+    </div>
+    <div class="alert alert-blue">
+      <b>📌 The box score form is the same for admin as it is for captains</b> — scores, linescore, batting lineups, pitching, recap. The only difference is you have access to all teams. See the Manager Guide for detailed instructions on filling out the form.
+    </div>
+  </div>
+</div>
+
+<!-- FEATURE 3: MANAGE GAMES -->
+<div class="section-card">
+  <div class="section-header" style="background:linear-gradient(90deg,#e65100,#f57c00);">
+    <div class="section-num" style="background:#FFD700;color:#e65100;">📁</div>
+    <div>
+      <div class="section-title" style="color:#fff;">Manage Games</div>
+      <div class="section-desc">Edit or delete any game that has already been submitted</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-icon">🔍</div>
+      <div class="step-text">
+        <h4 style="color:#e65100;">What you'll see</h4>
+        <p>A list of every submitted game — team names, date, and final score. Each game has an <b>Edit</b> button and a <b>Delete</b> button.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon">✏️</div>
+      <div class="step-text">
+        <h4 style="color:#e65100;">Editing a game</h4>
+        <p>Click <b>Edit</b> next to any game. The full box score form opens pre-filled with all the existing data. Change whatever needs fixing, scroll down, and click <b>"Update Box Score."</b> Changes are live instantly.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon">🗑️</div>
+      <div class="step-text">
+        <h4 style="color:#e65100;">Deleting a game</h4>
+        <p>Click <b>Delete</b> next to a game to permanently remove it from the database. <b>This also deletes all batting and pitching stats tied to that game.</b> Only delete if the game was entered by mistake or is a duplicate.</p>
+      </div>
+    </div>
+    <div class="alert alert-red">
+      <b>⚠️ Deleting is permanent.</b> There is no undo. All stats for that game are erased from player records and leaderboards. If you just need to fix a score or stat, use Edit — not Delete.
+    </div>
+  </div>
+</div>
+
+<!-- FEATURE 4: WEEKLY EMAIL -->
+<div class="section-card">
+  <div class="section-header" style="background:linear-gradient(90deg,#0d47a1,#1565c0);">
+    <div class="section-num" style="background:#FFD700;color:#0d47a1;">📧</div>
+    <div>
+      <div class="section-title" style="color:#fff;">Send Weekly Email</div>
+      <div class="section-desc">Copy this week's results to paste into your email to the league</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-icon">❓</div>
+      <div class="step-text">
+        <h4 style="color:#0d47a1;">What does it do?</h4>
+        <p>This tool generates a <b>formatted summary of the most recent week's scores and results</b> — ready to copy and paste into an email. It pulls the latest game results automatically.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon">📋</div>
+      <div class="step-text">
+        <h4 style="color:#0d47a1;">How to use it</h4>
+        <p>1. Click <b>"Send Weekly Email"</b> from the dashboard<br>
+        2. The results summary appears on screen<br>
+        3. Click the <b>copy button</b> to copy it all to your clipboard<br>
+        4. Open your email, paste it in, and send to the league</p>
+      </div>
+    </div>
+    <div class="alert alert-blue">
+      <b>💡 Note:</b> This only works once box scores have been entered for that week. If you click it before any games are entered, it will say "No games recorded yet."
+    </div>
+  </div>
+</div>
+
+<!-- FEATURE 5: MANAGE SCHEDULE -->
+<div class="section-card">
+  <div class="section-header" style="background:linear-gradient(90deg,#4a148c,#6a1b9a);">
+    <div class="section-num" style="background:#FFD700;color:#4a148c;">📅</div>
+    <div>
+      <div class="section-title" style="color:#fff;">Manage Schedule</div>
+      <div class="section-desc">View, edit, add, or remove games from the season schedule</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-icon">👁️</div>
+      <div class="step-text">
+        <h4 style="color:#4a148c;">What you'll see</h4>
+        <p>The full season schedule listed by date — every game, time, and field location. The header shows how many total games are in the season (e.g., "Spring/Summer 2026 — 63 Games").</p>
+      </div>
+    </div>
+
+    <!-- Schedule mockup -->
+    <div style="background:#f8f9fb;border:2px solid #e0d7f0;border-radius:10px;overflow:hidden;margin:12px 0;">
+      <div style="background:#4a148c;color:#FFD700;font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:14px;padding:10px 16px;display:flex;justify-content:space-between;">
+        SPRING/SUMMER 2026 — 63 GAMES · CLICK ANY GAME TO EDIT
+        <div style="display:flex;gap:8px;"><span style="background:rgba(255,255,255,0.15);color:#fff;padding:4px 12px;border-radius:5px;font-size:12px;font-weight:700;">Reset</span><span style="background:#FFD700;color:#4a148c;padding:4px 12px;border-radius:5px;font-size:12px;font-weight:700;">+ Add Game</span></div>
+      </div>
+      <div style="padding:0 4px;">
+        <div style="padding:8px 12px;font-size:12px;font-weight:700;color:#888;text-transform:uppercase;background:#f0eef8;">APR 11</div>
+        <div class="schedule-row"><div class="game-info"><b>PIRATES @ BROOKLYN</b><br><span style="font-size:12px;color:#888;">9:00 AM · Clark Field — Long Beach</span></div><span class="edit-btn">✏️ Edit</span></div>
+        <div class="schedule-row"><div class="game-info"><b>GENERALS @ DODGERS</b><br><span style="font-size:12px;color:#888;">9:00 AM · Fromhold Field — San Pedro</span></div><span class="edit-btn">✏️ Edit</span></div>
+        <div class="schedule-row"><div class="game-info"><b>TRIBE @ TITANS</b><br><span style="font-size:12px;color:#888;">12:00 PM · Fromhold Field — San Pedro</span></div><span class="edit-btn">✏️ Edit</span></div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-icon">✏️</div>
+      <div class="step-text">
+        <h4 style="color:#4a148c;">Edit a game</h4>
+        <p>Click the <b>"✏️ Edit"</b> button next to any game to change its date, time, field location, or teams. This updates the public schedule and the team calendars. Use this when a game gets rescheduled or moved to a different field.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon">➕</div>
+      <div class="step-text">
+        <h4 style="color:#4a148c;">Add a game</h4>
+        <p>Click the blue <b>"+ Add Game"</b> button in the top right to add a new game to the schedule — useful for makeup games or games that were added mid-season.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-icon">🔄</div>
+      <div class="step-text">
+        <h4 style="color:#4a148c;">Reset button</h4>
+        <p>The <b>"Reset"</b> button is for wiping the entire schedule and starting fresh. <b>Do not click this unless you intend to completely rebuild the schedule.</b> It cannot be undone.</p>
+      </div>
+    </div>
+    <div class="alert alert-red">
+      <b>⚠️ Do NOT click Reset</b> unless you are 100% sure you want to erase the entire season schedule. This is a nuclear option — use Edit or Add Game instead.
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN VS CAPTAIN COMPARISON -->
+<div class="section-card">
+  <div class="section-header" style="background:linear-gradient(90deg,#263238,#37474f);">
+    <div class="section-num" style="background:#FFD700;color:#263238;">⚖️</div>
+    <div>
+      <div class="section-title" style="color:#fff;">Admin vs. Captain — Quick Comparison</div>
+      <div class="section-desc">What each login can and can't do</div>
+    </div>
+  </div>
+  <div class="section-body" style="padding-top:16px;">
+    <table class="diff-table">
+      <thead>
+        <tr><th>Feature</th><th>Captain Login</th><th>Admin Login (You)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Enter box score for own team</td><td class="check">✅ Yes</td><td class="check">✅ Yes</td></tr>
+        <tr><td>Enter box score for any team</td><td class="dash">—</td><td class="check">✅ Yes</td></tr>
+        <tr><td>Edit a submitted game</td><td class="check">✅ Own games</td><td class="check">✅ Any game</td></tr>
+        <tr><td>Delete a game</td><td class="dash">—</td><td class="check">✅ Yes</td></tr>
+        <tr><td>Post league alert banner</td><td class="dash">—</td><td class="check">✅ Yes</td></tr>
+        <tr><td>Send weekly email</td><td class="dash">—</td><td class="check">✅ Yes</td></tr>
+        <tr><td>Manage / edit schedule</td><td class="dash">—</td><td class="check">✅ Yes</td></tr>
+        <tr><td>Add games to schedule</td><td class="dash">—</td><td class="check">✅ Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <h3>Questions? Need Something Updated?</h3>
+  <p>Contact <a href="mailto:adam.mainlinewebdesign@gmail.com">adam.mainlinewebdesign@gmail.com</a> for any site changes, new features, or technical issues. Changes are typically handled same day.</p>
+  <p style="margin-top:12px;font-size:12px;color:rgba(255,255,255,0.4);">Long Beach Diamond Classics · Commissioner Admin Guide · 2026 Season · CONFIDENTIAL</p>
+</div>
+
+</div><!-- end wrap -->
+</body>
+</html>

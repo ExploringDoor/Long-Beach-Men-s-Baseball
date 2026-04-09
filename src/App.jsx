@@ -2536,7 +2536,7 @@ function FieldDirectionsPage() {
                       <span style={{fontSize:22}}>🏟️</span>
                       <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",textTransform:"uppercase",lineHeight:1}}>{field.name}</h2>
                     </div>
-                    <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:6}}>{field.address}</div>
+                    <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:6}} dangerouslySetInnerHTML={{__html:field.address}} />
                   </div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     <a href={field.mapsUrl} target="_blank" rel="noopener noreferrer"
@@ -4929,9 +4929,9 @@ function AdminFieldsEditor({ onBack }) {
             <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"rgba(0,0,0,0.02)"}}>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase",marginBottom:10}}>{field.name}</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                <input value={field.address} onChange={e=>updField(fi,"address",e.target.value)} placeholder="Street address" style={inp} />
-                <input value={field.mapsUrl} onChange={e=>updField(fi,"mapsUrl",e.target.value)} placeholder="Google Maps URL" style={inp} />
-                <input value={field.appleMapsUrl} onChange={e=>updField(fi,"appleMapsUrl",e.target.value)} placeholder="Apple Maps URL" style={inp} />
+                <RichTextInput key={`addr-${fi}`} defaultValue={field.address} onChange={v=>updField(fi,"address",v)} placeholder="Street address" minHeight={38} />
+                <input value={field.mapsUrl} onChange={e=>updField(fi,"mapsUrl",e.target.value)} placeholder="Google Maps URL (paste URL)" style={inp} />
+                <input value={field.appleMapsUrl} onChange={e=>updField(fi,"appleMapsUrl",e.target.value)} placeholder="Apple Maps URL (paste URL)" style={inp} />
               </div>
             </div>
             <div style={{padding:"14px 18px"}}>
