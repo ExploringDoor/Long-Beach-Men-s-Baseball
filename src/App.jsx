@@ -872,7 +872,7 @@ function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
-  const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","🎨 Game Graphics"]];
+  const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
   useEffect(() => {
@@ -2551,7 +2551,7 @@ function FieldDirectionsPage() {
           ))}
         </div>
         <div style={{marginTop:24,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px 20px",textAlign:"center"}}>
-          <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>Questions about field locations? Contact <strong>Todd Harris</strong> at <a href="mailto:toddharris1222@gmail.com" style={{color:"#002d6e"}}>toddharris1222@gmail.com</a></div>
+          <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>Questions about field locations? Contact your team captain or the league commissioner.</div>
         </div>
       </div>
     </div>
@@ -2596,7 +2596,7 @@ function SponsorsPage() {
           <div style={{fontSize:14,color:"rgba(0,0,0,0.55)",lineHeight:1.6,marginBottom:18,maxWidth:480,margin:"0 auto 18px"}}>
             Support Long Beach Diamond Classics and get your business in front of 100+ active players and their families. Contact us to learn about sponsorship opportunities.
           </div>
-          <a href="mailto:toddharris1222@gmail.com?subject=LBDC Sponsorship Inquiry"
+          <a href="mailto:dgutierrez22@yahoo.com?subject=LBDC Sponsorship Inquiry"
             style={{display:"inline-block",background:"#002d6e",color:"#fff",borderRadius:10,padding:"12px 28px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,letterSpacing:".06em",textDecoration:"none",textTransform:"uppercase"}}>
             Contact Us
           </a>
@@ -7362,167 +7362,153 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
 
 /* ─── GRAPHICS GENERATOR PAGE ───────────────────────────────────────────── */
 function GraphicsPage() {
-  const canvasRefs = useRef({});
-
-  // Get this week's games
+  const canvasRef = useRef(null);
   const today = new Date(); today.setHours(0,0,0,0);
-  const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
-  let weekIdx = SCHED.findIndex(w => parseLabel(w.label) >= today);
-  if (weekIdx < 0) weekIdx = SCHED.length - 1;
-  const week = SCHED[weekIdx];
-  const satGames = week.fields.flatMap(f => f.games.map(g => ({...g, field: f.name, date: week.label + ", 2026"})));
-  const boomerGame = BOOMERS_SCHED.find(g => g.date === week.label);
-  const allGames = boomerGame ? [...satGames, {...boomerGame, date: boomerGame.date + ", 2026"}] : satGames;
+  const initIdx = () => { const i = SCHED.findIndex(w => new Date(w.label + " 2026") >= today); return i < 0 ? SCHED.length - 1 : i; };
+  const [selWeek, setSelWeek] = useState(initIdx);
+  const [rendering, setRendering] = useState(false);
 
-  const drawGraphic = (canvas, game) => {
+  const week = SCHED[selWeek];
+  const satGames = week.fields.flatMap(f => f.games.map(g => ({...g, field: f.name, date: week.label})));
+  const boomerGame = BOOMERS_SCHED.find(g => g.date === week.label);
+  const allGames = boomerGame ? [...satGames, {...boomerGame, date: boomerGame.date}] : satGames;
+  const games = allGames.slice(0, 4);
+
+  const loadImg = src => new Promise(res => {
+    const img = new window.Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => res(img);
+    img.onerror = () => res(null);
+    img.src = src;
+  });
+
+  const drawWeekGraphic = async () => {
+    const canvas = canvasRef.current;
     if (!canvas) return;
-    const W = 1080, H = 1080;
+    setRendering(true);
+
+    const W = 1024, H = 1536;
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
 
-    // Background
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, "#001a3e");
-    bg.addColorStop(1, "#002d6e");
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
+    // Draw template background
+    const bg = await loadImg("/2026 Diamond Classic schedule template.png");
+    if (bg) ctx.drawImage(bg, 0, 0, W, H);
 
-    // Subtle diamond pattern
-    ctx.strokeStyle = "rgba(255,255,255,0.03)";
-    ctx.lineWidth = 1;
-    for (let i = -H; i < W + H; i += 60) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + H, H); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i - H, H); ctx.stroke();
+    // Pixel-verified pill positions via canvas brightness scan of the template PNG.
+    // Pills 1&2 are ~186px tall; pills 3&4 are ~108px tall (bottom section is compressed).
+    // All content (logos, VS, info) is laid out strictly within [top, bot] for each pill.
+    const ROWS = [
+      { top: 380, bot: 566,  logoSz: 110, logoOffset: 235, vsFontSz: 44, infoFontSz: 19 },
+      { top: 748, bot: 932,  logoSz: 110, logoOffset: 235, vsFontSz: 44, infoFontSz: 19 },
+      { top: 944, bot: 1052, logoSz: 78,  logoOffset: 195, vsFontSz: 32, infoFontSz: 15 },
+      { top: 1067, bot: 1175, logoSz: 78, logoOffset: 195, vsFontSz: 32, infoFontSz: 15 },
+    ];
+    const cx = W / 2;
+
+    for (let i = 0; i < games.length; i++) {
+      const g = games[i];
+      const { top, bot, logoSz, logoOffset, vsFontSz, infoFontSz } = ROWS[i];
+
+      // Load logos
+      const [awayLogo, homeLogo] = await Promise.all([
+        TEAM_LOGOS[g.away] ? loadImg(TEAM_LOGOS[g.away]) : Promise.resolve(null),
+        TEAM_LOGOS[g.home] ? loadImg(TEAM_LOGOS[g.home]) : Promise.resolve(null),
+      ]);
+
+      // Compute layout — everything must stay between top and bot
+      const pillH = bot - top;
+      const contentH = logoSz + 4 + infoFontSz;
+      const margin = Math.max(6, Math.floor((pillH - contentH) / 2));
+      const logoY      = top + margin;                      // logo top-left Y
+      const logoCenterY = logoY + logoSz / 2;               // vertical mid-point of logo
+      const vsY        = logoCenterY + vsFontSz * 0.35;     // VS baseline (≈ center of logo)
+      const infoY      = logoY + logoSz + 4 + infoFontSz - 2; // info baseline (still inside pill)
+
+      // Draw logos
+      if (awayLogo) ctx.drawImage(awayLogo, cx - logoOffset - logoSz / 2, logoY, logoSz, logoSz);
+      if (homeLogo) ctx.drawImage(homeLogo, cx + logoOffset - logoSz / 2, logoY, logoSz, logoSz);
+
+      // VS — red, centered between logos
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#e63946";
+      ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 6;
+      ctx.font = `900 ${vsFontSz}px Arial`;
+      ctx.fillText("VS", cx, vsY);
+
+      // Date · Time · Field line — below logos, inside pill
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.font = `600 ${infoFontSz}px Arial`;
+      ctx.shadowBlur = 3;
+      const fieldShort = (g.field || "").split(" — ")[0];
+      const infoLine = `${g.date}  ·  ${g.time || "TBD"}  ·  ${fieldShort}`;
+      ctx.fillText(infoLine, cx, infoY);
+
+      ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
     }
 
-    // Gold accent bar at top
-    ctx.fillStyle = "#FFD700";
-    ctx.fillRect(0, 0, W, 12);
-
-    // LBDC badge
-    ctx.fillStyle = "rgba(255,215,0,0.12)";
-    ctx.beginPath(); ctx.arc(540, 200, 110, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = "#FFD700";
-    ctx.font = "bold 80px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("⚾", 540, 235);
-
-    // League name
-    ctx.fillStyle = "#FFD700";
-    ctx.font = "900 38px 'Arial Narrow',Arial";
-    ctx.letterSpacing = "6px";
-    ctx.fillText("LONG BEACH DIAMOND CLASSICS", 540, 350);
-
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.font = "500 24px Arial";
-    ctx.fillText("MEN'S 50+ BASEBALL", 540, 385);
-
-    // VS divider
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.fillRect(80, 430, W - 160, 2);
-
-    // Away team
-    const awayColor = TEAM_COLORS[game.away] || "#c8102e";
-    ctx.fillStyle = awayColor;
-    ctx.fillRect(80, 440, 4, 140);
-    ctx.fillStyle = "#fff";
-    ctx.font = "900 80px 'Arial Narrow',Arial";
-    ctx.textAlign = "left";
-    ctx.fillText((game.away||"").toUpperCase(), 100, 530);
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.font = "500 28px Arial";
-    ctx.fillText("AWAY", 100, 568);
-
-    // VS
-    ctx.fillStyle = "#FFD700";
-    ctx.font = "900 64px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("VS", 540, 520);
-
-    // Home team
-    const homeColor = TEAM_COLORS[game.home] || "#002d6e";
-    ctx.textAlign = "right";
-    ctx.fillStyle = homeColor;
-    ctx.fillRect(W - 84, 440, 4, 140);
-    ctx.fillStyle = "#fff";
-    ctx.font = "900 80px 'Arial Narrow',Arial";
-    ctx.fillText((game.home||"").toUpperCase(), W - 100, 530);
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.font = "500 28px Arial";
-    ctx.fillText("HOME", W - 100, 568);
-
-    // Divider
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.fillRect(80, 620, W - 160, 2);
-
-    // Game details
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#fff";
-    ctx.font = "700 36px Arial";
-    ctx.fillText(`📅  ${game.date || ""}`, 540, 688);
-    ctx.font = "700 32px Arial";
-    ctx.fillText(`⏰  ${game.time || ""}`, 540, 736);
-    ctx.font = "500 28px Arial";
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.fillText(`📍  ${(game.field||"").replace(" — ", " · ")}`, 540, 784);
-
-    // Bottom gold bar
-    ctx.fillStyle = "#FFD700";
-    ctx.fillRect(0, H - 12, W, 12);
-
-    // Bottom text
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.font = "400 22px Arial";
-    ctx.fillText("longbeachdiamondclassics.com", 540, H - 30);
+    setRendering(false);
   };
 
-  useEffect(() => {
-    allGames.forEach((g, i) => {
-      const key = `${g.away}-${g.home}-${i}`;
-      const canvas = canvasRefs.current[key];
-      if (canvas) drawGraphic(canvas, g);
-    });
-  }, []);
+  useEffect(() => { drawWeekGraphic(); }, [selWeek]);
 
-  const download = (game, i) => {
-    const key = `${game.away}-${game.home}-${i}`;
-    const canvas = canvasRefs.current[key];
+  const download = () => {
+    const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement("a");
-    link.download = `LBDC-${(game.away||"").replace(/\s/g,"-")}-vs-${(game.home||"").replace(/\s/g,"-")}.png`;
+    link.download = `LBDC-${week.label.replace(/[\s,]/g,"-")}.png`;
     link.href = canvas.toDataURL("image/png");
     link.click();
   };
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="Admin Tools" title="Game Graphics" subtitle={`${week.label} · ${allGames.length} game${allGames.length!==1?"s":""} — download and share on social media`} />
-      <div style={{maxWidth:1200,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:24}}>
-          {allGames.map((g, i) => {
-            const key = `${g.away}-${g.home}-${i}`;
-            return (
-              <div key={key} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:14,overflow:"hidden",boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>
-                <canvas
-                  ref={el => { canvasRefs.current[key] = el; if(el) drawGraphic(el,g); }}
-                  style={{width:"100%",aspectRatio:"1/1",display:"block"}}
-                />
-                <div style={{padding:"14px 16px",borderTop:"1px solid rgba(0,0,0,0.07)"}}>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111",marginBottom:4}}>
-                    {g.away} vs {g.home}
-                  </div>
-                  <div style={{fontSize:12,color:"rgba(0,0,0,0.45)",marginBottom:12}}>{g.time} · {g.field}</div>
-                  <button onClick={()=>download(g,i)}
-                    style={{width:"100%",padding:"10px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",letterSpacing:".04em"}}>
-                    ⬇ Download PNG
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+      <PageHero label="Admin Tools" title="Game Graphics" subtitle="One-click weekly schedule graphic for social media" />
+      <div style={{maxWidth:560,margin:"0 auto",padding:"28px clamp(12px,3vw,32px) 60px"}}>
+
+        {/* Week selector */}
+        <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
+          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,color:"#555",letterSpacing:".06em"}}>WEEK</span>
+          <select value={selWeek} onChange={e=>setSelWeek(+e.target.value)}
+            style={{flex:1,padding:"9px 12px",borderRadius:8,border:"1px solid #ccc",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:600,fontSize:15,color:"#111",background:"#fff",cursor:"pointer"}}>
+            {SCHED.map((w,i)=>(
+              <option key={i} value={i}>{w.label} — {w.fields.flatMap(f=>f.games).length} game{w.fields.flatMap(f=>f.games).length!==1?"s":""}</option>
+            ))}
+          </select>
         </div>
-        <div style={{marginTop:24,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px 20px",fontSize:13,color:"rgba(0,0,0,0.45)",textAlign:"center"}}>
-          Graphics are 1080×1080px — ideal for Instagram, Facebook, and Twitter. Right-click the image or use the Download button.
+
+        {/* Canvas preview */}
+        <div style={{background:"#1a1a2e",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 24px rgba(0,0,0,0.18)",marginBottom:16}}>
+          <canvas ref={canvasRef} style={{width:"100%",display:"block"}} />
+        </div>
+
+        {/* Games in this week */}
+        <div style={{background:"#fff",borderRadius:10,border:"1px solid rgba(0,0,0,0.08)",padding:"12px 16px",marginBottom:16}}>
+          {games.length === 0 && <div style={{fontSize:13,color:"rgba(0,0,0,0.4)",textAlign:"center",padding:"8px 0"}}>No games this week</div>}
+          {games.map((g,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:i<games.length-1?"1px solid rgba(0,0,0,0.06)":"none"}}>
+              <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",minWidth:18,fontFamily:"monospace"}}>#{i+1}</span>
+              <TLogo name={g.away} size={22}/>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14}}>{g.away}</span>
+              <span style={{color:"#bbb",fontSize:11,fontWeight:600}}>VS</span>
+              <TLogo name={g.home} size={22}/>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14}}>{g.home}</span>
+              <span style={{marginLeft:"auto",color:"rgba(0,0,0,0.4)",fontSize:12,whiteSpace:"nowrap"}}>{g.time}</span>
+            </div>
+          ))}
+          {allGames.length > 4 && (
+            <div style={{fontSize:12,color:"#b45309",marginTop:8,paddingTop:8,borderTop:"1px solid rgba(0,0,0,0.06)"}}>
+              ⚠ {allGames.length} games this week — only the first 4 are shown (template has 4 slots).
+            </div>
+          )}
+        </div>
+
+        <button onClick={download} disabled={rendering}
+          style={{width:"100%",padding:"14px",background:rendering?"#999":"#002d6e",border:"none",borderRadius:10,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:18,cursor:rendering?"not-allowed":"pointer",letterSpacing:".05em",transition:"background .15s"}}>
+          {rendering ? "⏳ Rendering…" : "⬇  Download PNG"}
+        </button>
+        <div style={{marginTop:10,fontSize:12,color:"rgba(0,0,0,0.35)",textAlign:"center"}}>
+          1024 × 1536 px · Instagram portrait format
         </div>
       </div>
     </div>
@@ -7660,7 +7646,6 @@ export default function App() {
       {tab==="sponsors"  && <SponsorsPage />}
       {tab==="photos"    && <PhotosPage />}
       {tab==="signup"    && <PlayerSignUpPage />}
-      {tab==="graphics"  && <GraphicsPage />}
       <Footer setTab={handleSetTab} />
     </div>
   );
