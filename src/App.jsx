@@ -3478,7 +3478,20 @@ function PlayerSignUpPage() {
     if (!form.name || !form.team || !form.email || !form.phone) { alert("Please fill in all required fields."); return; }
     setStatus("saving");
     try {
-      const res = await fetch("https://formsubmit.co/ajax/toddharris1222@gmail.com", {
+      // Save to Supabase
+      await sbPost("lbdc_signups", {
+        name: form.name,
+        team: form.team,
+        email: form.email,
+        phone: form.phone,
+        notes: form.notes || "",
+        reminders: prefs.reminders,
+        scores: prefs.scores,
+        playoffs: prefs.playoffs,
+        rainouts: prefs.rainouts,
+      });
+      // Also email via formsubmit
+      fetch("https://formsubmit.co/ajax/toddharris1222@gmail.com", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
@@ -3493,13 +3506,8 @@ function PlayerSignUpPage() {
           "Rainout Notices": prefs.rainouts ? "Yes" : "No",
           Notes: form.notes || "",
         }),
-      });
-      const data = await res.json();
-      if (data.success === "true" || data.success === true) {
-        setStatus("done");
-      } else {
-        throw new Error("FormSubmit returned failure");
-      }
+      }).catch(()=>{});
+      setStatus("done");
     } catch(e) { console.error("Sign-up error:", e); setStatus("error"); }
   };
 
@@ -4956,6 +4964,72 @@ function AdminFieldsEditor({ onBack }) {
   );
 }
 
+/* ─── ADMIN SIGNUPS VIEWER ───────────────────────────────────────────────── */
+function AdminSignupsViewer({ onBack }) {
+  const [signups, setSignups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    sbFetch("lbdc_signups?select=*&order=created_at.desc")
+      .then(data => { setSignups(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const filtered = signups.filter(s =>
+    !search || [s.name,s.team,s.email,s.phone].some(v => v?.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const badge = (label, val) => val ? (
+    <span style={{background:"#e0f2fe",color:"#0369a1",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:20,whiteSpace:"nowrap"}}>{label}</span>
+  ) : null;
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin" title="Player Sign-Ups" subtitle={`${signups.length} total submission${signups.length!==1?"s":""}`} />
+      <div style={{maxWidth:860,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
+          <button onClick={onBack} style={{background:"rgba(0,0,0,0.08)",border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",color:"#333"}}>← Back</button>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search by name, team, email…"
+            style={{flex:1,minWidth:200,padding:"9px 14px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:14,outline:"none"}} />
+        </div>
+        {loading ? (
+          <div style={{textAlign:"center",padding:40,color:"#aaa"}}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{textAlign:"center",padding:40,color:"#aaa",fontSize:15}}>{search ? "No matches found." : "No sign-ups yet."}</div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {filtered.map((s,i) => (
+              <div key={s.id||i} style={{background:"#fff",borderRadius:12,border:"1px solid rgba(0,0,0,0.08)",borderLeft:"4px solid #002d6e",padding:"16px 20px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:8}}>
+                  <div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase"}}>{s.name}</div>
+                    <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:1}}>{s.team}</div>
+                  </div>
+                  <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>
+                    {s.created_at ? new Date(s.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}) : ""}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:13,color:"rgba(0,0,0,0.6)",marginBottom:8}}>
+                  <span>📧 <a href={`mailto:${s.email}`} style={{color:"#002d6e",textDecoration:"none"}}>{s.email}</a></span>
+                  <span>📱 <a href={`tel:${s.phone}`} style={{color:"#002d6e",textDecoration:"none"}}>{s.phone}</a></span>
+                </div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom: s.notes ? 8 : 0}}>
+                  {badge("Reminders", s.reminders)}
+                  {badge("Score Alerts", s.scores)}
+                  {badge("Playoff Updates", s.playoffs)}
+                  {badge("Rainout Notices", s.rainouts)}
+                </div>
+                {s.notes && <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",fontStyle:"italic",borderTop:"1px solid rgba(0,0,0,0.06)",paddingTop:8,marginTop:4}}>"{s.notes}"</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AdminPage({ onAlertChange }) {
   const [screen, setScreen] = useState("login"); // "login" | "admin" | "captain"
   const [pw, setPw] = useState("");
@@ -5170,6 +5244,7 @@ function AdminPage({ onAlertChange }) {
   if (screen === "admin_photos")  return <AdminPhotosEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_sponsors") return <AdminSponsorsEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_fields")  return <AdminFieldsEditor onBack={() => setScreen("admin")} />;
+  if (screen === "admin_signups") return <AdminSignupsViewer onBack={() => setScreen("admin")} />;
 
   // ── ADMIN ROSTERS SCREEN ──
   if (screen === "admin_rosters") {
@@ -5816,6 +5891,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"📸",title:"Photos & Videos",desc:"Add or remove gallery items",accent:"#002d6e",action:()=>setScreen("admin_photos")},
                   {icon:"🤝",title:"Edit Sponsors",desc:"Add or remove sponsor cards",accent:"#002d6e",action:()=>setScreen("admin_sponsors")},
                   {icon:"🏟️",title:"Field Directions",desc:"Edit field notes and addresses",accent:"#002d6e",action:()=>setScreen("admin_fields")},
+                  {icon:"📋",title:"Player Sign-Ups",desc:"View all sign-up submissions",accent:"#16a34a",action:()=>setScreen("admin_signups")},
                 ].map((a,i)=>(
                   <div key={i} onClick={a.action} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${a.accent}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s",position:"relative"}}
                     onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
