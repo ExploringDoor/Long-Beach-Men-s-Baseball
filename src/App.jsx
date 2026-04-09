@@ -17,6 +17,12 @@ const TEAM_LOGOS = {
 
 const BOOMERS_TEAMS = new Set(["Eddie Murray Mashers '56", "Greg Maddux Magicians '66"]);
 
+// Short display names for the ticker
+const TICKER_NAME = {
+  "Eddie Murray Mashers '56":  "Mashers",
+  "Greg Maddux Magicians '66": "Magicians",
+};
+
 const DIV = {
   SAT: {
     name: "Spring/Summer 2026", accent: "#002d6e",
@@ -844,11 +850,11 @@ function Ticker({ setTab }) {
               style={{display:"flex",alignItems:"center",padding:"0 16px",borderRight:"1px solid rgba(255,255,255,0.1)",flex:"1 1 0",minWidth:0,gap:7,cursor:"pointer",transition:"background .12s",height:"100%"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <TLogo name={g.away} size={26} />
-              <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{g.away}</span>
-              <span style={{color:"rgba(255,255,255,0.3)",fontSize:13,fontFamily:"'Barlow Condensed',sans-serif",flexShrink:0}}>vs</span>
-              <TLogo name={g.home} size={26} />
-              <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{g.home}</span>
+              <TLogo name={g.away} size={36} />
+              <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.away]||g.away}</span>
+              <span style={{color:"rgba(255,255,255,0.3)",fontSize:13,fontFamily:"'Barlow Condensed',sans-serif",flexShrink:0}}>vs.</span>
+              <TLogo name={g.home} size={36} />
+              <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.home]||g.home}</span>
               <span className="ticker-time" style={{fontSize:11,color:"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",marginLeft:4,flexShrink:0}}>{g.time}{g.status==="PPD"?" · PPD":""}</span>
             </div>
           ))}
