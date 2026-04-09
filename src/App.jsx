@@ -1601,6 +1601,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
 function SchedulePage({ setTab, setTeamDetail }) {
   const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers, 2=Tournaments
   const [wk,setWk] = useState(0);
+  const [boomerWk, setBoomerWk] = useState(0);
   const [tournGames, setTournGames] = useState([]);
   const [previewGame, setPreviewGame] = useState(null);
   const week = SCHED[wk];
@@ -1663,24 +1664,31 @@ function SchedulePage({ setTab, setTeamDetail }) {
         </div>
       </>}
 
-      {league === 1 && (
-        <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
-          <div style={{background:"#002d6e",borderRadius:8,padding:"14px 20px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:24}}>⚾</span>
-            <div>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#FFD700",textTransform:"uppercase"}}>2026 Boomers 60/70 Division</div>
-              <div style={{fontSize:13,color:"rgba(255,255,255,0.55)"}}>Eddie Murray Mashers '56 vs Greg Maddux Magicians '66 · All games at 2:00–3:00 PM</div>
-            </div>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {league === 1 && <>
+        {/* Boomers date tab bar */}
+        <div style={{borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fff",padding:"0 clamp(12px,3vw,40px)"}}>
+          <div style={{maxWidth:1400,margin:"0 auto",overflowX:"auto",display:"flex",gap:0,scrollbarWidth:"none"}}>
             {BOOMERS_SCHED.map((g,i) => (
-              <div key={i} onClick={()=>setPreviewGame({away:g.away,home:g.home,time:g.time,date:g.date,field:g.field})}
-                style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #c8102e",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:"pointer",transition:"box-shadow .12s"}}
+              <button key={i} onClick={()=>setBoomerWk(i)} style={{
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
+                textTransform:"uppercase",color:boomerWk===i?"#111":"rgba(0,0,0,0.38)",
+                padding:"12px 16px",background:"none",border:"none",
+                borderBottom:boomerWk===i?"3px solid #111":"3px solid transparent",
+                cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,
+              }}>{g.date}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
+          {(() => {
+            const g = BOOMERS_SCHED[boomerWk];
+            return (
+              <div onClick={()=>setPreviewGame({away:g.away,home:g.home,time:g.time,date:g.date,field:g.field})}
+                style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #7c3aed",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:"pointer",transition:"box-shadow .12s",maxWidth:600}}
                 onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)"}>
                 <div style={{display:"flex",alignItems:"center",padding:"14px 18px",gap:12,flexWrap:"wrap"}}>
                   <div style={{display:"flex",flexDirection:"column",gap:8,flex:"1 1 220px",minWidth:0}}>
-                    {i===0 && <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#c8102e",marginBottom:-2}}>▶ NEXT GAME</div>}
                     {[g.away, g.home].map((t,j) => (
                       <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
                         <TLogo name={t} size={36} />
@@ -1696,10 +1704,10 @@ function SchedulePage({ setTab, setTeamDetail }) {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })()}
         </div>
-      )}
+      </>}
 
       {league === 2 && (
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
