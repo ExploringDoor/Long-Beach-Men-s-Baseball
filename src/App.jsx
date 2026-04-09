@@ -847,15 +847,18 @@ function Ticker({ setTab }) {
           {games.map((g,i) => (
             <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
               className="ticker-game-item"
-              style={{display:"flex",alignItems:"center",padding:"0 16px",borderRight:"1px solid rgba(255,255,255,0.1)",flex:"1 1 0",minWidth:0,gap:7,cursor:"pointer",transition:"background .12s",height:"100%"}}
+              style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"6px 16px",borderRight:"1px solid rgba(255,255,255,0.1)",minWidth:160,gap:3,cursor:"pointer",transition:"background .12s",flexShrink:0}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <TLogo name={g.away} size={36} />
-              <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.away]||g.away}</span>
-              <span className="ticker-vs" style={{color:"rgba(255,255,255,0.3)",fontSize:13,fontFamily:"'Barlow Condensed',sans-serif",flexShrink:0}}>vs.</span>
-              <TLogo name={g.home} size={36} />
-              <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.home]||g.home}</span>
-              <span className="ticker-time" style={{fontSize:11,color:"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",marginLeft:4,flexShrink:0}}>{g.time}{g.status==="PPD"?" · PPD":""}</span>
+              <span className="ticker-time" style={{fontSize:11,color:"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",lineHeight:1}}>{g.time}{g.status==="PPD"?" · PPD":""}</span>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <TLogo name={g.away} size={22} />
+                <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.away]||g.away}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <TLogo name={g.home} size={22} />
+                <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.home]||g.home}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -8025,13 +8028,9 @@ export default function App() {
           .ticker-brand{display:flex!important;align-items:center;gap:4px;}
           .ticker-brand-label{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#FFD700;}
           /* Ticker game items: stacked layout on mobile */
-          .ticker-outer{overflow:visible!important;flex-direction:column!important;align-items:stretch!important;}
-          .ticker-scroll{flex-direction:column!important;overflow:visible!important;flex:none!important;}
-          .ticker-game-item{flex-direction:row!important;align-items:center!important;flex:none!important;width:100%!important;padding:7px 12px!important;border-right:none!important;border-bottom:1px solid rgba(255,255,255,0.1)!important;gap:5px!important;height:auto!important;box-sizing:border-box!important;}
-          .ticker-game-item .ticker-team-name{font-size:12px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
-          .ticker-game-item .ticker-time{font-size:10px!important;margin-left:auto!important;}
-          .ticker-game-item img{width:18px!important;height:18px!important;display:block!important;}
-          .ticker-vs{font-size:9px!important;opacity:0.5!important;}
+          .ticker-game-item{min-width:130px!important;padding:6px 10px!important;}
+          .ticker-game-item .ticker-team-name{font-size:13px!important;}
+          .ticker-game-item .ticker-time{font-size:10px!important;}
         }
       `}</style>
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
