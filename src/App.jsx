@@ -2573,14 +2573,17 @@ function SponsorsPage() {
           </div>
         </div>
 
-        {/* League Commissioner */}
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+        {/* Website Credit */}
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #f59e0b",borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
           <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-            <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(0,45,110,0.1)",border:"2px solid rgba(0,45,110,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>⚾</div>
+            <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(245,158,11,0.1)",border:"2px solid rgba(245,158,11,0.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>💻</div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Todd Harris</div>
-              <div style={{fontSize:12,fontWeight:700,color:"rgba(0,45,110,0.7)",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>League Commissioner</div>
-              <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4}}>Keeping the league running smoothly, game in and game out.</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Adam — Mainline Design</div>
+              <div style={{fontSize:12,fontWeight:700,color:"rgba(245,158,11,0.85)",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>Website Design & Development</div>
+              <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4}}>
+                A huge thank you to Adam for building this amazing website and bringing the Diamond Classics experience online. 🙌
+                {" "}<a href="mailto:adam.mainlinewebdesign@gmail.com" style={{color:"#002d6e",fontWeight:600}}>adam.mainlinewebdesign@gmail.com</a>
+              </div>
             </div>
           </div>
         </div>
