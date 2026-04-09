@@ -2558,7 +2558,7 @@ function FieldDirectionsPage() {
                   {field.notes.map((note,i) => (
                     <li key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                       <span style={{color:field.color,fontWeight:900,fontSize:13,marginTop:1,flexShrink:0}}>→</span>
-                      <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.5}}>{note}</span>
+                      <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.5}} dangerouslySetInnerHTML={{__html:note}} />
                     </li>
                   ))}
                 </ul>
@@ -2587,7 +2587,7 @@ function SponsorsPage() {
             <div style={{position:"absolute",right:-20,top:-20,fontSize:120,opacity:.06,lineHeight:1}}>⚾</div>
             <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#FFD700",marginBottom:8}}>{sp.role}</div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:36,textTransform:"uppercase",lineHeight:1,marginBottom:8}}>{sp.name}</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,0.7)",lineHeight:1.6,maxWidth:600}}>{sp.description}</div>
+            <div style={{fontSize:14,color:"rgba(255,255,255,0.7)",lineHeight:1.6,maxWidth:600}} dangerouslySetInnerHTML={{__html:sp.description||""}} />
           </div>
         ) : (
           <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${i===1?"#f59e0b":"#002d6e"}`,borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
@@ -2596,9 +2596,7 @@ function SponsorsPage() {
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>{sp.name}</div>
                 {sp.role && <div style={{fontSize:12,fontWeight:700,color:i===1?"rgba(245,158,11,0.85)":"#002d6e",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>{sp.role}</div>}
-                {sp.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4,lineHeight:1.5}}>{sp.description}{" "}
-                  {sp.email && <a href={`mailto:${sp.email}`} style={{color:"#002d6e",fontWeight:600}}>{sp.email}</a>}
-                </div>}
+                {sp.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4,lineHeight:1.5}} dangerouslySetInnerHTML={{__html:sp.description}} />}
                 {!sp.description && sp.email && <div style={{marginTop:6}}><a href={`mailto:${sp.email}`} style={{fontSize:13,color:"#002d6e"}}>{sp.email}</a></div>}
                 {sp.website && <div style={{marginTop:4}}><a href={sp.website} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:"#002d6e"}}>{sp.website}</a></div>}
               </div>
@@ -2845,6 +2843,49 @@ function savePageContent(id, html) {
   try { localStorage.setItem("lbdc_content_" + id, html); } catch(e) {}
 }
 
+function RichTextInput({ defaultValue, onChange, placeholder, minHeight=80 }) {
+  const editorRef = useRef();
+  const [showToolbar, setShowToolbar] = useState(false);
+  const exec = (cmd, val) => { editorRef.current?.focus(); document.execCommand(cmd, false, val || null); };
+  useEffect(() => { if (editorRef.current) editorRef.current.innerHTML = defaultValue || ""; }, []);
+  const tbtn = (label, cmd, val, title) => (
+    <button title={title||label} onMouseDown={e=>{e.preventDefault();exec(cmd,val);}}
+      style={{padding:"3px 7px",border:"1px solid #ddd",borderRadius:4,background:"#fff",color:"#333",cursor:"pointer",fontSize:12,fontWeight:700,lineHeight:1,flexShrink:0}}>
+      {label}
+    </button>
+  );
+  return (
+    <div style={{border:"1px solid #ddd",borderRadius:6,overflow:"hidden",background:"#fff"}} onFocus={()=>setShowToolbar(true)}>
+      {showToolbar && (
+        <div style={{display:"flex",flexWrap:"wrap",gap:3,padding:"5px 7px",borderBottom:"1px solid #eee",background:"#f9f9f9",alignItems:"center"}}>
+          {tbtn("B","bold",null,"Bold")}
+          {tbtn("I","italic",null,"Italic")}
+          {tbtn("U","underline",null,"Underline")}
+          <select onMouseDown={e=>e.stopPropagation()} onChange={e=>{exec("fontSize",e.target.value);e.target.value="0";}} defaultValue="0"
+            style={{padding:"2px 4px",border:"1px solid #ddd",borderRadius:4,fontSize:11,height:24,cursor:"pointer"}}>
+            <option value="0">Size</option>
+            <option value="1">XS</option><option value="2">S</option><option value="3">M</option>
+            <option value="4">L</option><option value="5">XL</option><option value="6">XXL</option><option value="7">Huge</option>
+          </select>
+          <input type="color" title="Text color" defaultValue="#111111" onMouseDown={e=>e.stopPropagation()} onChange={e=>exec("foreColor",e.target.value)}
+            style={{width:24,height:24,border:"1px solid #ddd",borderRadius:4,cursor:"pointer",padding:1,flexShrink:0}} />
+          {tbtn("≡L","justifyLeft",null,"Left")}
+          {tbtn("≡C","justifyCenter",null,"Center")}
+          {tbtn("≡R","justifyRight",null,"Right")}
+        </div>
+      )}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={e=>onChange&&onChange(e.currentTarget.innerHTML)}
+        data-placeholder={placeholder}
+        style={{minHeight,padding:"7px 10px",fontSize:14,lineHeight:1.6,outline:"none",color:"#222"}}
+      />
+    </div>
+  );
+}
+
 function RichTextEditor({ contentId, placeholder }) {
   const editorRef = useRef();
   const [active, setActive] = useState({});
@@ -3010,7 +3051,7 @@ function RulesPage() {
                     {r.items.map((item,i) => (
                       <li key={i} style={{display:"flex",gap:14}}>
                         <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,color:"#002d6e",minWidth:24,paddingTop:1,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
-                        <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.6}}>{item}</span>
+                        <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.6}} dangerouslySetInnerHTML={{__html:item}} />
                       </li>
                     ))}
                   </ol>
@@ -4619,7 +4660,7 @@ function AdminRulesEditor({ onBack }) {
             {sec.items.map((item,ii)=>(
               <div key={ii} style={{display:"flex",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",alignItems:"flex-start"}}>
                 <span style={{color:"rgba(0,0,0,0.3)",fontSize:12,paddingTop:8,minWidth:20}}>{ii+1}.</span>
-                <textarea value={item} onChange={e=>updItem(si,ii,e.target.value)} rows={2} style={{...inp,flex:1,resize:"vertical",lineHeight:1.5}} />
+                <div style={{flex:1}}><RichTextInput key={`${si}-${ii}`} defaultValue={item} onChange={v=>updItem(si,ii,v)} placeholder="Rule text…" minHeight={50} /></div>
                 <button onClick={()=>delItem(si,ii)} style={{background:"none",border:"none",color:"#dc2626",fontSize:18,cursor:"pointer",padding:"6px",flexShrink:0}}>✕</button>
               </div>
             ))}
@@ -4826,7 +4867,7 @@ function AdminSponsorsEditor({ onBack }) {
             <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:9}}>
               <input value={sp.name} onChange={e=>upd(i,"name",e.target.value)} placeholder="Name *" style={{...inp,fontWeight:700,fontSize:16}} />
               <input value={sp.role||""} onChange={e=>upd(i,"role",e.target.value)} placeholder="Role / title (e.g. Gold Sponsor)" style={inp} />
-              <textarea value={sp.description||""} onChange={e=>upd(i,"description",e.target.value)} placeholder="Description" rows={2} style={{...inp,resize:"vertical"}} />
+              <RichTextInput key={`sp-desc-${i}`} defaultValue={sp.description||""} onChange={v=>upd(i,"description",v)} placeholder="Description" minHeight={60} />
               <input value={sp.email||""} onChange={e=>upd(i,"email",e.target.value)} placeholder="Email (optional)" style={inp} />
               <input value={sp.website||""} onChange={e=>upd(i,"website",e.target.value)} placeholder="Website URL (optional)" style={inp} />
             </div>
@@ -4838,7 +4879,7 @@ function AdminSponsorsEditor({ onBack }) {
             <div style={{display:"flex",flexDirection:"column",gap:9}}>
               <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Name *" style={{...inp,fontWeight:700}} />
               <input value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} placeholder="Role / title" style={inp} />
-              <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Description" rows={2} style={{...inp,resize:"vertical"}} />
+              <RichTextInput key="new-sp-desc" defaultValue={form.description} onChange={v=>setForm(f=>({...f,description:v}))} placeholder="Description" minHeight={60} />
               <input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="Email (optional)" style={inp} />
               <input value={form.website} onChange={e=>setForm(f=>({...f,website:e.target.value}))} placeholder="Website URL (optional)" style={inp} />
               <label style={{fontSize:13,display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
@@ -4897,7 +4938,7 @@ function AdminFieldsEditor({ onBack }) {
               <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:10}}>Field Notes & Parking</div>
               {field.notes.map((note,ni)=>(
                 <div key={ni} style={{display:"flex",gap:8,marginBottom:8,alignItems:"flex-start"}}>
-                  <textarea value={note} onChange={e=>updNote(fi,ni,e.target.value)} rows={2} style={{...inp,flex:1,resize:"vertical"}} />
+                  <div style={{flex:1}}><RichTextInput key={`field-${fi}-${ni}`} defaultValue={note} onChange={v=>updNote(fi,ni,v)} placeholder="Field note…" minHeight={50} /></div>
                   <button onClick={()=>delNote(fi,ni)} style={{background:"none",border:"none",color:"#dc2626",fontSize:18,cursor:"pointer",padding:"6px",flexShrink:0}}>✕</button>
                 </div>
               ))}
