@@ -1687,20 +1687,20 @@ function SchedulePage({ setTab, setTeamDetail }) {
                 style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #7c3aed",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:"pointer",transition:"box-shadow .12s",maxWidth:600}}
                 onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)"}>
-                <div style={{display:"flex",alignItems:"center",padding:"14px 18px",gap:12,flexWrap:"wrap"}}>
-                  <div style={{display:"flex",flexDirection:"column",gap:8,flex:"1 1 220px",minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",padding:"24px 28px",gap:20,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:14,flex:"1 1 260px",minWidth:0}}>
                     {[g.away, g.home].map((t,j) => (
-                      <div key={j} style={{display:"flex",alignItems:"center",gap:8}}>
-                        <TLogo name={t} size={36} />
-                        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",textTransform:"uppercase",lineHeight:1}}>{t}</span>
+                      <div key={j} style={{display:"flex",alignItems:"center",gap:14}}>
+                        <TLogo name={t} size={60} />
+                        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",textTransform:"uppercase",lineHeight:1}}>{t}</span>
                       </div>
                     ))}
                   </div>
-                  <div style={{flexShrink:0,borderLeft:"1px solid rgba(0,0,0,0.08)",paddingLeft:14}}>
-                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",lineHeight:1}}>{g.time}</div>
-                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,color:"rgba(0,0,0,0.55)",fontWeight:700,marginTop:3}}>{g.date}</div>
-                    <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.field}</div>
-                    <div style={{fontSize:10,fontWeight:700,color:"rgba(0,45,110,0.45)",marginTop:4}}>⚾ Preview →</div>
+                  <div style={{flexShrink:0,borderLeft:"2px solid rgba(0,0,0,0.08)",paddingLeft:24}}>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:46,color:"#002d6e",lineHeight:1}}>{g.time}</div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,color:"rgba(0,0,0,0.55)",fontWeight:700,marginTop:6}}>{g.date}</div>
+                    <div style={{fontSize:15,color:"rgba(0,0,0,0.4)",marginTop:4}}>{g.field}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:"rgba(0,45,110,0.45)",marginTop:6}}>⚾ Preview →</div>
                   </div>
                 </div>
               </div>
