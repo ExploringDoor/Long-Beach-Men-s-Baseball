@@ -678,6 +678,19 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
   const [homeRec, setHomeRec] = useState(null);
   const [h2h, setH2H] = useState(null);
   const [playerModal, setPlayerModal] = useState(null);
+  const [awayRoster, setAwayRoster] = useState(TEAM_ROSTERS[away]||[]);
+  const [homeRoster, setHomeRoster] = useState(TEAM_ROSTERS[home]||[]);
+
+  useEffect(() => {
+    // Load rosters from Supabase
+    sbFetch(`lbdc_rosters?select=number,name,team&team=in.(${encodeURIComponent(away)},${encodeURIComponent(home)})&order=id.asc`)
+      .then(rows => {
+        if (rows && rows.length > 0) {
+          setAwayRoster(rows.filter(r=>r.team===away).map(r=>({number:r.number||"",name:r.name||""})));
+          setHomeRoster(rows.filter(r=>r.team===home).map(r=>({number:r.number||"",name:r.name||""})));
+        }
+      }).catch(()=>{});
+  }, [away, home]);
 
   useEffect(() => {
     async function load() {
@@ -714,8 +727,6 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
     if(!r||r.gp===0) return ".---";
     return Number((r.w*2+r.t)/((r.gp||1)*2)).toFixed(3).replace(/^0/,"");
   };
-  const awayRoster = TEAM_ROSTERS[away]||[];
-  const homeRoster = TEAM_ROSTERS[home]||[];
   const h2hTotal = h2h ? h2h.awayW+h2h.homeW+h2h.ties : 0;
   const h2hLeader = h2h && h2hTotal>0 ? (h2h.awayW>h2h.homeW?away:h2h.homeW>h2h.awayW?home:"Even") : null;
 
