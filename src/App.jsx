@@ -7434,6 +7434,7 @@ function StatsPage() {
         obpNum: (p.ab+p.bb+p.hbp) > 0 ? (p.h+p.bb+p.hbp)/(p.ab+p.bb+p.hbp+p.sf) : 0,
         slg: p.ab > 0 ? ((p.h - p.doubles - p.triples - p.hr + p.doubles*2 + p.triples*3 + p.hr*4)/p.ab).toFixed(3).replace(/^0/,"") : ".000",
         slgNum: p.ab > 0 ? (p.h - p.doubles - p.triples - p.hr + p.doubles*2 + p.triples*3 + p.hr*4)/p.ab : 0,
+        tb: (p.h - p.doubles - p.triples - p.hr) + p.doubles*2 + p.triples*3 + p.hr*4,
       }));
       // Aggregate pitching
       const pitMap = {};
