@@ -159,15 +159,11 @@ const TEAM_ROSTERS = {
   ],
 };
 
-// Runtime-editable rosters (localStorage overrides TEAM_ROSTERS)
-function getStoredRosters() {
-  try { return JSON.parse(localStorage.getItem("lbdc_team_rosters") || "null") || null; } catch(e) { return null; }
-}
-function saveStoredRosters(rosters) {
-  try { localStorage.setItem("lbdc_team_rosters", JSON.stringify(rosters)); } catch(e) {}
-}
+// Rosters are now managed in Supabase (lbdc_rosters table).
+// getEffectiveRosters() returns hardcoded fallback data only.
+function saveStoredRosters(_rosters) { /* no-op: storage moved to Supabase */ }
 function getEffectiveRosters() {
-  return getStoredRosters() || JSON.parse(JSON.stringify(TEAM_ROSTERS));
+  return JSON.parse(JSON.stringify(TEAM_ROSTERS));
 }
 
 const TEAM_CAL_LINKS = {
@@ -2690,57 +2686,94 @@ function PhotosPage() {
 
 /* ─── CAPTAIN ROSTER EDITOR ──────────────────────────────────────────────── */
 function CaptainRosterEditor({ teamName }) {
-  const [players, setPlayers] = useState(() => {
-    const stored = getStoredRosters();
-    return stored?.[teamName] || [...(TEAM_ROSTERS[teamName]||[])];
-  });
-  const [editIdx, setEditIdx] = useState(null);
+  const [players, setPlayers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editId, setEditId] = useState(null); // Supabase id or -1 for new
   const [editForm, setEditForm] = useState({number:"",name:""});
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const persist = (newPlayers) => {
-    const all = getStoredRosters() || JSON.parse(JSON.stringify(TEAM_ROSTERS));
-    all[teamName] = newPlayers;
-    saveStoredRosters(all);
-    setPlayers(newPlayers);
-    setSaved(true);
-    setTimeout(()=>setSaved(false),2000);
+  // Load this team's players from Supabase on mount
+  useEffect(() => {
+    setLoading(true);
+    sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
+      .then(rows => {
+        setPlayers((rows || []).map(r => ({id: r.id, number: r.number || "", name: r.name || ""})));
+        setLoading(false);
+      })
+      .catch(() => {
+        // Fall back to hardcoded roster on error
+        setPlayers([...(TEAM_ROSTERS[teamName] || [])]);
+        setError("Could not load roster from server. Showing local fallback.");
+        setLoading(false);
+      });
+  }, [teamName]);
+
+  const startEdit = (idx) => {
+    const p = players[idx];
+    setEditId(p.id);
+    setEditForm({number: p.number || "", name: p.name || ""});
   };
+  const cancelEdit = () => { setEditId(null); setEditForm({number:"",name:""}); };
 
-  const startEdit = (idx) => { setEditIdx(idx); setEditForm(idx===-1?{number:"",name:""}:{...players[idx]}); };
-  const cancelEdit = () => { setEditIdx(null); setEditForm({number:"",name:""}); };
-
-  const savePlayer = () => {
+  const savePlayer = async () => {
     if (!editForm.name.trim()) return;
-    const arr = [...players];
-    if (editIdx === -1) arr.push({number:editForm.number.trim(),name:editForm.name.trim()});
-    else arr[editIdx] = {number:editForm.number.trim(),name:editForm.name.trim()};
-    persist(arr);
-    cancelEdit();
+    setSaving(true);
+    setError("");
+    try {
+      if (editId === -1) {
+        const rows = await sbPost("lbdc_rosters", {team: teamName, number: editForm.number.trim(), name: editForm.name.trim()});
+        setPlayers(p => [...p, {id: rows[0].id, number: editForm.number.trim(), name: editForm.name.trim()}]);
+      } else {
+        await sbPatch(`lbdc_rosters?id=eq.${editId}`, {number: editForm.number.trim(), name: editForm.name.trim()});
+        setPlayers(p => p.map(pl => pl.id === editId ? {...pl, number: editForm.number.trim(), name: editForm.name.trim()} : pl));
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      cancelEdit();
+    } catch(e) {
+      setError("Failed to save player. Please try again.");
+    }
+    setSaving(false);
   };
 
-  const deletePlayer = (idx) => {
-    if (!window.confirm(`Remove ${players[idx]?.name}?`)) return;
-    persist(players.filter((_,i)=>i!==idx));
+  const deletePlayer = async (idx) => {
+    const p = players[idx];
+    if (!window.confirm(`Remove ${p?.name}?`)) return;
+    setSaving(true);
+    setError("");
+    try {
+      await sbDelete(`lbdc_rosters?id=eq.${p.id}`);
+      setPlayers(pl => pl.filter((_,i) => i !== idx));
+    } catch(e) {
+      setError("Failed to delete player. Please try again.");
+    }
+    setSaving(false);
   };
+
+  if (loading) return <div style={{textAlign:"center",padding:"24px",color:"rgba(0,0,0,0.4)",fontSize:14}}>Loading roster…</div>;
 
   return (
     <div>
+      {error && <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:6,padding:"8px 12px",marginBottom:10,color:"#dc2626",fontWeight:600,fontSize:13}}>{error}</div>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div style={{fontSize:13,color:"rgba(0,0,0,0.45)"}}>{players.length} players</div>
-        <button onClick={()=>startEdit(-1)} style={{padding:"7px 16px",background:"#2d6a4f",border:"none",borderRadius:8,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>+ Add Player</button>
+        <button onClick={()=>{ setEditId(-1); setEditForm({number:"",name:""}); }} style={{padding:"7px 16px",background:"#2d6a4f",border:"none",borderRadius:8,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>+ Add Player</button>
       </div>
 
-      {editIdx !== null && (
+      {editId !== null && (
         <div style={{background:"#f0fff4",border:"1px solid rgba(22,163,74,0.2)",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
-          <div style={{fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase",fontSize:14,color:"#2d6a4f",marginBottom:10}}>{editIdx===-1?"Add Player":"Edit Player"}</div>
+          <div style={{fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase",fontSize:14,color:"#2d6a4f",marginBottom:10}}>{editId===-1?"Add Player":"Edit Player"}</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
             <input value={editForm.number} onChange={e=>setEditForm(f=>({...f,number:e.target.value}))}
               placeholder="#" style={{width:60,padding:"8px 10px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontSize:15}} />
             <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))}
               placeholder="Player name" style={{flex:1,minWidth:160,padding:"8px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontSize:15}} />
-            <button onClick={savePlayer} style={{padding:"8px 16px",background:"#16a34a",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>Save</button>
-            <button onClick={cancelEdit} style={{padding:"8px 16px",background:"rgba(0,0,0,0.1)",border:"none",borderRadius:6,fontWeight:700,cursor:"pointer"}}>Cancel</button>
+            <button onClick={savePlayer} disabled={saving} style={{padding:"8px 16px",background:"#16a34a",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer",opacity:saving?.6:1}}>
+              {saving?"Saving…":"Save"}
+            </button>
+            <button onClick={cancelEdit} disabled={saving} style={{padding:"8px 16px",background:"rgba(0,0,0,0.1)",border:"none",borderRadius:6,fontWeight:700,cursor:"pointer"}}>Cancel</button>
           </div>
         </div>
       )}
@@ -2749,11 +2782,11 @@ function CaptainRosterEditor({ teamName }) {
         <div style={{textAlign:"center",padding:"24px",color:"rgba(0,0,0,0.4)",fontStyle:"italic"}}>No players yet — click "+ Add Player" to add your first.</div>
       ) : (
         players.map((p,i) => (
-          <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid rgba(0,0,0,0.06)",background:i%2===0?"#fff":"#fafafa"}}>
+          <div key={p.id ?? i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid rgba(0,0,0,0.06)",background:i%2===0?"#fff":"#fafafa"}}>
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,color:"rgba(0,0,0,0.3)",width:28,textAlign:"right",flexShrink:0}}>#{p.number||"—"}</span>
             <span style={{flex:1,fontWeight:600}}>{p.name}</span>
             <button onClick={()=>startEdit(i)} style={{padding:"3px 10px",background:"rgba(0,45,110,0.08)",border:"none",borderRadius:4,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>Edit</button>
-            <button onClick={()=>deletePlayer(i)} style={{padding:"3px 10px",background:"rgba(220,38,38,0.08)",border:"none",borderRadius:4,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
+            <button onClick={()=>deletePlayer(i)} disabled={saving} style={{padding:"3px 10px",background:"rgba(220,38,38,0.08)",border:"none",borderRadius:4,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
           </div>
         ))
       )}
@@ -4974,34 +5007,88 @@ function AdminFieldsEditor({ onBack }) {
 
 /* ─── ADMIN ROSTERS EDITOR ───────────────────────────────────────────────── */
 function AdminRostersEditor({ onBack }) {
-  const [rosters, setRosters] = useState(() => getEffectiveRosters());
-  const [editTeam, setEditTeam] = useState(Object.keys(getEffectiveRosters())[0] || "");
-  const [editIdx, setEditIdx] = useState(null);
+  const teamKeys = Object.keys(TEAM_ROSTERS);
+  const [rosters, setRosters] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [editTeam, setEditTeam] = useState(teamKeys[0] || "");
+  const [editId, setEditId] = useState(null); // Supabase id of the player being edited, or -1 for new
   const [editForm, setEditForm] = useState({number:"",name:""});
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Load all players from Supabase on mount
+  useEffect(() => {
+    setLoading(true);
+    sbFetch("lbdc_rosters?select=*&order=team.asc,id.asc")
+      .then(rows => {
+        // Build rosters object keyed by team; start from hardcoded keys so all teams show
+        const built = {};
+        teamKeys.forEach(t => { built[t] = []; });
+        (rows || []).forEach(r => {
+          if (!built[r.team]) built[r.team] = [];
+          built[r.team].push({id: r.id, number: r.number || "", name: r.name || ""});
+        });
+        setRosters(built);
+        setLoading(false);
+      })
+      .catch(() => {
+        // Fall back to hardcoded on error
+        setRosters(getEffectiveRosters());
+        setError("Could not load rosters from server. Showing local fallback.");
+        setLoading(false);
+      });
+  }, []);
 
   const teamPlayers = rosters[editTeam] || [];
 
-  const saveAll = () => { saveStoredRosters(rosters); setSaved(true); setTimeout(()=>setSaved(false), 2000); };
-  const startEdit = (idx) => { const p = teamPlayers[idx]; setEditIdx(idx); setEditForm({number:p.number||"",name:p.name||""}); };
-  const startNew = () => { setEditIdx(-1); setEditForm({number:"",name:""}); };
-  const cancelEdit = () => { setEditIdx(null); setEditForm({number:"",name:""}); };
+  const startEdit = (idx) => {
+    const p = teamPlayers[idx];
+    setEditId(p.id);
+    setEditForm({number: p.number || "", name: p.name || ""});
+  };
+  const startNew = () => { setEditId(-1); setEditForm({number:"",name:""}); };
+  const cancelEdit = () => { setEditId(null); setEditForm({number:"",name:""}); };
 
-  const savePlayer = () => {
+  const savePlayer = async () => {
     if (!editForm.name.trim()) return;
-    const newRosters = {...rosters};
-    const players = [...(newRosters[editTeam]||[])];
-    if (editIdx === -1) { players.push({number:editForm.number.trim(),name:editForm.name.trim()}); }
-    else { players[editIdx] = {number:editForm.number.trim(),name:editForm.name.trim()}; }
-    newRosters[editTeam] = players;
-    setRosters(newRosters); saveStoredRosters(newRosters); cancelEdit();
+    setSaving(true);
+    setError("");
+    try {
+      if (editId === -1) {
+        // New player
+        const rows = await sbPost("lbdc_rosters", {team: editTeam, number: editForm.number.trim(), name: editForm.name.trim()});
+        const newPlayer = {id: rows[0].id, number: editForm.number.trim(), name: editForm.name.trim()};
+        setRosters(r => ({...r, [editTeam]: [...(r[editTeam]||[]), newPlayer]}));
+      } else {
+        // Update existing
+        await sbPatch(`lbdc_rosters?id=eq.${editId}`, {number: editForm.number.trim(), name: editForm.name.trim()});
+        setRosters(r => ({
+          ...r,
+          [editTeam]: (r[editTeam]||[]).map(p => p.id === editId ? {...p, number: editForm.number.trim(), name: editForm.name.trim()} : p)
+        }));
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      cancelEdit();
+    } catch(e) {
+      setError("Failed to save player. Please try again.");
+    }
+    setSaving(false);
   };
 
-  const deletePlayer = (idx) => {
-    if (!window.confirm(`Remove ${teamPlayers[idx]?.name}?`)) return;
-    const newRosters = {...rosters};
-    newRosters[editTeam] = (newRosters[editTeam]||[]).filter((_,i)=>i!==idx);
-    setRosters(newRosters); saveStoredRosters(newRosters);
+  const deletePlayer = async (idx) => {
+    const p = teamPlayers[idx];
+    if (!window.confirm(`Remove ${p?.name}?`)) return;
+    setSaving(true);
+    setError("");
+    try {
+      await sbDelete(`lbdc_rosters?id=eq.${p.id}`);
+      setRosters(r => ({...r, [editTeam]: (r[editTeam]||[]).filter((_,i)=>i!==idx)}));
+    } catch(e) {
+      setError("Failed to delete player. Please try again.");
+    }
+    setSaving(false);
   };
 
   const movePlayer = (idx, dir) => {
@@ -5009,8 +5096,7 @@ function AdminRostersEditor({ onBack }) {
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= players.length) return;
     [players[idx], players[newIdx]] = [players[newIdx], players[idx]];
-    const newRosters = {...rosters, [editTeam]: players};
-    setRosters(newRosters); saveStoredRosters(newRosters);
+    setRosters(r => ({...r, [editTeam]: players}));
   };
 
   return (
@@ -5022,62 +5108,70 @@ function AdminRostersEditor({ onBack }) {
         </div>
       </div>
       <div style={{maxWidth:1000,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 60px"}}>
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"12px 14px",marginBottom:20,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
-          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",marginRight:4}}>Team:</span>
-          {Object.keys(rosters).map(t => (
-            <button key={t} onClick={()=>{setEditTeam(t);setEditIdx(null);}}
-              style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${editTeam===t?"#002d6e":"rgba(0,0,0,0.15)"}`,background:editTeam===t?"#002d6e":"#fff",color:editTeam===t?"#fff":"#333",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all .15s"}}>
-              {t}
-            </button>
-          ))}
-        </div>
-        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,overflow:"hidden"}}>
-          <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase"}}>{editTeam} — {teamPlayers.length} players</div>
-            <button onClick={startNew} style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Player</button>
-          </div>
-          {editIdx !== null && (
-            <div style={{padding:"16px 20px",background:"#f0f4ff",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12,color:"#002d6e"}}>{editIdx===-1?"Add New Player":"Edit Player"}</div>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
-                <div>
-                  <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",marginBottom:4}}>Jersey #</div>
-                  <input value={editForm.number} onChange={e=>setEditForm(f=>({...f,number:e.target.value}))} placeholder="#" style={{width:70,padding:"9px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:15,outline:"none"}} />
-                </div>
-                <div style={{flex:1,minWidth:200}}>
-                  <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",marginBottom:4}}>Player Name *</div>
-                  <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} placeholder="First Last" style={{width:"100%",padding:"9px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:15,outline:"none",boxSizing:"border-box"}} />
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={savePlayer} style={{padding:"9px 20px",background:"#16a34a",border:"none",borderRadius:8,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>Save</button>
-                  <button onClick={cancelEdit} style={{padding:"9px 20px",background:"rgba(0,0,0,0.1)",border:"none",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer"}}>Cancel</button>
-                </div>
-              </div>
-            </div>
-          )}
-          {teamPlayers.length === 0 ? (
-            <div style={{padding:"32px",textAlign:"center",color:"rgba(0,0,0,0.4)",fontStyle:"italic"}}>No players yet. Click "+ Add Player" to get started.</div>
-          ) : (
-            <div>
-              {teamPlayers.map((p,i) => (
-                <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:editIdx===i?"#f0f4ff":"transparent",flexWrap:"wrap"}}>
-                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"rgba(0,0,0,0.3)",width:28,textAlign:"right",flexShrink:0}}>#{p.number||"—"}</span>
-                  <span style={{flex:1,minWidth:120,fontWeight:600,fontSize:15}}>{p.name}</span>
-                  <div style={{display:"flex",gap:5,flexShrink:0,flexWrap:"wrap"}}>
-                    <button onClick={()=>movePlayer(i,-1)} disabled={i===0} style={{padding:"6px 10px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:i===0?"not-allowed":"pointer",opacity:i===0?.3:1,fontSize:14}}>↑</button>
-                    <button onClick={()=>movePlayer(i,1)} disabled={i===teamPlayers.length-1} style={{padding:"6px 10px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:i===teamPlayers.length-1?"not-allowed":"pointer",opacity:i===teamPlayers.length-1?.3:1,fontSize:14}}>↓</button>
-                    <button onClick={()=>startEdit(i)} style={{padding:"6px 14px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Edit</button>
-                    <button onClick={()=>deletePlayer(i)} style={{padding:"6px 14px",background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:13,cursor:"pointer"}}>✕</button>
-                  </div>
-                </div>
+        {error && <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:8,padding:"10px 16px",marginBottom:16,color:"#dc2626",fontWeight:600,fontSize:13}}>{error}</div>}
+        {loading ? (
+          <div style={{textAlign:"center",padding:"48px",color:"rgba(0,0,0,0.4)",fontSize:15}}>Loading rosters…</div>
+        ) : (
+          <>
+            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"12px 14px",marginBottom:20,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",marginRight:4}}>Team:</span>
+              {Object.keys(rosters).map(t => (
+                <button key={t} onClick={()=>{setEditTeam(t);setEditId(null);}}
+                  style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${editTeam===t?"#002d6e":"rgba(0,0,0,0.15)"}`,background:editTeam===t?"#002d6e":"#fff",color:editTeam===t?"#fff":"#333",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all .15s"}}>
+                  {t}
+                </button>
               ))}
             </div>
-          )}
-          <div style={{padding:"14px 20px",borderTop:"1px solid rgba(0,0,0,0.07)",display:"flex",justifyContent:"flex-end"}}>
-            {saved && <span style={{color:"#16a34a",fontWeight:700,fontSize:13,marginRight:12}}>✓ Saved!</span>}
-            <button onClick={saveAll} style={{padding:"9px 24px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"}}>Save Roster</button>
-          </div>
-        </div>
+            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase"}}>{editTeam} — {teamPlayers.length} players</div>
+                <button onClick={startNew} style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Player</button>
+              </div>
+              {editId !== null && (
+                <div style={{padding:"16px 20px",background:"#f0f4ff",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12,color:"#002d6e"}}>{editId===-1?"Add New Player":"Edit Player"}</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+                    <div>
+                      <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",marginBottom:4}}>Jersey #</div>
+                      <input value={editForm.number} onChange={e=>setEditForm(f=>({...f,number:e.target.value}))} placeholder="#" style={{width:70,padding:"9px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:15,outline:"none"}} />
+                    </div>
+                    <div style={{flex:1,minWidth:200}}>
+                      <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",marginBottom:4}}>Player Name *</div>
+                      <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} placeholder="First Last" style={{width:"100%",padding:"9px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:15,outline:"none",boxSizing:"border-box"}} />
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={savePlayer} disabled={saving} style={{padding:"9px 20px",background:"#16a34a",border:"none",borderRadius:8,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",opacity:saving?.6:1}}>
+                        {saving?"Saving…":"Save"}
+                      </button>
+                      <button onClick={cancelEdit} disabled={saving} style={{padding:"9px 20px",background:"rgba(0,0,0,0.1)",border:"none",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer"}}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {teamPlayers.length === 0 ? (
+                <div style={{padding:"32px",textAlign:"center",color:"rgba(0,0,0,0.4)",fontStyle:"italic"}}>No players yet. Click "+ Add Player" to get started.</div>
+              ) : (
+                <div>
+                  {teamPlayers.map((p,i) => (
+                    <div key={p.id ?? i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:editId===p.id?"#f0f4ff":"transparent",flexWrap:"wrap"}}>
+                      <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"rgba(0,0,0,0.3)",width:28,textAlign:"right",flexShrink:0}}>#{p.number||"—"}</span>
+                      <span style={{flex:1,minWidth:120,fontWeight:600,fontSize:15}}>{p.name}</span>
+                      <div style={{display:"flex",gap:5,flexShrink:0,flexWrap:"wrap"}}>
+                        <button onClick={()=>movePlayer(i,-1)} disabled={i===0} style={{padding:"6px 10px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:i===0?"not-allowed":"pointer",opacity:i===0?.3:1,fontSize:14}}>↑</button>
+                        <button onClick={()=>movePlayer(i,1)} disabled={i===teamPlayers.length-1} style={{padding:"6px 10px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:i===teamPlayers.length-1?"not-allowed":"pointer",opacity:i===teamPlayers.length-1?.3:1,fontSize:14}}>↓</button>
+                        <button onClick={()=>startEdit(i)} style={{padding:"6px 14px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Edit</button>
+                        <button onClick={()=>deletePlayer(i)} disabled={saving} style={{padding:"6px 14px",background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:13,cursor:"pointer"}}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{padding:"14px 20px",borderTop:"1px solid rgba(0,0,0,0.07)",display:"flex",justifyContent:"flex-end"}}>
+                {saved && <span style={{color:"#16a34a",fontWeight:700,fontSize:13,marginRight:12}}>✓ Saved!</span>}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
