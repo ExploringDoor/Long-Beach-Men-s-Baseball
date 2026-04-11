@@ -5328,6 +5328,90 @@ function AdminSignupsViewer({ onBack }) {
   );
 }
 
+/* ─── LOCAL STORAGE MIGRATION HELPER ─────────────────────────────────────── */
+function LocalStorageMigrationButton() {
+  const [status, setStatus] = useState(null); // null | "checking" | "found" | "migrating" | "done" | "empty"
+  const [found, setFound] = useState([]);
+
+  const check = () => {
+    setStatus("checking");
+    const keys = [
+      {key:"lbdc_rules",      label:"Rules",            table:"lbdc_rules",      id:"main", field:"data"},
+      {key:"lbdc_fields",     label:"Field Directions", table:"lbdc_fields",     id:"main", field:"data"},
+      {key:"lbdc_sponsors",   label:"Sponsors",         table:"lbdc_sponsors",   id:"main", field:"data"},
+      {key:"lbdc_full_schedule",    label:"Saturday Schedule", table:"lbdc_schedules", id:"sat", field:"data"},
+      {key:"lbdc_boomers_schedule", label:"Boomers Schedule",  table:"lbdc_schedules", id:"bom", field:"data"},
+      {key:"lbdc_alert",      label:"Alert Text",       table:"lbdc_alert",      id:"main", field:"text", raw:true},
+    ];
+    const contentKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("lbdc_content_")) {
+        const id = k.replace("lbdc_content_", "");
+        contentKeys.push({key:k, label:`Page Content (${id})`, table:"lbdc_page_content", id, field:"content", raw:true});
+      }
+    }
+    const all = [...keys, ...contentKeys].filter(({key}) => {
+      const v = localStorage.getItem(key);
+      return v && v !== "null" && v !== "[]" && v !== "{}";
+    });
+    setFound(all);
+    setStatus(all.length > 0 ? "found" : "empty");
+  };
+
+  const migrate = async () => {
+    setStatus("migrating");
+    for (const item of found) {
+      try {
+        const raw = localStorage.getItem(item.key);
+        let val;
+        if (item.raw) { val = raw; }
+        else { try { val = JSON.parse(raw); } catch(e) { val = raw; } }
+        const payload = {id: item.id, [item.field]: val};
+        await sbUpsert(item.table, payload);
+      } catch(e) { /* skip failed items */ }
+    }
+    setStatus("done");
+  };
+
+  if (status === null) return (
+    <button onClick={check} style={{background:"#fff",border:"2px dashed #f59e0b",borderRadius:12,padding:"20px",textAlign:"left",cursor:"pointer",gridColumn:"1/-1"}}>
+      <div style={{fontSize:28,marginBottom:8}}>🔄</div>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#b45309",textTransform:"uppercase",marginBottom:4}}>Recover Old Data</div>
+      <div style={{fontSize:12,color:"rgba(0,0,0,0.45)"}}>If you edited rules, fields, sponsors, or schedule on this device before the update — tap here to migrate that data to the server.</div>
+    </button>
+  );
+
+  if (status === "checking") return (
+    <div style={{background:"#fffbeb",border:"2px dashed #f59e0b",borderRadius:12,padding:"20px",gridColumn:"1/-1",textAlign:"center",color:"#b45309",fontWeight:700}}>Checking for local data…</div>
+  );
+
+  if (status === "empty") return (
+    <div style={{background:"#f0fdf4",border:"2px dashed #16a34a",borderRadius:12,padding:"20px",gridColumn:"1/-1",textAlign:"center",color:"#16a34a",fontWeight:700}}>✅ No old local data found — you're all good!</div>
+  );
+
+  if (status === "done") return (
+    <div style={{background:"#f0fdf4",border:"2px dashed #16a34a",borderRadius:12,padding:"20px",gridColumn:"1/-1",textAlign:"center",color:"#16a34a",fontWeight:700}}>✅ All data migrated to server successfully!</div>
+  );
+
+  if (status === "migrating") return (
+    <div style={{background:"#fffbeb",border:"2px dashed #f59e0b",borderRadius:12,padding:"20px",gridColumn:"1/-1",textAlign:"center",color:"#b45309",fontWeight:700}}>Migrating {found.length} item{found.length!==1?"s":""}…</div>
+  );
+
+  // status === "found"
+  return (
+    <div style={{background:"#fffbeb",border:"2px solid #f59e0b",borderRadius:12,padding:"20px",gridColumn:"1/-1"}}>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#b45309",textTransform:"uppercase",marginBottom:12}}>🔄 Found {found.length} item{found.length!==1?"s":""}  to migrate:</div>
+      <ul style={{margin:"0 0 14px 16px",padding:0,fontSize:13,color:"rgba(0,0,0,0.6)",lineHeight:2}}>
+        {found.map(f => <li key={f.key}>{f.label}</li>)}
+      </ul>
+      <button onClick={migrate} style={{background:"#f59e0b",border:"none",borderRadius:8,padding:"10px 24px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#fff",cursor:"pointer",textTransform:"uppercase"}}>
+        ✅ Migrate All to Server
+      </button>
+    </div>
+  );
+}
+
 function AdminPage({ onAlertChange }) {
   const [screen, setScreen] = useState("login"); // "login" | "admin" | "captain"
   const [pw, setPw] = useState("");
@@ -6156,6 +6240,7 @@ function AdminPage({ onAlertChange }) {
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",textTransform:"uppercase",marginBottom:4}}>Manage Rosters</div>
                   <div style={{fontSize:12,color:"rgba(0,0,0,0.45)"}}>Add, edit, reorder players on any team</div>
                 </button>
+                <LocalStorageMigrationButton />
               </div>
             )}
           </>
