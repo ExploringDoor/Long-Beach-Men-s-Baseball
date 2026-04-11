@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Long Beach Diamond Classics — Captain's Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Open+Sans:wght@400;600;700&display=swap');
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Open Sans',Arial,sans-serif;background:#f0f3f8;color:#1a1a2e;font-size:14px;}
+
+  /* ── COVER ── */
+  .cover{background:linear-gradient(160deg,#001a3e 0%,#002d6e 55%,#0041a0 100%);color:#fff;padding:0;min-height:220px;position:relative;overflow:hidden;page-break-after:always;}
+  .cover-inner{position:relative;z-index:2;padding:44px 48px 40px;}
+  .cover-bg-circle{position:absolute;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,0.04);top:-120px;right:-100px;}
+  .cover-bg-circle2{position:absolute;width:260px;height:260px;border-radius:50%;background:rgba(255,215,0,0.06);bottom:-80px;left:60px;}
+  .cover-badge{display:inline-block;background:#FFD700;color:#001a3e;padding:5px 16px;border-radius:20px;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px;}
+  .cover-league{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:48px;color:#fff;line-height:1;text-transform:uppercase;letter-spacing:1px;}
+  .cover-league span{color:#FFD700;}
+  .cover-title{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;font-size:28px;color:rgba(255,255,255,0.85);margin-top:6px;text-transform:uppercase;letter-spacing:.5px;}
+  .cover-url{margin-top:18px;display:inline-block;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);color:#fff;padding:8px 20px;border-radius:24px;font-size:13px;font-weight:700;letter-spacing:.04em;}
+  .cover-meta{margin-top:14px;font-size:12px;color:rgba(255,255,255,0.45);letter-spacing:.03em;}
+
+  /* ── WRAP ── */
+  .wrap{max-width:800px;margin:0 auto;padding:0 32px 60px;}
+
+  /* ── TOC ── */
+  .toc{background:#fff;border-radius:14px;padding:28px 32px;margin:32px 0 24px;box-shadow:0 2px 12px rgba(0,0,0,0.08);border-top:4px solid #002d6e;}
+  .toc-title{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:20px;text-transform:uppercase;color:#002d6e;margin-bottom:16px;letter-spacing:.04em;}
+  .toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;}
+  .toc-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;}
+  .toc-item:last-child,.toc-item:nth-last-child(2){border-bottom:none;}
+  .toc-num{width:28px;height:28px;border-radius:50%;background:#002d6e;color:#FFD700;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .toc-label{font-size:13px;font-weight:600;color:#222;}
+
+  /* ── SECTION ── */
+  .section{background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 3px 16px rgba(0,0,0,0.09);margin-bottom:28px;page-break-inside:avoid;}
+  .section-header{padding:20px 28px;display:flex;align-items:center;gap:16px;}
+  .s-num{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:26px;color:#fff;flex-shrink:0;}
+  .s-titles{}
+  .s-title{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:24px;text-transform:uppercase;letter-spacing:.4px;line-height:1.1;}
+  .s-sub{font-size:12px;color:rgba(255,255,255,0.65);margin-top:3px;font-weight:600;}
+  .section-body{padding:8px 28px 28px;}
+
+  /* step */
+  .step{display:flex;gap:14px;padding-top:16px;margin-bottom:4px;align-items:flex-start;}
+  .step:first-child{padding-top:8px;}
+  .step + .step{border-top:1px solid #f2f2f2;}
+  .step-circle{width:30px;height:30px;border-radius:50%;background:#002d6e;color:#FFD700;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;}
+  .step-text h4{font-size:14px;font-weight:700;margin-bottom:4px;color:#111;}
+  .step-text p{font-size:13px;line-height:1.7;color:#444;}
+  .step-text p b,.step-text p strong{color:#002d6e;}
+  .step-text .note{font-size:12px;color:#666;margin-top:4px;font-style:italic;}
+
+  /* callout boxes */
+  .callout{border-radius:10px;padding:14px 18px;margin:14px 0;font-size:13px;line-height:1.65;}
+  .callout b{display:block;font-size:13px;font-weight:700;margin-bottom:3px;}
+  .callout-blue{background:#e8f0fe;border-left:4px solid #002d6e;}
+  .callout-blue b{color:#002d6e;}
+  .callout-green{background:#e8f5e9;border-left:4px solid #2d6a4f;}
+  .callout-green b{color:#2d6a4f;}
+  .callout-yellow{background:#fffde7;border-left:4px solid #f59e0b;}
+  .callout-yellow b{color:#92400e;}
+  .callout-red{background:#fef2f2;border-left:4px solid #dc2626;}
+  .callout-red b{color:#b91c1c;}
+
+  /* MOCKUP SCREENS */
+  .mockup{border-radius:12px;overflow:hidden;margin:18px 0;box-shadow:0 4px 20px rgba(0,0,0,0.15);border:1px solid rgba(0,0,0,0.08);}
+  .mockup-bar{background:#e5e7eb;padding:8px 14px;display:flex;align-items:center;gap:8px;}
+  .mockup-dot{width:11px;height:11px;border-radius:50%;}
+  .mockup-url{flex:1;background:#fff;border-radius:20px;padding:3px 14px;font-size:11px;color:#555;margin:0 10px;}
+  .mockup-body{background:#f2f4f8;}
+
+  /* Login screen mockup */
+  .m-login{background:#f2f4f8;padding:32px 20px;display:flex;justify-content:center;}
+  .m-login-card{background:#fff;border-radius:12px;overflow:hidden;width:320px;box-shadow:0 4px 20px rgba(0,0,0,0.12);}
+  .m-login-header{background:#001a3e;padding:16px 20px;display:flex;align-items:center;gap:10px;}
+  .m-lh-icon{font-size:24px;}
+  .m-lh-title{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:17px;color:#FFD700;text-transform:uppercase;}
+  .m-lh-sub{font-size:10px;color:rgba(255,255,255,0.4);}
+  .m-login-body{padding:20px;}
+  .m-section-label{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:13px;text-transform:uppercase;color:#111;padding-bottom:7px;border-bottom:2px solid #002d6e;margin-bottom:12px;}
+  .m-section-label-green{border-bottom-color:#2d6a4f;}
+  .m-input{width:100%;padding:8px 12px;border-radius:7px;border:1px solid rgba(0,0,0,0.15);font-size:13px;background:#f8f9fb;color:#666;margin-bottom:8px;}
+  .m-btn{width:100%;padding:9px;border-radius:7px;border:none;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;text-align:center;margin-bottom:16px;}
+  .m-btn-blue{background:#002d6e;color:#fff;}
+  .m-btn-green{background:#2d6a4f;color:#fff;}
+  .m-select{width:100%;padding:8px 12px;border-radius:7px;border:1px solid rgba(0,0,0,0.15);font-size:13px;background:#f8f9fb;color:#333;margin-bottom:10px;}
+  .m-hint{font-size:11px;color:rgba(0,0,0,0.45);margin-bottom:8px;}
+
+  /* Captain menu mockup */
+  .m-captain-portal{background:#f2f4f8;padding:0;}
+  .m-cp-header{background:#2d6a4f;padding:14px 18px;display:flex;align-items:center;gap:10px;}
+  .m-cp-title{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;color:#FFD700;text-transform:uppercase;}
+  .m-cp-sub{font-size:10px;color:rgba(255,255,255,0.45);}
+  .m-cp-body{padding:20px;display:flex;flex-direction:column;gap:12px;}
+  .m-cp-btn{border-radius:12px;padding:18px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;}
+  .m-cp-btn-icon{font-size:28px;flex-shrink:0;}
+  .m-cp-btn-title{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:17px;text-transform:uppercase;margin-bottom:2px;}
+  .m-cp-btn-sub{font-size:11px;opacity:.6;}
+
+  /* Box score mockup */
+  .m-bs{background:#f2f4f8;padding:0;}
+  .m-bs-header{background:#fff;padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:8px;}
+  .m-bs-back{padding:4px 10px;background:rgba(0,0,0,0.07);border-radius:5px;font-size:11px;font-weight:700;color:#333;}
+  .m-bs-title{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;}
+  .m-bs-body{padding:16px;}
+  .m-field-label{font-size:11px;font-weight:700;text-transform:uppercase;color:rgba(0,0,0,0.45);letter-spacing:.04em;margin-bottom:4px;}
+  .m-field{background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:7px;padding:8px 12px;font-size:13px;color:#333;margin-bottom:12px;width:100%;}
+  .m-score-row{display:flex;gap:8px;margin-bottom:12px;}
+  .m-score-col{flex:1;}
+  .m-score-box{background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:7px;padding:6px 10px;text-align:center;font-size:20px;font-weight:700;color:#002d6e;}
+  .m-player-row{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #f0f0f0;}
+  .m-pr-name{flex:1;font-size:12px;font-weight:600;}
+  .m-pr-stat{width:32px;text-align:center;font-size:11px;color:#666;background:#f5f5f5;border-radius:4px;padding:3px 0;}
+
+  /* Roster mockup */
+  .m-roster-body{padding:16px;}
+  .m-roster-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border-radius:6px;margin-bottom:6px;border:1px solid rgba(0,0,0,0.07);}
+  .m-roster-num{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;font-size:12px;color:rgba(0,0,0,0.3);width:24px;text-align:right;}
+  .m-roster-name{flex:1;font-size:13px;font-weight:600;}
+  .m-roster-edit{padding:3px 9px;background:rgba(0,45,110,0.08);border-radius:4px;font-size:11px;font-weight:700;color:#002d6e;}
+  .m-roster-del{padding:3px 9px;background:rgba(220,38,38,0.08);border-radius:4px;font-size:11px;font-weight:700;color:#dc2626;}
+
+  /* Nav mockup */
+  .m-nav{background:#001a3e;padding:0 8px;display:flex;align-items:stretch;gap:2px;}
+  .m-nav-item{padding:10px 14px;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;color:rgba(255,255,255,0.55);letter-spacing:.04em;}
+  .m-nav-item.active{color:#FFD700;border-bottom:3px solid #FFD700;}
+
+  /* Schedule mockup */
+  .m-sched-body{padding:16px;}
+  .m-game-card{background:#fff;border-radius:8px;padding:12px 14px;margin-bottom:10px;border:1px solid rgba(0,0,0,0.07);display:flex;align-items:center;gap:12px;}
+  .m-game-date{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:12px;color:rgba(0,0,0,0.35);text-transform:uppercase;text-align:center;width:44px;}
+  .m-game-teams{flex:1;}
+  .m-game-team{font-size:13px;font-weight:700;color:#111;}
+  .m-game-vs{font-size:11px;color:rgba(0,0,0,0.4);margin:1px 0;}
+  .m-game-time{font-size:12px;color:#002d6e;font-weight:600;text-align:right;}
+  .m-game-cal{background:#002d6e;color:#FFD700;border-radius:6px;padding:5px 10px;font-size:10px;font-weight:700;text-align:center;margin-top:3px;}
+
+  /* Scores mockup */
+  .m-score-card{background:#fff;border-radius:8px;padding:12px 14px;margin-bottom:10px;border:1px solid rgba(0,0,0,0.07);}
+  .m-sc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .m-sc-date{font-size:11px;color:rgba(0,0,0,0.4);font-weight:600;}
+  .m-sc-final{font-size:11px;color:#16a34a;font-weight:700;}
+  .m-sc-team{display:flex;justify-content:space-between;align-items:center;padding:4px 0;}
+  .m-sc-name{font-size:13px;font-weight:600;}
+  .m-sc-name.winner{color:#002d6e;font-weight:700;}
+  .m-sc-score{font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:18px;color:#111;}
+  .m-sc-score.winner{color:#002d6e;}
+
+  /* Annotation callout */
+  .annotate{display:flex;align-items:flex-start;gap:10px;background:#fffde7;border:1px dashed #f59e0b;border-radius:8px;padding:10px 14px;margin:10px 0;font-size:12px;line-height:1.6;color:#78350f;}
+  .annotate-arrow{font-size:18px;flex-shrink:0;margin-top:-2px;}
+
+  /* Quick ref table */
+  .ref-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .ref-table th{background:#002d6e;color:#FFD700;padding:9px 14px;text-align:left;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.04em;}
+  .ref-table td{padding:8px 14px;border-bottom:1px solid #f0f0f0;vertical-align:top;}
+  .ref-table tr:nth-child(even) td{background:#f8faff;}
+  .ref-table tr:last-child td{border-bottom:none;}
+  .ref-table td:first-child{font-weight:700;color:#002d6e;white-space:nowrap;}
+
+  /* Calendar links */
+  .cal-row{background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:8px;border:1px solid rgba(0,0,0,0.07);display:flex;align-items:center;gap:10px;font-size:13px;}
+  .cal-icon{font-size:20px;flex-shrink:0;}
+  .cal-name{font-weight:700;flex:1;color:#111;}
+  .cal-badge{font-size:11px;color:#fff;border-radius:12px;padding:3px 10px;font-weight:700;}
+  .cal-badge-google{background:#4285f4;}
+  .cal-badge-apple{background:#555;}
+
+  /* divider */
+  .divider{height:1px;background:linear-gradient(90deg,rgba(0,45,110,0.15),transparent);margin:24px 0 20px;}
+
+  /* footer */
+  .footer{text-align:center;padding:24px 0 8px;color:rgba(0,0,0,0.3);font-size:11px;}
+
+  /* Print */
+  @media print {
+    body{background:#fff;}
+    .wrap{padding:0 0 40px;}
+    .section{box-shadow:none;border:1px solid #e0e0e0;margin-bottom:20px;}
+    .toc{box-shadow:none;border:1px solid #e0e0e0;}
+    .cover{page-break-after:always;}
+    .section{page-break-inside:avoid;}
+    @page{margin:18mm 15mm 18mm 15mm;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     COVER
+═══════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-bg-circle"></div>
+  <div class="cover-bg-circle2"></div>
+  <div class="cover-inner">
+    <div class="cover-badge">⚾ Official Captain Resource</div>
+    <div class="cover-league">Long Beach <span>Diamond</span> Classics</div>
+    <div class="cover-title">Team Captain's Guide</div>
+    <div class="cover-url">lbdc.vercel.app</div>
+    <div class="cover-meta">Spring/Summer 2026 Season &nbsp;·&nbsp; Admin &amp; Captain Portal Reference</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     CONTENTS
+═══════════════════════════════════════════════════════ -->
+<div class="wrap">
+  <div class="toc">
+    <div class="toc-title">Table of Contents</div>
+    <div class="toc-grid">
+      <div class="toc-item">
+        <div class="toc-num">1</div>
+        <div class="toc-label">How to Log In (Captain Portal)</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">2</div>
+        <div class="toc-label">How to Submit a Box Score</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">3</div>
+        <div class="toc-label">Adding a Player to Your Lineup</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">4</div>
+        <div class="toc-label">Managing Your Roster</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">5</div>
+        <div class="toc-label">Using the Website</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">6</div>
+        <div class="toc-label">Adding the Schedule to Your Phone Calendar</div>
+      </div>
+    </div>
+  </div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 1 — LOG IN
+═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" style="background:linear-gradient(135deg,#001a3e,#002d6e);">
+    <div class="s-num" style="background:rgba(255,215,0,0.2);color:#FFD700;">1</div>
+    <div class="s-titles">
+      <div class="s-title" style="color:#fff;">How to Log In</div>
+      <div class="s-sub">Captain Portal · No password required</div>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <div class="step">
+      <div class="step-circle">1</div>
+      <div class="step-text">
+        <h4>Go to the website</h4>
+        <p>Open your browser (Safari, Chrome, etc.) and go to <strong>lbdc.vercel.app</strong></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">2</div>
+      <div class="step-text">
+        <h4>Tap the "Admin" tab in the top navigation</h4>
+        <p>The navigation bar at the top of the page has tabs: Home, Schedule, Scores, Standings, and <strong>Admin</strong>. Tap or click <strong>Admin</strong>.</p>
+      </div>
+    </div>
+
+    <!-- Nav mockup -->
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57;"></div>
+        <div class="mockup-dot" style="background:#ffbd2e;"></div>
+        <div class="mockup-dot" style="background:#28c940;"></div>
+        <div class="mockup-url">lbdc.vercel.app</div>
+      </div>
+      <div style="background:#001a3e;">
+        <div class="m-nav">
+          <div class="m-nav-item">Home</div>
+          <div class="m-nav-item">Schedule</div>
+          <div class="m-nav-item">Scores</div>
+          <div class="m-nav-item">Standings</div>
+          <div class="m-nav-item active">Admin</div>
+        </div>
+      </div>
+    </div>
+    <div class="annotate"><div class="annotate-arrow">☝️</div>Tap the <strong>Admin</strong> tab — it's the last item in the navigation bar. This opens the portal login page.</div>
+
+    <div class="step">
+      <div class="step-circle">3</div>
+      <div class="step-text">
+        <h4>Find the "Captain Login" section (lower half of the page)</h4>
+        <p>The login page has two sections: an <strong>Admin Login</strong> at the top (for the commissioner only — requires a password) and a <strong>Captain Login</strong> below it. You want the Captain section.</p>
+      </div>
+    </div>
+
+    <!-- Login screen mockup -->
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57;"></div>
+        <div class="mockup-dot" style="background:#ffbd2e;"></div>
+        <div class="mockup-dot" style="background:#28c940;"></div>
+        <div class="mockup-url">lbdc.vercel.app</div>
+      </div>
+      <div class="m-login">
+        <div class="m-login-card">
+          <div class="m-login-header">
+            <div class="m-lh-icon">⚾</div>
+            <div>
+              <div class="m-lh-title">LBDC Portal</div>
+              <div class="m-lh-sub">League management</div>
+            </div>
+          </div>
+          <div class="m-login-body">
+            <div class="m-section-label">🔐 Admin Login</div>
+            <div class="m-input" style="color:#aaa;">Admin password</div>
+            <div class="m-btn m-btn-blue" style="margin-bottom:20px;">Log In as Admin</div>
+            <div class="m-section-label m-section-label-green" style="border-bottom-color:#2d6a4f;">⚾ Captain Login</div>
+            <div class="m-hint">Select your team to enter today's box score:</div>
+            <div class="m-select">Brooklyn ▼</div>
+            <div class="m-btn m-btn-green">Log In as Brooklyn</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">4</div>
+      <div class="step-text">
+        <h4>Select your team from the dropdown</h4>
+        <p>Tap the dropdown menu that reads <strong>"— Select your team —"</strong> and choose your team name from the list.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">5</div>
+      <div class="step-text">
+        <h4>Tap "Log In as [Team Name]"</h4>
+        <p>Once your team is selected, the green button will show your team name. Tap it to log in — <strong>no password is required</strong> for captains.</p>
+        <p class="note">You'll land on the Captain Portal menu with options for Score Live, Submit Box Score, Manage Roster, and Captain Instructions.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-green">
+      <b>No password needed for captains!</b>
+      Captains log in simply by selecting their team. Only the league administrator needs a password.
+    </div>
+
+    <!-- Captain Portal menu mockup -->
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57;"></div>
+        <div class="mockup-dot" style="background:#ffbd2e;"></div>
+        <div class="mockup-dot" style="background:#28c940;"></div>
+        <div class="mockup-url">lbdc.vercel.app</div>
+      </div>
+      <div class="m-captain-portal">
+        <div class="m-cp-header">
+          <div style="font-size:22px;">⚾</div>
+          <div>
+            <div class="m-cp-title">Captain Portal — Brooklyn</div>
+            <div class="m-cp-sub">Logged in as Brooklyn captain</div>
+          </div>
+          <div style="margin-left:auto;font-size:11px;color:rgba(255,255,255,0.5);padding:4px 10px;background:rgba(255,255,255,0.1);border-radius:5px;">Log out</div>
+        </div>
+        <div class="m-cp-body">
+          <div class="m-cp-btn" style="background:#002d6e;">
+            <div class="m-cp-btn-icon">⚡</div>
+            <div>
+              <div class="m-cp-btn-title" style="color:#FFD700;">Score Live</div>
+              <div class="m-cp-btn-sub" style="color:rgba(255,255,255,0.6);">Score pitch-by-pitch in real time</div>
+            </div>
+          </div>
+          <div class="m-cp-btn" style="background:#374151;">
+            <div class="m-cp-btn-icon">📋</div>
+            <div>
+              <div class="m-cp-btn-title" style="color:#fff;">Submit Box Score</div>
+              <div class="m-cp-btn-sub" style="color:rgba(255,255,255,0.5);">Enter final stats after the game</div>
+            </div>
+          </div>
+          <div class="m-cp-btn" style="background:#1a4332;">
+            <div class="m-cp-btn-icon">👥</div>
+            <div>
+              <div class="m-cp-btn-title" style="color:#fff;">Manage Roster</div>
+              <div class="m-cp-btn-sub" style="color:rgba(255,255,255,0.5);">Add, edit, or remove players</div>
+            </div>
+          </div>
+          <div class="m-cp-btn" style="background:#7c3aed;">
+            <div class="m-cp-btn-icon">📖</div>
+            <div>
+              <div class="m-cp-btn-title" style="color:#fff;">Captain Instructions</div>
+              <div class="m-cp-btn-sub" style="color:rgba(255,255,255,0.6);">How to submit scores and use the site</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annotate"><div class="annotate-arrow">☝️</div>After logging in you'll see the <strong>Captain Portal menu</strong> with four options. "Score Live" is for real-time in-game scoring. "Submit Box Score" is for entering stats after the game.</div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 2 — SUBMIT BOX SCORE
+═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" style="background:linear-gradient(135deg,#2a2f3d,#374151);">
+    <div class="s-num" style="background:rgba(255,255,255,0.12);color:#fff;">2</div>
+    <div class="s-titles">
+      <div class="s-title" style="color:#fff;">How to Submit a Box Score</div>
+      <div class="s-sub">Enter game stats within 24 hours of the final out</div>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <div class="callout callout-yellow">
+      <b>When to submit</b>
+      Box scores should be submitted within <strong>24 hours</strong> of the game ending. Stats appear on the site immediately after submission.
+    </div>
+
+    <div class="step">
+      <div class="step-circle">1</div>
+      <div class="step-text">
+        <h4>Log in to the Captain Portal</h4>
+        <p>Follow Section 1 above. From the Captain Portal menu, tap <strong>Submit Box Score</strong> (the gray card with 📋).</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">2</div>
+      <div class="step-text">
+        <h4>Select the game from the dropdown</h4>
+        <p>A dropdown will show today's scheduled games for your team. Select the game you just played. The opponent, date, and field should pre-fill automatically.</p>
+        <p class="note">If you don't see your game listed, it may not be scheduled yet — contact the commissioner.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">3</div>
+      <div class="step-text">
+        <h4>Enter the final score</h4>
+        <p>Type the <strong>runs scored by each team</strong> in the score fields. Double-check that you have the home and away teams correct before continuing.</p>
+      </div>
+    </div>
+
+    <!-- Box score form mockup -->
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57;"></div>
+        <div class="mockup-dot" style="background:#ffbd2e;"></div>
+        <div class="mockup-dot" style="background:#28c940;"></div>
+        <div class="mockup-url">lbdc.vercel.app</div>
+      </div>
+      <div class="m-bs">
+        <div class="m-bs-header">
+          <div class="m-bs-back">← Back</div>
+          <div class="m-bs-title">📋 Submit Box Score</div>
+        </div>
+        <div class="m-bs-body">
+          <div class="m-field-label">Game</div>
+          <div class="m-field" style="color:#002d6e;font-weight:600;">Brooklyn vs. Tribe — Apr 12, 2026 ▼</div>
+
+          <div class="m-score-row">
+            <div class="m-score-col">
+              <div class="m-field-label">Away (Brooklyn)</div>
+              <div class="m-score-box">7</div>
+            </div>
+            <div style="display:flex;align-items:center;padding:0 4px;color:#888;font-weight:700;font-size:16px;margin-top:18px;">–</div>
+            <div class="m-score-col">
+              <div class="m-field-label">Home (Tribe)</div>
+              <div class="m-score-box">4</div>
+            </div>
+          </div>
+
+          <div class="m-field-label" style="margin-bottom:6px;">Batting Stats — Brooklyn</div>
+          <div style="background:#fff;border-radius:8px;overflow:hidden;border:1px solid rgba(0,0,0,0.08);margin-bottom:12px;">
+            <div style="display:flex;padding:5px 10px;background:#f5f5f5;border-bottom:1px solid #eee;">
+              <span style="flex:1;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;">Player</span>
+              <span style="width:32px;text-align:center;font-size:10px;font-weight:700;color:#999;">AB</span>
+              <span style="width:32px;text-align:center;font-size:10px;font-weight:700;color:#999;">H</span>
+              <span style="width:32px;text-align:center;font-size:10px;font-weight:700;color:#999;">HR</span>
+              <span style="width:32px;text-align:center;font-size:10px;font-weight:700;color:#999;">RBI</span>
+              <span style="width:32px;text-align:center;font-size:10px;font-weight:700;color:#999;">BB</span>
+              <span style="width:32px;text-align:center;font-size:10px;font-weight:700;color:#999;">K</span>
+            </div>
+            <div class="m-player-row" style="padding:6px 10px;">
+              <span class="m-pr-name">J. Fennel</span>
+              <span class="m-pr-stat">4</span>
+              <span class="m-pr-stat">2</span>
+              <span class="m-pr-stat">1</span>
+              <span class="m-pr-stat">3</span>
+              <span class="m-pr-stat">0</span>
+              <span class="m-pr-stat">0</span>
+            </div>
+            <div class="m-player-row" style="padding:6px 10px;background:#fafafa;">
+              <span class="m-pr-name">B. Stoltz</span>
+              <span class="m-pr-stat">3</span>
+              <span class="m-pr-stat">1</span>
+              <span class="m-pr-stat">0</span>
+              <span class="m-pr-stat">1</span>
+              <span class="m-pr-stat">1</span>
+              <span class="m-pr-stat">1</span>
+            </div>
+            <div class="m-player-row" style="padding:6px 10px;">
+              <span class="m-pr-name">M. Landry</span>
+              <span class="m-pr-stat">4</span>
+              <span class="m-pr-stat">2</span>
+              <span class="m-pr-stat">0</span>
+              <span class="m-pr-stat">2</span>
+              <span class="m-pr-stat">0</span>
+              <span class="m-pr-stat">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">4</div>
+      <div class="step-text">
+        <h4>Enter each batter's stats</h4>
+        <p>For each player who batted, enter their line: <strong>AB</strong> (At-Bats), <strong>H</strong> (Hits), <strong>HR</strong> (Home Runs), <strong>RBI</strong>, <strong>BB</strong> (Walks), and <strong>K</strong> (Strikeouts). Only enter players who actually appeared.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">5</div>
+      <div class="step-text">
+        <h4>Enter pitcher stats</h4>
+        <p>Scroll down to the pitching section. For each pitcher used, enter: <strong>IP</strong> (Innings Pitched), <strong>H</strong>, <strong>ER</strong> (Earned Runs), <strong>BB</strong>, and <strong>K</strong>.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">6</div>
+      <div class="step-text">
+        <h4>Tap Submit</h4>
+        <p>When all stats look correct, scroll to the bottom and tap the <strong>Submit</strong> button. The box score will be saved and stats will appear on the website immediately.</p>
+        <p class="note">You'll see a confirmation message when submission is successful.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;color:#002d6e;margin-bottom:10px;letter-spacing:.04em;">📊 Batting Stat Reference</div>
+    <table class="ref-table">
+      <tr><th>Stat</th><th>Full Name</th><th>What to Count</th></tr>
+      <tr><td>AB</td><td>At-Bats</td><td>Plate appearances excluding walks, HBP, sacrifices</td></tr>
+      <tr><td>H</td><td>Hits</td><td>Singles, doubles, triples, and home runs</td></tr>
+      <tr><td>HR</td><td>Home Runs</td><td>Any over-the-fence (or inside-the-park) home run</td></tr>
+      <tr><td>RBI</td><td>Runs Batted In</td><td>Runners scored on the at-bat (including on a HR)</td></tr>
+      <tr><td>BB</td><td>Walks</td><td>Base on balls (4 balls)</td></tr>
+      <tr><td>K</td><td>Strikeouts</td><td>Times the batter struck out (swinging or looking)</td></tr>
+    </table>
+
+    <div style="margin-top:14px;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;color:#002d6e;margin-bottom:10px;letter-spacing:.04em;">⚾ Pitching Stat Reference</div>
+    <table class="ref-table">
+      <tr><th>Stat</th><th>Full Name</th><th>What to Count</th></tr>
+      <tr><td>IP</td><td>Innings Pitched</td><td>Use .1 = 1 out, .2 = 2 outs, 1.0 = full inning</td></tr>
+      <tr><td>H</td><td>Hits Allowed</td><td>Hits given up by this pitcher</td></tr>
+      <tr><td>ER</td><td>Earned Runs</td><td>Runs scored that aren't due to fielding errors</td></tr>
+      <tr><td>BB</td><td>Walks Issued</td><td>Batters walked by this pitcher</td></tr>
+      <tr><td>K</td><td>Strikeouts</td><td>Batters struck out by this pitcher</td></tr>
+    </table>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 3 — ADDING A PLAYER TO YOUR LINEUP
+═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" style="background:linear-gradient(135deg,#0f3a28,#1a5c3e);">
+    <div class="s-num" style="background:rgba(255,255,255,0.12);color:#fff;">3</div>
+    <div class="s-titles">
+      <div class="s-title" style="color:#fff;">Adding a Player to Your Lineup</div>
+      <div class="s-sub">Add a walk-up player before submitting a box score</div>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <div class="callout callout-blue">
+      <b>Player must be on roster first</b>
+      Players only appear in the box score dropdowns if they are on your team's roster. If someone shows up game-day who isn't listed, add them to the roster first, then submit the box score.
+    </div>
+
+    <div class="step">
+      <div class="step-circle">1</div>
+      <div class="step-text">
+        <h4>Log in to the Captain Portal</h4>
+        <p>Before submitting the box score, go to the Captain Portal (see Section 1).</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">2</div>
+      <div class="step-text">
+        <h4>Tap "Manage Roster"</h4>
+        <p>From the Captain Portal menu, tap the green <strong>Manage Roster</strong> card (👥).</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">3</div>
+      <div class="step-text">
+        <h4>Tap "+ Add Player"</h4>
+        <p>In the top-right corner of the roster screen, tap the <strong>+ Add Player</strong> button. An input form will appear.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">4</div>
+      <div class="step-text">
+        <h4>Enter their jersey number and name</h4>
+        <p>Type their jersey <strong>#</strong> (optional) and their <strong>full name</strong>. Tap <strong>Save</strong>.</p>
+        <p class="note">The # field is optional — you can leave it blank and fill it in later.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">5</div>
+      <div class="step-text">
+        <h4>Go back to Submit Box Score</h4>
+        <p>Tap <strong>← Back</strong> to return to the Captain Portal menu, then tap <strong>Submit Box Score</strong>. The new player will now appear in the player dropdowns.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-yellow">
+      <b>Eligibility Note</b>
+      Adding a player to your roster allows them to appear in box scores. Make sure any new players meet the league's eligibility requirements. Contact the commissioner if you have questions about a player's eligibility.
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 4 — MANAGE YOUR ROSTER
+═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" style="background:linear-gradient(135deg,#0f3a28,#2d6a4f);">
+    <div class="s-num" style="background:rgba(255,255,255,0.12);color:#fff;">4</div>
+    <div class="s-titles">
+      <div class="s-title" style="color:#fff;">Managing Your Roster</div>
+      <div class="s-sub">Add, edit, and remove players from your team</div>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <div class="step">
+      <div class="step-circle">1</div>
+      <div class="step-text">
+        <h4>Open the Roster Manager</h4>
+        <p>Log in to the Captain Portal (Section 1), then tap <strong>Manage Roster</strong> (the green 👥 card).</p>
+      </div>
+    </div>
+
+    <!-- Roster mockup -->
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57;"></div>
+        <div class="mockup-dot" style="background:#ffbd2e;"></div>
+        <div class="mockup-dot" style="background:#28c940;"></div>
+        <div class="mockup-url">lbdc.vercel.app</div>
+      </div>
+      <div>
+        <div class="m-bs-header">
+          <div class="m-bs-back">← Back</div>
+          <div class="m-bs-title">👥 Brooklyn — Roster</div>
+        </div>
+        <div class="m-roster-body">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="font-size:12px;color:rgba(0,0,0,0.4);">18 players</div>
+            <div style="padding:6px 14px;background:#2d6a4f;border-radius:7px;color:#fff;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;font-size:12px;">+ Add Player</div>
+          </div>
+          <div class="m-roster-row">
+            <span class="m-roster-num">#34</span>
+            <span class="m-roster-name">Alan Acosta</span>
+            <span class="m-roster-edit">Edit</span>
+            <span class="m-roster-del">✕</span>
+          </div>
+          <div class="m-roster-row">
+            <span class="m-roster-num">#8</span>
+            <span class="m-roster-name">Joe Barrett</span>
+            <span class="m-roster-edit">Edit</span>
+            <span class="m-roster-del">✕</span>
+          </div>
+          <div class="m-roster-row">
+            <span class="m-roster-num">#26</span>
+            <span class="m-roster-name">JD Campbell</span>
+            <span class="m-roster-edit">Edit</span>
+            <span class="m-roster-del">✕</span>
+          </div>
+          <div class="m-roster-row">
+            <span class="m-roster-num">#7</span>
+            <span class="m-roster-name">Johnny Fennel</span>
+            <span class="m-roster-edit">Edit</span>
+            <span class="m-roster-del">✕</span>
+          </div>
+          <!-- Add form preview -->
+          <div style="background:#e8f5e9;border:1px solid rgba(22,163,74,0.2);border-radius:8px;padding:12px 14px;margin-top:10px;">
+            <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;text-transform:uppercase;font-size:12px;color:#2d6a4f;margin-bottom:8px;">Add Player</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <div style="width:50px;padding:6px 8px;border:1px solid rgba(0,0,0,0.15);border-radius:5px;font-size:12px;color:#666;background:#fff;">#</div>
+              <div style="flex:1;min-width:120px;padding:6px 10px;border:1px solid rgba(0,0,0,0.15);border-radius:5px;font-size:12px;color:#333;background:#fff;">Player name</div>
+              <div style="padding:6px 12px;background:#16a34a;border-radius:5px;color:#fff;font-size:12px;font-weight:700;">Save</div>
+              <div style="padding:6px 12px;background:rgba(0,0,0,0.1);border-radius:5px;font-size:12px;font-weight:700;">Cancel</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">2</div>
+      <div class="step-text">
+        <h4>Add a new player</h4>
+        <p>Tap <strong>+ Add Player</strong> in the top right. A small form appears — enter the player's jersey number (optional) and name, then tap <strong>Save</strong>. The player is immediately added to your roster.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">3</div>
+      <div class="step-text">
+        <h4>Edit an existing player</h4>
+        <p>Tap the <strong>Edit</strong> button next to any player's name. Update their number or name in the form that appears, then tap <strong>Save</strong>.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">4</div>
+      <div class="step-text">
+        <h4>Remove a player</h4>
+        <p>Tap the red <strong>✕</strong> button next to a player's name. A confirmation prompt will appear — tap OK to confirm the removal.</p>
+        <p class="note">Removing a player from the roster does not delete their historical stats from past box scores.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-green">
+      <b>Changes save automatically</b>
+      Roster changes take effect immediately — there is no separate "Save Roster" step. The player will appear (or disappear) from box score entry dropdowns right away.
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 5 — USING THE WEBSITE
+═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" style="background:linear-gradient(135deg,#002d6e,#0041a0);">
+    <div class="s-num" style="background:rgba(255,215,0,0.15);color:#FFD700;">5</div>
+    <div class="s-titles">
+      <div class="s-title" style="color:#fff;">Using the Website</div>
+      <div class="s-sub">Scores · Standings · Schedule · Live scoring</div>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;color:#002d6e;margin:8px 0 12px;letter-spacing:.04em;">Scores Page</div>
+
+    <!-- Scores mockup -->
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57;"></div>
+        <div class="mockup-dot" style="background:#ffbd2e;"></div>
+        <div class="mockup-dot" style="background:#28c940;"></div>
+        <div class="mockup-url">lbdc.vercel.app</div>
+      </div>
+      <div style="background:#001a3e;">
+        <div class="m-nav">
+          <div class="m-nav-item">Home</div>
+          <div class="m-nav-item">Schedule</div>
+          <div class="m-nav-item active">Scores</div>
+          <div class="m-nav-item">Standings</div>
+          <div class="m-nav-item">Admin</div>
+        </div>
+      </div>
+      <div style="padding:16px;background:#f2f4f8;">
+        <div class="m-score-card">
+          <div class="m-sc-header">
+            <span class="m-sc-date">SAT · APR 12</span>
+            <span class="m-sc-final">FINAL</span>
+          </div>
+          <div class="m-sc-team">
+            <span class="m-sc-name winner">Brooklyn</span>
+            <span class="m-sc-score winner">7</span>
+          </div>
+          <div style="height:1px;background:#f0f0f0;margin:3px 0;"></div>
+          <div class="m-sc-team">
+            <span class="m-sc-name">Tribe</span>
+            <span class="m-sc-score">4</span>
+          </div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f5f5f5;font-size:11px;color:#888;">
+            Fennel: 2-for-4, HR, 3 RBI · Landry: 2-for-4, 2 RBI
+          </div>
+          <div style="margin-top:6px;background:#002d6e;color:#FFD700;border-radius:5px;padding:5px 12px;text-align:center;font-family:'Barlow Condensed',Arial,sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;display:inline-block;">📊 Box Score</div>
+        </div>
+        <div class="m-score-card">
+          <div class="m-sc-header">
+            <span class="m-sc-date">SAT · APR 12</span>
+            <span class="m-sc-final">FINAL</span>
+          </div>
+          <div class="m-sc-team">
+            <span class="m-sc-name winner">Titans</span>
+            <span class="m-sc-score winner">9</span>
+          </div>
+          <div style="height:1px;background:#f0f0f0;margin:3px 0;"></div>
+          <div class="m-sc-team">
+            <span class="m-sc-name">Generals</span>
+            <span class="m-sc-score">5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle" style="background:#002d6e;">✓</div>
+      <div class="step-text">
+        <h4>Scores &amp; Recaps</h4>
+        <p>The <strong>Scores</strong> tab shows recent game results with final scores and key stat lines. Tap <strong>Box Score</strong> on any game card to see the full batting and pitching breakdown.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;color:#002d6e;margin:0 0 12px;letter-spacing:.04em;">Schedule Page</div>
+
+    <!-- Schedule mockup -->
+    <div class="mockup">
+      <div class="mockup-bar">
+        <div class="mockup-dot" style="background:#ff5f57;"></div>
+        <div class="mockup-dot" style="background:#ffbd2e;"></div>
+        <div class="mockup-dot" style="background:#28c940;"></div>
+        <div class="mockup-url">lbdc.vercel.app</div>
+      </div>
+      <div style="background:#001a3e;">
+        <div class="m-nav">
+          <div class="m-nav-item">Home</div>
+          <div class="m-nav-item active">Schedule</div>
+          <div class="m-nav-item">Scores</div>
+          <div class="m-nav-item">Standings</div>
+          <div class="m-nav-item">Admin</div>
+        </div>
+      </div>
+      <div class="m-sched-body" style="background:#f2f4f8;">
+        <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;color:#002d6e;text-transform:uppercase;margin-bottom:12px;">Spring/Summer 2026</div>
+        <div class="m-game-card">
+          <div class="m-game-date">APR<br/><strong style="font-size:18px;">19</strong></div>
+          <div class="m-game-teams">
+            <div class="m-game-team">Brooklyn vs. Pirates</div>
+            <div class="m-game-vs">Wilson Park · Field 3</div>
+          </div>
+          <div>
+            <div class="m-game-time">9:00 AM</div>
+            <div class="m-game-cal">+ Cal</div>
+          </div>
+        </div>
+        <div class="m-game-card">
+          <div class="m-game-date">APR<br/><strong style="font-size:18px;">19</strong></div>
+          <div class="m-game-teams">
+            <div class="m-game-team">Titans vs. Black Sox</div>
+            <div class="m-game-vs">El Dorado Park · Field 1</div>
+          </div>
+          <div>
+            <div class="m-game-time">11:00 AM</div>
+            <div class="m-game-cal">+ Cal</div>
+          </div>
+        </div>
+        <div class="m-game-card">
+          <div class="m-game-date">APR<br/><strong style="font-size:18px;">19</strong></div>
+          <div class="m-game-teams">
+            <div class="m-game-team">Generals vs. Tribe</div>
+            <div class="m-game-vs">El Dorado Park · Field 2</div>
+          </div>
+          <div>
+            <div class="m-game-time">1:00 PM</div>
+            <div class="m-game-cal">+ Cal</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle" style="background:#002d6e;">✓</div>
+      <div class="step-text">
+        <h4>Schedule Page</h4>
+        <p>The <strong>Schedule</strong> tab shows all upcoming games by date, including opponent, field location, and game time. Tap any game card for more details.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;color:#002d6e;margin:0 0 12px;letter-spacing:.04em;">Other Features</div>
+
+    <table class="ref-table">
+      <tr><th>Feature</th><th>Where to Find It</th><th>What It Does</th></tr>
+      <tr>
+        <td>Standings</td>
+        <td>Standings tab</td>
+        <td>Live W-L records, PCT, run differential for all teams in both divisions</td>
+      </tr>
+      <tr>
+        <td>Team Rosters</td>
+        <td>Tap any team name in Standings or Schedule</td>
+        <td>Shows full roster with jersey numbers; tap a player for career stats</td>
+      </tr>
+      <tr>
+        <td>Live Scoring</td>
+        <td>⚡ Live tab (visible during games)</td>
+        <td>Real-time pitch-by-pitch scoring for in-progress games</td>
+      </tr>
+      <tr>
+        <td>Box Scores</td>
+        <td>📊 Box Score button on any Scores card</td>
+        <td>Full batting and pitching lines for completed games</td>
+      </tr>
+      <tr>
+        <td>News &amp; Alerts</td>
+        <td>Home page banner</td>
+        <td>Commissioner announcements, rain delays, schedule changes</td>
+      </tr>
+    </table>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SECTION 6 — ADD TO PHONE CALENDAR
+═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" style="background:linear-gradient(135deg,#1e1b4b,#4338ca);">
+    <div class="s-num" style="background:rgba(255,255,255,0.12);color:#fff;">6</div>
+    <div class="s-titles">
+      <div class="s-title" style="color:#fff;">Adding the Schedule to Your Phone Calendar</div>
+      <div class="s-sub">iPhone · Android · Google Calendar</div>
+    </div>
+  </div>
+  <div class="section-body">
+
+    <div class="callout callout-blue">
+      <b>Your team has a dedicated Google Calendar</b>
+      Each team has its own calendar feed. When you add it, all of your team's games automatically appear in your calendar app — and update if the schedule changes.
+    </div>
+
+    <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;color:#002d6e;margin:12px 0 10px;letter-spacing:.04em;">Option A — iPhone / Apple Calendar (Recommended)</div>
+
+    <div class="step">
+      <div class="step-circle">1</div>
+      <div class="step-text">
+        <h4>Open Safari on your iPhone</h4>
+        <p>This must be done in <strong>Safari</strong> — it will not work from Chrome or other browsers on iPhone.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">2</div>
+      <div class="step-text">
+        <h4>Go to lbdc.vercel.app and open the Schedule page</h4>
+        <p>Tap the <strong>Schedule</strong> tab, then find your team's section. Look for the <strong>Add to Calendar</strong> button or a calendar icon next to your team name.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">3</div>
+      <div class="step-text">
+        <h4>Tap the calendar link for your team</h4>
+        <p>When you tap the calendar link for your team, Safari will ask: <strong>"Subscribe to Calendar?"</strong> — tap <strong>Subscribe</strong>. Your team's full schedule will be imported into the Apple Calendar app.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">4</div>
+      <div class="step-text">
+        <h4>Done! Open your Calendar app to confirm</h4>
+        <p>Open the built-in Calendar app on your iPhone. You should see a new calendar called something like <strong>"LBDC — [Your Team]"</strong> with all game dates, times, and fields pre-filled.</p>
+        <p class="note">The calendar will stay in sync — if game times change or games are added, your phone calendar updates automatically.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;color:#002d6e;margin:0 0 10px;letter-spacing:.04em;">Option B — Android / Google Calendar</div>
+
+    <div class="step">
+      <div class="step-circle">1</div>
+      <div class="step-text">
+        <h4>Open Google Calendar on a computer or Android phone</h4>
+        <p>Go to <strong>calendar.google.com</strong> or open the Google Calendar app.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">2</div>
+      <div class="step-text">
+        <h4>Tap the calendar link for your team on lbdc.vercel.app</h4>
+        <p>On the Schedule page, tap the <strong>Google Calendar</strong> link next to your team. This will open Google Calendar with a prompt to add the subscription.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle">3</div>
+      <div class="step-text">
+        <h4>Click "Add Calendar"</h4>
+        <p>Google Calendar will show a preview of the calendar. Click <strong>Add Calendar</strong> to subscribe. Your team's games will appear in Google Calendar on all devices where you're signed in.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:16px;text-transform:uppercase;color:#002d6e;margin:0 0 10px;letter-spacing:.04em;">Team Calendar Links</div>
+
+    <div class="callout callout-blue" style="margin-bottom:14px;">
+      <b>All teams — Spring/Summer 2026</b>
+      The links below are also available directly from the Schedule page on lbdc.vercel.app
+    </div>
+
+    <div class="cal-row">
+      <div class="cal-icon">⚾</div>
+      <div class="cal-name">Tribe</div>
+      <div class="cal-badge cal-badge-google">Google</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-icon">🏴‍☠️</div>
+      <div class="cal-name">Pirates</div>
+      <div class="cal-badge cal-badge-google">Google</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-icon">⚡</div>
+      <div class="cal-name">Titans</div>
+      <div class="cal-badge cal-badge-google">Google</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-icon">🌉</div>
+      <div class="cal-name">Brooklyn</div>
+      <div class="cal-badge cal-badge-google">Google</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-icon">🎖️</div>
+      <div class="cal-name">Generals</div>
+      <div class="cal-badge cal-badge-google">Google</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-icon">🖤</div>
+      <div class="cal-name">Black Sox</div>
+      <div class="cal-badge cal-badge-google">Google</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-icon">🔵</div>
+      <div class="cal-name">Eddie Murray Mashers '56</div>
+      <div class="cal-badge cal-badge-google">Google</div>
+    </div>
+    <div class="cal-row">
+      <div class="cal-icon">🟣</div>
+      <div class="cal-name">Greg Maddux Magicians '66</div>
+      <div class="cal-badge cal-badge-google">Google</div>
+    </div>
+
+    <div class="callout callout-green" style="margin-top:16px;">
+      <b>Tip: Add to iPhone Home Screen</b>
+      For quick access to the full site on iPhone: Open Safari → go to lbdc.vercel.app → tap the Share button (square with arrow pointing up) → tap <strong>"Add to Home Screen"</strong>. The site will appear as an app icon on your home screen.
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     QUICK REFERENCE CARD
+═══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header" style="background:linear-gradient(135deg,#111827,#1f2937);">
+    <div class="s-num" style="background:rgba(255,215,0,0.15);color:#FFD700;font-size:20px;">⚡</div>
+    <div class="s-titles">
+      <div class="s-title" style="color:#fff;">Quick Reference</div>
+      <div class="s-sub">Captain cheat sheet</div>
+    </div>
+  </div>
+  <div class="section-body">
+    <table class="ref-table">
+      <tr><th>Task</th><th>How To</th></tr>
+      <tr>
+        <td>Log in as Captain</td>
+        <td>Admin tab → Select your team → Tap "Log In as [Team]"</td>
+      </tr>
+      <tr>
+        <td>Submit a Box Score</td>
+        <td>Captain Portal → Submit Box Score → Select game → Enter stats → Submit</td>
+      </tr>
+      <tr>
+        <td>Add a player to game day lineup</td>
+        <td>Captain Portal → Manage Roster → + Add Player → then go to Submit Box Score</td>
+      </tr>
+      <tr>
+        <td>Edit a player's name/number</td>
+        <td>Captain Portal → Manage Roster → tap Edit next to player</td>
+      </tr>
+      <tr>
+        <td>Remove a player</td>
+        <td>Captain Portal → Manage Roster → tap ✕ next to player → confirm</td>
+      </tr>
+      <tr>
+        <td>Add schedule to iPhone Calendar</td>
+        <td>Safari → Schedule page → tap your team's calendar link → Subscribe</td>
+      </tr>
+      <tr>
+        <td>Add schedule to Google Calendar</td>
+        <td>Schedule page → tap Google Calendar link for your team → Add Calendar</td>
+      </tr>
+      <tr>
+        <td>View this week's box scores</td>
+        <td>Scores tab → tap "📊 Box Score" on any game card</td>
+      </tr>
+      <tr>
+        <td>View team roster &amp; stats</td>
+        <td>Standings or Schedule → tap your team's name or logo</td>
+      </tr>
+      <tr>
+        <td>Score a game live</td>
+        <td>Captain Portal → Score Live (⚡) — shows your team's games only</td>
+      </tr>
+    </table>
+
+    <div style="margin-top:20px;background:linear-gradient(135deg,#001a3e,#002d6e);border-radius:12px;padding:20px 24px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:22px;color:#FFD700;text-transform:uppercase;">Need Help?</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.65);margin-top:4px;">Contact the league commissioner with any questions</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:12px;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Website</div>
+        <div style="font-family:'Barlow Condensed',Arial,sans-serif;font-weight:900;font-size:18px;color:#fff;">lbdc.vercel.app</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+</div><!-- /wrap -->
+</body>
+</html>

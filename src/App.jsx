@@ -2521,17 +2521,22 @@ const SPONSORS_DATA = [
   { name:"Adam — Mainline Design", role:"Website Design & Development", description:"A huge thank you to Adam for building this amazing website and bringing the Diamond Classics experience online. 🙌", email:"adam.mainlinewebdesign@gmail.com", website:"" },
 ];
 function getSponsorsData() {
-  try { const s = localStorage.getItem("lbdc_sponsors"); if (s) return JSON.parse(s); } catch(e) {}
   return SPONSORS_DATA;
 }
 
 function FieldDirectionsPage() {
+  const [fields, setFields] = useState(FIELDS_INFO);
+  useEffect(() => {
+    sbFetch("lbdc_fields?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setFields(rows[0].data); })
+      .catch(() => {});
+  }, []);
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Field Directions" subtitle="Locations & directions for all Diamond Classics fields" />
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         <div style={{display:"flex",flexDirection:"column",gap:20}}>
-          {getFieldsData().map(field => (
+          {fields.map(field => (
             <div key={field.name} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${field.color}`,borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
               <div style={{padding:"20px 24px",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
                 <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
@@ -2580,7 +2585,12 @@ function FieldDirectionsPage() {
 
 /* ─── SPONSORS PAGE ──────────────────────────────────────────────────────── */
 function SponsorsPage() {
-  const sponsors = getSponsorsData();
+  const [sponsors, setSponsors] = useState(SPONSORS_DATA);
+  useEffect(() => {
+    sbFetch("lbdc_sponsors?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setSponsors(rows[0].data); })
+      .catch(() => {});
+  }, []);
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Sponsors & Contributors" subtitle="With gratitude to those who support Long Beach Diamond Classics" />
@@ -2877,11 +2887,19 @@ const PAGE_CONTENT_BLOCKS = [
   ]},
 ];
 
+// Module-level cache — populated from Supabase on app startup
+const _pageContentMap = {};
+const _savePageDebounce = {};
+
 function getPageContent(id) {
-  try { return localStorage.getItem("lbdc_content_" + id) || ""; } catch(e) { return ""; }
+  return _pageContentMap[id] || "";
 }
 function savePageContent(id, html) {
-  try { localStorage.setItem("lbdc_content_" + id, html); } catch(e) {}
+  _pageContentMap[id] = html;
+  clearTimeout(_savePageDebounce[id]);
+  _savePageDebounce[id] = setTimeout(() => {
+    sbUpsert("lbdc_page_content", {id, content: html}).catch(() => {});
+  }, 1000);
 }
 
 function RichTextInput({ defaultValue, onChange, placeholder, minHeight=80 }) {
@@ -3006,19 +3024,22 @@ function RichTextEditor({ contentId, placeholder }) {
 }
 
 function getRulesData() {
-  try { const s = localStorage.getItem("lbdc_rules"); if (s) return JSON.parse(s); } catch(e) {}
   return RULES_DATA;
 }
 
 function getFieldsData() {
-  try { const s = localStorage.getItem("lbdc_fields"); if (s) return JSON.parse(s); } catch(e) {}
   return FIELDS_INFO;
 }
 
 /* ─── RULES PAGE ─────────────────────────────────────────────────────────── */
 function RulesPage() {
-  const allRules = getRulesData();
+  const [allRules, setAllRules] = useState(RULES_DATA);
   const [division, setDivision] = useState("saturday");
+  useEffect(() => {
+    sbFetch("lbdc_rules?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setAllRules(rows[0].data); })
+      .catch(() => {});
+  }, []);
 
   const saturdayRules = allRules.filter(r => !r.section.toLowerCase().startsWith("boomers"));
   const boomersRules  = allRules.filter(r => r.section.toLowerCase().startsWith("boomers"));
@@ -4020,9 +4041,7 @@ function PlayerEligibilityPage({ onBack }) {
 function TournamentManagerPage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
 
-  // Load/save tournament metadata (name + location) from localStorage
-  const loadTournMeta = () => { try { return JSON.parse(localStorage.getItem("lbdc_tourn_meta") || "[]"); } catch(e) { return []; } };
-  const saveTournMeta = (list) => localStorage.setItem("lbdc_tourn_meta", JSON.stringify(list));
+  const saveTournMeta = async (list) => { await sbUpsert("lbdc_tournament_meta", {id:"main", data:list}).catch(()=>{}); };
 
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4033,7 +4052,7 @@ function TournamentManagerPage({ onBack }) {
   const [addForm, setAddForm] = useState({tournament_name:"", game_date:"", game_time:"9:00 AM", field:"", away_team:"", home_team:"", notes:""});
   const [newTournForm, setNewTournForm] = useState({name:"", location:""});
   const [showNewTourn, setShowNewTourn] = useState(false);
-  const [tournMeta, setTournMeta] = useState(loadTournMeta);
+  const [tournMeta, setTournMeta] = useState([]);
 
   const load = () => {
     setLoading(true);
@@ -4043,6 +4062,12 @@ function TournamentManagerPage({ onBack }) {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    sbFetch("lbdc_tournament_meta?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setTournMeta(rows[0].data); })
+      .catch(() => {});
+  }, []);
 
   const tournamentNames = [...new Set([...tournMeta.map(m=>m.name), ...games.map(g => g.tournament_name)])];
 
@@ -4337,24 +4362,16 @@ function ManageSchedulePage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
   const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers
 
-  const SAT_KEY = "lbdc_full_schedule";
-  const BOM_KEY = "lbdc_boomers_schedule";
+  const buildDefaultSat = () => SCHED.flatMap(week =>
+    week.fields.flatMap(f =>
+      f.games.map(g => ({ id: Math.random().toString(36).slice(2), date: week.label, time: g.time, field: f.name, away: g.away, home: g.home, source: "sched" }))
+    )
+  );
+  const buildDefaultBom = () => BOOMERS_SCHED.map(g => ({ id: Math.random().toString(36).slice(2), date: g.date, time: g.time, field: g.field, away: g.away, home: g.home, source: "sched" }));
 
-  const buildInitialSat = () => {
-    try { const s = localStorage.getItem(SAT_KEY); if (s) return JSON.parse(s); } catch(e) {}
-    return SCHED.flatMap(week =>
-      week.fields.flatMap(f =>
-        f.games.map(g => ({ id: Math.random().toString(36).slice(2), date: week.label, time: g.time, field: f.name, away: g.away, home: g.home, source: "sched" }))
-      )
-    );
-  };
-  const buildInitialBom = () => {
-    try { const s = localStorage.getItem(BOM_KEY); if (s) return JSON.parse(s); } catch(e) {}
-    return BOOMERS_SCHED.map(g => ({ id: Math.random().toString(36).slice(2), date: g.date, time: g.time, field: g.field, away: g.away, home: g.home, source: "sched" }));
-  };
-
-  const [satGames, setSatGames] = useState(buildInitialSat);
-  const [bomGames, setBomGames] = useState(buildInitialBom);
+  const [satGames, setSatGames] = useState([]);
+  const [bomGames, setBomGames] = useState([]);
+  const [schedLoading, setSchedLoading] = useState(true);
   const games = league === 1 ? bomGames : satGames;
 
   const [editId, setEditId] = useState(null);
@@ -4362,9 +4379,25 @@ function ManageSchedulePage({ onBack }) {
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
 
-  const persist = (list) => {
-    if (league === 1) { setBomGames(list); localStorage.setItem(BOM_KEY, JSON.stringify(list)); }
-    else { setSatGames(list); localStorage.setItem(SAT_KEY, JSON.stringify(list)); }
+  useEffect(() => {
+    Promise.all([
+      sbFetch("lbdc_schedules?id=eq.sat&select=data"),
+      sbFetch("lbdc_schedules?id=eq.bom&select=data"),
+    ]).then(([sr, br]) => {
+      setSatGames(sr && sr[0] ? sr[0].data : buildDefaultSat());
+      setBomGames(br && br[0] ? br[0].data : buildDefaultBom());
+      setSchedLoading(false);
+    }).catch(() => {
+      setSatGames(buildDefaultSat());
+      setBomGames(buildDefaultBom());
+      setSchedLoading(false);
+    });
+  }, []);
+
+  const persist = async (list) => {
+    const key = league === 1 ? "bom" : "sat";
+    if (league === 1) setBomGames(list); else setSatGames(list);
+    await sbUpsert("lbdc_schedules", {id:key, data:list}).catch(() => {});
   };
 
   const startEdit = (g) => { setEditId(g.id); setEditForm({date:g.date,time:g.time,field:g.field,away:g.away,home:g.home}); };
@@ -4402,7 +4435,7 @@ function ManageSchedulePage({ onBack }) {
           ))}
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-          <button type="button" onClick={()=>{ if(window.confirm("Reset schedule back to original?")){ if(league===1){localStorage.removeItem(BOM_KEY);setBomGames(buildInitialBom());}else{localStorage.removeItem(SAT_KEY);setSatGames(buildInitialSat());} }}}
+          <button type="button" onClick={async()=>{ if(window.confirm("Reset schedule back to original?")){ const d=league===1?buildDefaultBom():buildDefaultSat(); if(league===1)setBomGames(d);else setSatGames(d); await sbUpsert("lbdc_schedules",{id:league===1?"bom":"sat",data:d}).catch(()=>{}); }}}
             style={{padding:"7px 14px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Reset</button>
           <button type="button" onClick={()=>setShowAdd(s=>!s)}
             style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Game</button>
@@ -4672,10 +4705,17 @@ function AdminContentEditor({ onBack }) {
 
 /* ─── ADMIN SUB-SCREENS ──────────────────────────────────────────────────── */
 function AdminRulesEditor({ onBack }) {
-  const [rules, setRules] = useState(() => getRulesData());
+  const [rules, setRules] = useState(RULES_DATA);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
-  const save = () => { localStorage.setItem("lbdc_rules", JSON.stringify(rules)); setSaved(true); setTimeout(()=>setSaved(false),2500); };
-  const reset = () => { if(!window.confirm("Reset to original default rules? All edits will be lost.")) return; localStorage.removeItem("lbdc_rules"); setRules(RULES_DATA); };
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    sbFetch("lbdc_rules?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setRules(rows[0].data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+  const save = async () => { setSaving(true); await sbUpsert("lbdc_rules", {id:"main", data:rules}).catch(()=>{}); setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const reset = async () => { if(!window.confirm("Reset to original default rules? All edits will be lost.")) return; await sbUpsert("lbdc_rules", {id:"main", data:RULES_DATA}).catch(()=>{}); setRules(RULES_DATA); };
   const updSection=(si,f,v)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,[f]:v}));
   const updItem=(si,ii,v)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,items:s.items.map((x,j)=>j!==ii?x:v)}));
   const delItem=(si,ii)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,items:s.items.filter((_,j)=>j!==ii)}));
@@ -4691,11 +4731,10 @@ function AdminRulesEditor({ onBack }) {
       <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
         <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
           <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
-          <button onClick={save} style={btn(saved?"#16a34a":"#002d6e")}>{saved?"✓ Saved!":"💾 Save Changes"}</button>
+          <button onClick={save} style={btn(saving?"#6b7280":saved?"#16a34a":"#002d6e")} disabled={saving}>{saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}</button>
           <button onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
-          <div style={{marginLeft:"auto",fontSize:12,color:"rgba(0,0,0,0.4)"}}>Changes are saved to this browser.</div>
         </div>
-        {rules.map((sec,si)=>(
+        {loading ? <div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.4)"}}>Loading…</div> : rules.map((sec,si)=>(
           <div key={si} style={{background:"#fff",borderRadius:12,marginBottom:16,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden"}}>
             <div style={{background:"rgba(0,45,110,0.04)",padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
               <input value={sec.icon} onChange={e=>updSection(si,"icon",e.target.value)} style={{...inp,width:48,textAlign:"center",fontSize:18,padding:"4px 6px"}} />
@@ -4720,8 +4759,8 @@ function AdminRulesEditor({ onBack }) {
         ))}
         <button onClick={addSection} style={{width:"100%",padding:"14px",background:"none",border:"2px dashed #aaa",borderRadius:12,fontSize:15,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>+ Add New Section</button>
         <div style={{position:"sticky",bottom:20,marginTop:24,textAlign:"center"}}>
-          <button onClick={save} style={{...btn(saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
-            {saved?"✓ Saved!":"💾 Save Changes"}
+          <button onClick={save} disabled={saving} style={{...btn(saving?"#6b7280":saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+            {saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}
           </button>
         </div>
       </div>
@@ -4876,12 +4915,19 @@ function AdminPhotosEditor({ onBack }) {
 }
 
 function AdminSponsorsEditor({ onBack }) {
-  const [sponsors, setSponsors] = useState(() => getSponsorsData());
+  const [sponsors, setSponsors] = useState(SPONSORS_DATA);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({name:"",role:"",description:"",email:"",website:"",featured:false});
-  const save = (arr) => { localStorage.setItem("lbdc_sponsors", JSON.stringify(arr)); setSaved(true); setTimeout(()=>setSaved(false),2500); };
-  const reset = () => { if(!window.confirm("Reset sponsors to default? All edits will be lost.")) return; localStorage.removeItem("lbdc_sponsors"); setSponsors(SPONSORS_DATA); };
+  useEffect(() => {
+    sbFetch("lbdc_sponsors?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setSponsors(rows[0].data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+  const save = async (arr) => { setSaving(true); await sbUpsert("lbdc_sponsors", {id:"main", data:arr}).catch(()=>{}); setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const reset = async () => { if(!window.confirm("Reset sponsors to default? All edits will be lost.")) return; await sbUpsert("lbdc_sponsors", {id:"main", data:SPONSORS_DATA}).catch(()=>{}); setSponsors(SPONSORS_DATA); };
   const upd = (i,f,v) => setSponsors(p=>p.map((s,j)=>j!==i?s:{...s,[f]:v}));
   const del = (i) => { if(!window.confirm(`Remove "${sponsors[i].name}"?`)) return; const u=sponsors.filter((_,j)=>j!==i); setSponsors(u); save(u); };
   const addSponsor = () => {
@@ -4898,10 +4944,10 @@ function AdminSponsorsEditor({ onBack }) {
       <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
         <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
           <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
-          <button onClick={()=>save(sponsors)} style={btn(saved?"#16a34a":"#002d6e")}>{saved?"✓ Saved!":"💾 Save Changes"}</button>
+          <button onClick={()=>save(sponsors)} disabled={saving} style={btn(saving?"#6b7280":saved?"#16a34a":"#002d6e")}>{saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}</button>
           <button onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
         </div>
-        {sponsors.map((sp,i)=>(
+        {loading ? <div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.4)"}}>Loading…</div> : sponsors.map((sp,i)=>(
           <div key={i} style={{background:"#fff",borderRadius:12,marginBottom:16,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${sp.featured?"#FFD700":"#002d6e"}`}}>
             <div style={{background:"rgba(0,0,0,0.02)",padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
               <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#111",flex:1}}>{sp.name||"Untitled Sponsor"}</span>
@@ -4944,8 +4990,8 @@ function AdminSponsorsEditor({ onBack }) {
           <button onClick={()=>setAdding(true)} style={{width:"100%",padding:"14px",background:"none",border:"2px dashed #aaa",borderRadius:12,fontSize:15,color:"#555",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>+ Add New Sponsor</button>
         )}
         <div style={{position:"sticky",bottom:20,marginTop:24,textAlign:"center"}}>
-          <button onClick={()=>save(sponsors)} style={{...btn(saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
-            {saved?"✓ Saved!":"💾 Save Changes"}
+          <button onClick={()=>save(sponsors)} disabled={saving} style={{...btn(saving?"#6b7280":saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+            {saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}
           </button>
         </div>
       </div>
@@ -4954,10 +5000,17 @@ function AdminSponsorsEditor({ onBack }) {
 }
 
 function AdminFieldsEditor({ onBack }) {
-  const [fields, setFields] = useState(() => getFieldsData());
+  const [fields, setFields] = useState(FIELDS_INFO);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
-  const save = () => { localStorage.setItem("lbdc_fields", JSON.stringify(fields)); setSaved(true); setTimeout(()=>setSaved(false),2500); };
-  const reset = () => { if(!window.confirm("Reset to original field info?")) return; localStorage.removeItem("lbdc_fields"); setFields(FIELDS_INFO); };
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    sbFetch("lbdc_fields?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setFields(rows[0].data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+  const save = async () => { setSaving(true); await sbUpsert("lbdc_fields", {id:"main", data:fields}).catch(()=>{}); setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const reset = async () => { if(!window.confirm("Reset to original field info?")) return; await sbUpsert("lbdc_fields", {id:"main", data:FIELDS_INFO}).catch(()=>{}); setFields(FIELDS_INFO); };
   const updField=(fi,f,v)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,[f]:v}));
   const updNote=(fi,ni,v)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:x.notes.map((n,j)=>j!==ni?n:v)}));
   const delNote=(fi,ni)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:x.notes.filter((_,j)=>j!==ni)}));
@@ -4970,10 +5023,10 @@ function AdminFieldsEditor({ onBack }) {
       <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
         <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
           <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
-          <button onClick={save} style={btn(saved?"#16a34a":"#002d6e")}>{saved?"✓ Saved!":"💾 Save Changes"}</button>
+          <button onClick={save} disabled={saving} style={btn(saving?"#6b7280":saved?"#16a34a":"#002d6e")}>{saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}</button>
           <button onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
         </div>
-        {fields.map((field,fi)=>(
+        {loading ? <div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.4)"}}>Loading…</div> : fields.map((field,fi)=>(
           <div key={fi} style={{background:"#fff",borderRadius:12,marginBottom:20,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${field.color}`}}>
             <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"rgba(0,0,0,0.02)"}}>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase",marginBottom:10}}>{field.name}</div>
@@ -4995,9 +5048,9 @@ function AdminFieldsEditor({ onBack }) {
             </div>
           </div>
         ))}
-        <div style={{position:"sticky",bottom:20,textAlign:"center"}}>
-          <button onClick={save} style={{...btn(saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
-            {saved?"✓ Saved!":"💾 Save Changes"}
+        <div style={{position:"sticky",bottom:20,marginTop:8,textAlign:"center"}}>
+          <button onClick={save} disabled={saving} style={{...btn(saving?"#6b7280":saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+            {saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}
           </button>
         </div>
       </div>
@@ -5265,15 +5318,11 @@ function AdminPage({ onAlertChange }) {
   const [pwError, setPwError] = useState(false);
   const [captainTeam, setCaptainTeam] = useState("");
   const [captainView, setCaptainView] = useState("menu"); // "menu" | "live" | "boxscore"
-  const [alertText, setAlertText] = useState(() => localStorage.getItem("lbdc_alert") || "");
-  const [alertStyle, setAlertStyle] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("lbdc_alert_style") || "{}"); } catch(e) { return {}; }
-  });
-  const [alertExpire, setAlertExpire] = useState(() => localStorage.getItem("lbdc_alert_expire") || "");
-  const [alertSchedule, setAlertSchedule] = useState(() => localStorage.getItem("lbdc_alert_schedule") || "");
-  const [alertHistory, setAlertHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("lbdc_alert_history") || "[]"); } catch(e) { return []; }
-  });
+  const [alertText, setAlertText] = useState("");
+  const [alertStyle, setAlertStyle] = useState({});
+  const [alertExpire, setAlertExpire] = useState("");
+  const [alertSchedule, setAlertSchedule] = useState("");
+  const [alertHistory, setAlertHistory] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showBoxScore, setShowBoxScore] = useState(false);
   const [quickView, setQuickView] = useState(null); // null | "alert" | "news" | "schedule" | "email" | "games" | "tournaments" | "eligibility"
@@ -5362,56 +5411,64 @@ function AdminPage({ onAlertChange }) {
       .catch(() => setAdminGamesLoading(false));
   };
 
-  const postAlert = () => {
+  const postAlert = async () => {
     const trimmed = alertText.trim();
     if (!trimmed) return;
-    // Save to history (last 5, no duplicates)
     const newHistory = [
       {text: trimmed, style: alertStyle, ts: Date.now()},
       ...alertHistory.filter(h => h.text !== trimmed),
     ].slice(0, 5);
     setAlertHistory(newHistory);
-    localStorage.setItem("lbdc_alert_history", JSON.stringify(newHistory));
-    localStorage.setItem("lbdc_alert", trimmed);
-    localStorage.setItem("lbdc_alert_style", JSON.stringify(alertStyle));
-    if (alertExpire) localStorage.setItem("lbdc_alert_expire", alertExpire);
-    else localStorage.removeItem("lbdc_alert_expire");
-    if (alertSchedule) {
-      localStorage.setItem("lbdc_alert_schedule", alertSchedule);
-      // Don't go live yet if scheduled for the future
-      if (new Date(alertSchedule) > new Date()) { onAlertChange(null); return; }
-    } else {
-      localStorage.removeItem("lbdc_alert_schedule");
-    }
-    onAlertChange(trimmed);
+    await sbUpsert("lbdc_alert", {
+      id: "main",
+      text: trimmed,
+      style: alertStyle,
+      expire_at: alertExpire || null,
+      go_live_at: alertSchedule || null,
+      history: newHistory,
+    }).catch(() => {});
+    if (alertSchedule && new Date(alertSchedule) > new Date()) { onAlertChange(null, {}); return; }
+    onAlertChange(trimmed, alertStyle);
   };
-  const clearAlert = () => {
-    localStorage.removeItem("lbdc_alert");
-    localStorage.removeItem("lbdc_alert_style");
-    localStorage.removeItem("lbdc_alert_expire");
-    localStorage.removeItem("lbdc_alert_schedule");
+  const clearAlert = async () => {
+    await sbUpsert("lbdc_alert", {id:"main", text:null, expire_at:null, go_live_at:null}).catch(() => {});
     setAlertText("");
     setAlertExpire("");
     setAlertSchedule("");
-    onAlertChange(null);
+    onAlertChange(null, {});
   };
   const hasAlert = !!alertText.trim();
   const updateAlertStyle = (key, val) => setAlertStyle(s => ({...s, [key]: val}));
 
+  // Load alert state from Supabase on mount
+  useEffect(() => {
+    sbFetch("lbdc_alert?id=eq.main&select=text,style,expire_at,go_live_at,history")
+      .then(rows => {
+        if (!rows || !rows[0]) return;
+        const row = rows[0];
+        if (row.text) setAlertText(row.text);
+        if (row.style && Object.keys(row.style).length) setAlertStyle(row.style);
+        if (row.expire_at) setAlertExpire(row.expire_at.slice(0,16));
+        if (row.go_live_at) setAlertSchedule(row.go_live_at.slice(0,16));
+        if (row.history) setAlertHistory(row.history);
+      })
+      .catch(() => {});
+  }, []);
+
   // Check schedule/expire every minute
   useEffect(() => {
-    const check = () => {
-      const scheduled = localStorage.getItem("lbdc_alert_schedule");
-      const expire = localStorage.getItem("lbdc_alert_expire");
-      const text = localStorage.getItem("lbdc_alert");
-      if (scheduled && new Date(scheduled) <= new Date() && text) {
-        localStorage.removeItem("lbdc_alert_schedule");
-        onAlertChange(text);
+    const check = async () => {
+      const rows = await sbFetch("lbdc_alert?id=eq.main&select=text,style,expire_at,go_live_at").catch(() => null);
+      if (!rows || !rows[0]) return;
+      const {text, style, expire_at, go_live_at} = rows[0];
+      if (go_live_at && new Date(go_live_at) <= new Date() && text) {
+        await sbUpsert("lbdc_alert", {id:"main", go_live_at:null}).catch(() => {});
+        setAlertSchedule("");
+        onAlertChange(text, style || {});
       }
-      if (expire && new Date(expire) <= new Date() && text) {
-        localStorage.removeItem("lbdc_alert");
-        localStorage.removeItem("lbdc_alert_expire");
-        onAlertChange(null);
+      if (expire_at && new Date(expire_at) <= new Date()) {
+        await sbUpsert("lbdc_alert", {id:"main", text:null, expire_at:null}).catch(() => {});
+        onAlertChange(null, {});
       }
     };
     check();
@@ -6153,6 +6210,22 @@ async function sbDelete(path) {
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Accept: "application/json" },
   });
   if (!r.ok) { const text = await r.text().catch(()=>""); throw new Error(`Supabase ${r.status}: ${text}`); }
+}
+
+async function sbUpsert(path, body) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Prefer: "return=representation,resolution=merge-duplicates",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) { const text = await r.text().catch(()=>""); throw new Error(`Supabase ${r.status}: ${text}`); }
+  return r.json();
 }
 
 function parseIP(str) {
@@ -7636,14 +7709,29 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [bsSaving, setBsSaving] = useState(false);
 
   const lsKey = (a,h,d) => `lbdc_live_${a}_${h}_${d}`.replace(/[\s/]/g,"_");
+  const [liveStates, setLiveStates] = useState({});
+  useEffect(() => {
+    sbFetch("lbdc_live_state?select=id,data")
+      .then(rows => {
+        const m = {};
+        (rows||[]).forEach(r => { m[r.id] = r.data; });
+        setLiveStates(m);
+      }).catch(() => {});
+  }, []);
   const persist = (s) => {
     if (!s) return;
     const {_hist,...save} = s;
-    try { localStorage.setItem(lsKey(s.away,s.home,s.date), JSON.stringify(save)); } catch(e){}
+    const key = lsKey(s.away,s.home,s.date);
+    setLiveStates(prev => ({...prev,[key]:save}));
+    sbUpsert("lbdc_live_state", {id:key, data:save}).catch(()=>{});
     setGs(s);
   };
-  const loadSaved = (a,h,d) => { try { return JSON.parse(localStorage.getItem(lsKey(a,h,d))); } catch { return null; } };
-  const clearSaved = (a,h,d) => localStorage.removeItem(lsKey(a,h,d));
+  const loadSaved = (a,h,d) => liveStates[lsKey(a,h,d)] || null;
+  const clearSaved = (a,h,d) => {
+    const key = lsKey(a,h,d);
+    setLiveStates(prev => { const n={...prev}; delete n[key]; return n; });
+    sbDelete(`lbdc_live_state?id=eq.${key}`).catch(()=>{});
+  };
 
   const weekGames = (SCHED[weekIdx]?.fields||[])
     .flatMap(f => f.games.map(g => ({...g,field:f.name,date:SCHED[weekIdx].label})))
@@ -8453,10 +8541,29 @@ export default function App() {
   const [tab, setTab] = useState("home");
   const [teamDetail, setTeamDetail] = useState(null);
   const [prevTab, setPrevTab] = useState("home");
-  const [activeAlert, setActiveAlert] = useState(() => localStorage.getItem("lbdc_alert") || null);
-  const [activeAlertStyle, setActiveAlertStyle] = useState(() => { try { return JSON.parse(localStorage.getItem("lbdc_alert_style") || "{}"); } catch(e) { return {}; } });
+  const [activeAlert, setActiveAlert] = useState(null);
+  const [activeAlertStyle, setActiveAlertStyle] = useState({});
   const [alertDismissed, setAlertDismissed] = useState(false);
   const dismissAlert = () => setAlertDismissed(true);
+
+  // Load alert + page content from Supabase on startup
+  useEffect(() => {
+    // Load alert
+    sbFetch("lbdc_alert?id=eq.main&select=text,style,expire_at,go_live_at")
+      .then(rows => {
+        if (!rows || !rows[0] || !rows[0].text) return;
+        const {text, style, expire_at, go_live_at} = rows[0];
+        if (go_live_at && new Date(go_live_at) > new Date()) return;
+        if (expire_at && new Date(expire_at) <= new Date()) return;
+        setActiveAlert(text);
+        setActiveAlertStyle(style || {});
+      }).catch(() => {});
+    // Load page content blocks
+    sbFetch("lbdc_page_content?select=id,content")
+      .then(rows => {
+        (rows||[]).forEach(r => { _pageContentMap[r.id] = r.content || ""; });
+      }).catch(() => {});
+  }, []);
 
   // Strip any leftover URL hash on every load so the site never opens mid-page
   useEffect(() => {
@@ -8576,7 +8683,7 @@ export default function App() {
       {tab==="stats"     && <StatsPage />}
       {tab==="live"      && <LiveScorerPage />}
       {tab==="subs"      && <SubBoardPage />}
-      {tab==="admin"     && <AdminPage onAlertChange={(txt) => { setActiveAlert(txt); setActiveAlertStyle((() => { try { return JSON.parse(localStorage.getItem("lbdc_alert_style")||"{}"); } catch(e) { return {}; } })()); }} />}
+      {tab==="admin"     && <AdminPage onAlertChange={(txt, style) => { setActiveAlert(txt); setActiveAlertStyle(style || {}); }} />}
       {tab==="history"   && <HistoryPage />}
       {tab==="rules"     && <RulesPage />}
       {tab==="directions"&& <FieldDirectionsPage />}
