@@ -6940,19 +6940,41 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       {/* Batting */}
       <BSCrd>
         <BSH2 n="3" title="Batting Lineups" sub="Drag ⠿ handle to reorder · edit # to jump position · toggle off players not playing"/>
-        <div className="bs-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-          {renderBats(`${game.away} Batting`,"away",awayBat,setAwayBat,addAwayName,setAddAwayName,awayStatMode,setAwayStatMode)}
-          {renderBats(`${game.home} Batting`,"home",homeBat,setHomeBat,addHomeName,setAddHomeName,homeStatMode,setHomeStatMode)}
-        </div>
+        {(() => {
+          const isAwayTeam = captainTeam && game.away === captainTeam;
+          const isHomeTeam = captainTeam && game.home === captainTeam;
+          const lockedBox = (teamName) => (
+            <div style={{border:"1px dashed #ccc",borderRadius:10,padding:"28px 16px",textAlign:"center",color:"rgba(0,0,0,0.3)",fontSize:13}}>
+              🔒 {teamName} stats — to be submitted by that team's captain
+            </div>
+          );
+          return (
+            <div className="bs-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+              {(!captainTeam || isAwayTeam) ? renderBats(`${game.away} Batting`,"away",awayBat,setAwayBat,addAwayName,setAddAwayName,awayStatMode,setAwayStatMode) : lockedBox(game.away)}
+              {(!captainTeam || isHomeTeam) ? renderBats(`${game.home} Batting`,"home",homeBat,setHomeBat,addHomeName,setAddHomeName,homeStatMode,setHomeStatMode) : lockedBox(game.home)}
+            </div>
+          );
+        })()}
       </BSCrd>
 
       {/* Pitching */}
       <BSCrd>
         <BSH2 n="4" title="Pitching" sub="Enter IP as innings.outs (e.g. 6.2 = 6 innings 2 outs)"/>
-        <div className="bs-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-          {renderPit(`${game.away} Pitching`,awayPit,setAwayPit)}
-          {renderPit(`${game.home} Pitching`,homePit,setHomePit)}
-        </div>
+        {(() => {
+          const isAwayTeam = captainTeam && game.away === captainTeam;
+          const isHomeTeam = captainTeam && game.home === captainTeam;
+          const lockedBox = (teamName) => (
+            <div style={{border:"1px dashed #ccc",borderRadius:10,padding:"28px 16px",textAlign:"center",color:"rgba(0,0,0,0.3)",fontSize:13}}>
+              🔒 {teamName} pitching — to be submitted by that team's captain
+            </div>
+          );
+          return (
+            <div className="bs-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+              {(!captainTeam || isAwayTeam) ? renderPit(`${game.away} Pitching`,awayPit,setAwayPit) : lockedBox(game.away)}
+              {(!captainTeam || isHomeTeam) ? renderPit(`${game.home} Pitching`,homePit,setHomePit) : lockedBox(game.home)}
+            </div>
+          );
+        })()}
       </BSCrd>
 
       {/* Recap */}
@@ -7488,7 +7510,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [liveLeague, setLiveLeague] = useState(() => BOOMERS_TEAMS.has(teamFilter) ? 1 : 0);
   const [gs, setGs] = useState(null);
   const [setupInfo, setSetupInfo] = useState(null);
-  const [lineupStep, setLineupStep] = useState("away");
+  const [lineupStep, setLineupStep] = useState("away"); // will be set to captain's side on game select
   const [lineupDraft, setLineupDraft] = useState({away:[],home:[]});
   const [nameInput, setNameInput] = useState("");
   const [modal, setModal] = useState(null);
@@ -7751,8 +7773,8 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
                   <button onClick={()=>{setGs({...saved,_hist:[]});setView("game");}} style={{padding:"8px 16px",background:"#b45309",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>▶ Resume</button>
                 ):(
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    <button onClick={()=>{setBsMode(false);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep("away");setView("lineup");}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
-                    <button onClick={()=>{setBsMode(true);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep("away");setView("lineup");}} style={{padding:"8px 16px",background:"#374151",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Box Score</button>
+                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(false);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep(side);setView("lineup");}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
+                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(true);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep(side);setView("lineup");}} style={{padding:"8px 16px",background:"#374151",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Box Score</button>
                   </div>
                 )}
               </div>
@@ -7772,7 +7794,9 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     const addPlayer=(name)=>{if(!name.trim()||cur.includes(name.trim()))return;setLineupDraft(p=>({...p,[lineupStep]:[...p[lineupStep],name.trim()]}));setNameInput("");};
     const doneTeam=()=>{
       if(!cur.length){alert("Add at least 1 player.");return;}
-      if(lineupStep==="away"){setLineupStep("home");return;}
+      // Captain only enters their own lineup — skip opponent step
+      const isCaptain = !!teamFilter;
+      if(!isCaptain && lineupStep==="away"){setLineupStep("home");return;}
       if(bsMode){
         // Route to box score entry
         const initBat={};
@@ -7793,7 +7817,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         <div style={{background:"#002d6e",padding:"14px 16px",display:"flex",alignItems:"center",gap:10}}>
           <button onClick={()=>lineupStep==="away"?setView("pick"):setLineupStep("away")} style={{padding:"6px 12px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>← Back</button>
           <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase"}}>{teamName} Batting Order</div>
-          <div style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{lineupStep==="away"?"Step 1 of 2":"Step 2 of 2"}</div>
+          <div style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{teamFilter ? "Your Lineup" : (lineupStep==="away"?"Step 1 of 2":"Step 2 of 2")}</div>
         </div>
         <div style={{maxWidth:500,margin:"0 auto",padding:"20px 16px 60px"}}>
           <div style={{background:"#fff",borderRadius:12,padding:"20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
@@ -7821,7 +7845,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
             </div>
           </div>
           <button onClick={doneTeam} style={{width:"100%",padding:"14px",background:"#002d6e",border:"none",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",cursor:"pointer"}}>
-            {lineupStep==="away"?`Next: ${g.home} Order →`:"▶ Start Game!"}
+            {teamFilter ? "▶ Start Game!" : (lineupStep==="away"?`Next: ${g.home} Order →`:"▶ Start Game!")}
           </button>
         </div>
       </div>
