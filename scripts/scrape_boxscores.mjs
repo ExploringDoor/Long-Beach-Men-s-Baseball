@@ -169,6 +169,45 @@ function parseBoxScore(html, awayTeam, homeTeam) {
     homePit: hPitStart > 0 && allEnds[1] > 0 ? html.slice(hPitStart, allEnds[1]) : "",
   };
 
+  // Parse footnote stats (2B, 3B, HR, SB, HBP, SF) from section text
+  const parseFootnotes = (sec) => {
+    const text = sec.replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ");
+    const result = { doubles: {}, triples: {}, hr: {}, sb: {}, hbp: {}, sf: {} };
+    const parseNames = str => str.split(",").flatMap(part => {
+      part = part.trim();
+      const countMatch = part.match(/\((\d+)\)/);
+      const count = countMatch ? parseInt(countMatch[1]) : 1;
+      const name = part.replace(/\(\d+\)/g, "").replace(/[*]/g, "").trim().toLowerCase();
+      return name ? [{ name, count }] : [];
+    });
+    const patterns = [
+      { key: "doubles", re: /\b2B:\s*(.+?)(?=\s+(?:3B|HR|SB|HBP|SF)\s*:|$)/i },
+      { key: "triples", re: /\b3B:\s*(.+?)(?=\s+(?:2B|HR|SB|HBP|SF)\s*:|$)/i },
+      { key: "hr",      re: /\bHR:\s*(.+?)(?=\s+(?:2B|3B|SB|HBP|SF)\s*:|$)/i },
+      { key: "sb",      re: /\bSB:\s*(.+?)(?=\s+(?:2B|3B|HR|HBP|SF)\s*:|$)/i },
+      { key: "hbp",     re: /\bHBP:\s*(.+?)(?=\s+(?:2B|3B|HR|SB|SF)\s*:|$)/i },
+      { key: "sf",      re: /\bSF:\s*(.+?)(?=\s+(?:2B|3B|HR|SB|HBP)\s*:|$)/i },
+    ];
+    for (const { key, re } of patterns) {
+      const m = text.match(re);
+      if (m) parseNames(m[1]).forEach(({ name, count }) => { result[key][name] = (result[key][name] || 0) + count; });
+    }
+    return result;
+  };
+
+  // Apply footnote stats to batters by matching last name (case insensitive)
+  const applyFootnotes = (batters, footnotes) => {
+    for (const [stat, counts] of Object.entries(footnotes)) {
+      for (const [footName, count] of Object.entries(counts)) {
+        const batter = batters.find(b => {
+          const parts = b.player_name.toLowerCase().split(" ");
+          return parts.some(p => p === footName) || parts[parts.length - 1] === footName;
+        });
+        if (batter) batter[stat] = (batter[stat] || 0) + count;
+      }
+    }
+  };
+
   const parseBatters = (sec, team) => {
     const rows = sec.split(/<tr[\s\S]*?>/i);
     const batters = [];
@@ -188,6 +227,8 @@ function parseBoxScore(html, awayTeam, homeTeam) {
       batters.push({ player_name: normName, team, ab, r, h, rbi, bb, k,
         doubles: 0, triples: 0, hr: 0, sb: 0, hbp: 0, sf: 0 });
     }
+    // Apply footnote stats (HR, 2B, 3B, SB, HBP, SF)
+    applyFootnotes(batters, parseFootnotes(sec));
     return batters;
   };
 
