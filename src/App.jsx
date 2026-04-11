@@ -701,11 +701,12 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
           ? allSeasons.find(x => x.name.includes("Boomers"))
           : allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!season) { setLoading(false); return; }
-        const games = await sbFetch(`games?select=away_team,home_team,away_score,home_score&season_id=eq.${season.id}&away_score=not.is.null&limit=200`);
+        const games = await sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${season.id}&away_score=not.is.null&status=neq.PPD&status=neq.CAN&limit=200`);
         const rec = {};
         [away, home].forEach(t => { rec[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
         let awayW=0, homeW=0, ties=0;
         (games||[]).forEach(g => {
+          if (g.status === "PPD" || g.status === "CAN") return;
           const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
           if(rec[a]){rec[a].rs+=as;rec[a].ra+=hs;rec[a].gp++;if(as>hs)rec[a].w++;else if(hs>as)rec[a].l++;else rec[a].t++;}
           if(rec[h]){rec[h].rs+=hs;rec[h].ra+=as;rec[h].gp++;if(hs>as)rec[h].w++;else if(as>hs)rec[h].l++;else rec[h].t++;}
@@ -1805,7 +1806,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
       .then(allSeasons => {
         const s = allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!s) return null;
-        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&away_score=not.is.null&limit=200`);
+        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&away_score=not.is.null&status=neq.PPD&status=neq.CAN&limit=200`);
       })
       .then(games => {
         if (!games || !games.length) return;
@@ -1813,6 +1814,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
         DIV.SAT.teams.forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
         games.forEach(g => {
           if (!g.away_score && g.away_score !== 0) return;
+          if (g.status === "PPD" || g.status === "CAN") return;
           const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
           if(!tm[a]||!tm[h]) return;
           tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
@@ -1843,7 +1845,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
       .then(allSeasons => {
         const s = allSeasons.find(x => x.name.includes("Boomers"));
         if (!s) return null;
-        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&away_score=not.is.null&limit=200`);
+        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&away_score=not.is.null&status=neq.PPD&status=neq.CAN&limit=200`);
       })
       .then(games => {
         if (!games || !games.length) return;
@@ -1851,6 +1853,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
         DIV.BOM.teams.forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
         games.forEach(g => {
           if (!g.away_score && g.away_score !== 0) return;
+          if (g.status === "PPD" || g.status === "CAN") return;
           const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
           if(!tm[a]||!tm[h]) return;
           tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
