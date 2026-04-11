@@ -7973,6 +7973,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         const isBatter=k==="__batter__";
         if (v==="scored"){r++;score[side]++;if(!isBatter)rbi++;}
         else if(v==="3B")nb[2]=true; else if(v==="2B")nb[1]=true; else if(v==="1B")nb[0]=true;
+        else if(v==="stay"&&!isBatter){if(k==="3B")nb[2]=true;else if(k==="2B")nb[1]=true;else if(k==="1B")nb[0]=true;}
       });
       return {nb,r,rbi};
     };
@@ -8565,19 +8566,22 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const getRunnerOpts = (base, outcome) => {
     if (outcome === "3B") {
       // Triple: runner on 1B or 2B must score or be out; runner on 3B scores or out
-      return ["scored","out"];
+      // "stay" allowed in rare cases (e.g. runner held)
+      if (base === "1B") return ["scored","out","stay"];
+      if (base === "2B") return ["scored","out","stay"];
+      if (base === "3B") return ["scored","out","stay"];
     }
     if (outcome === "2B") {
       // Double: runner on 1B can score or stop at 3rd (or out); runner on 2B scores or out; runner on 3B scores
-      if (base === "1B") return ["scored","3B","out"];
-      if (base === "2B") return ["scored","out"];
-      if (base === "3B") return ["scored","out"];
+      if (base === "1B") return ["scored","3B","out","stay"];
+      if (base === "2B") return ["scored","out","stay"];
+      if (base === "3B") return ["scored","out","stay"];
     }
     if (outcome === "1B") {
-      // Single: runners advance 1-2 bases typically
-      if (base === "1B") return ["scored","3B","2B","out"];
-      if (base === "2B") return ["scored","3B","out"];
-      if (base === "3B") return ["scored","out"];
+      // Single: runners advance 1-2 bases typically; "stay" allows runner to hold
+      if (base === "1B") return ["scored","3B","2B","out","stay"];
+      if (base === "2B") return ["scored","3B","out","stay"];
+      if (base === "3B") return ["scored","out","stay"];
     }
     // OUT/SAC: runners can advance or stay
     return ["scored","3B","2B","1B","out","stay"];
