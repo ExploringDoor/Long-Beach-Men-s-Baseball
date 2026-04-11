@@ -2541,25 +2541,8 @@ function getSponsorsData() {
 function FieldDirectionsPage() {
   const [fields, setFields] = useState(FIELDS_INFO);
   useEffect(() => {
-    sbFetch("lbdc_fields?select=*&order=sort_order.asc,id.asc")
-      .then(rows => {
-        if (rows && rows.length > 0) {
-          // Merge Supabase overrides onto FIELDS_INFO defaults (keeps location from defaults)
-          const byName = Object.fromEntries(rows.map(r => [r.name, r]));
-          setFields(FIELDS_INFO.map(f => {
-            const r = byName[f.name];
-            if (!r) return f;
-            return {
-              ...f,
-              address: r.address || f.address,
-              mapsUrl: r.maps_url || f.mapsUrl,
-              appleMapsUrl: r.apple_maps_url || f.appleMapsUrl,
-              notes: Array.isArray(r.notes) && r.notes.length > 0 ? r.notes : f.notes,
-              color: r.color || f.color,
-            };
-          }));
-        }
-      })
+    sbFetch("lbdc_fields?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setFields(rows[0].data); })
       .catch(() => {});
   }, []);
   return (
