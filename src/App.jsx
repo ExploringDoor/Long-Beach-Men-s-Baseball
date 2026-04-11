@@ -6170,6 +6170,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // ── Auto-load a game when opened from "Manage Games" → Edit ──
   useEffect(() => {
     if (preloadGame) selectSavedGame(preloadGame);
+    if (captainTeam) loadSavedGames(); // load so we can hide already-submitted games from schedule
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -6224,7 +6225,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         const results = await Promise.all(fetches);
         return results.flat().sort((a,b)=>b.game_date?.localeCompare(a.game_date||"")||0);
       })
-      .then(games=>{ setSavedGames(games||[]); setSavedLoading(false); })
+      .then(games=>{
+        const filtered = (games||[]).filter(g => !captainTeam || g.away_team===captainTeam || g.home_team===captainTeam);
+        setSavedGames(filtered); setSavedLoading(false);
+      })
       .catch(()=>setSavedLoading(false));
   };
 
@@ -6761,7 +6765,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         </div>
       ) : !customMode ? (
         <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:420,overflowY:"auto"}}>
-          {allGames.map((g,i)=>(
+          {allGames.filter(g => !captainTeam || !savedGames.some(s => s.away_team===g.away && s.home_team===g.home)).map((g,i)=>(
             <div key={i} onClick={()=>selectGame(g)}
               style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:9,
                 padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",
