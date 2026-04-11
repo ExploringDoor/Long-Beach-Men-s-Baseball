@@ -6181,6 +6181,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const totalH = (rows) => rows.reduce((s,p)=>s+(+p.singles||0)+(+p.doubles||0)+(+p.triples||0)+(+p.hr||0),0);
   useEffect(() => {
     if(awayStatMode !== "full") return;
+    if(editGameId) return; // don't overwrite loaded score during edit
     const active = awayBat.filter(p=>p.on);
     if(!active.length) return;
     setAwayScore(String(active.reduce((s,p)=>s+(+p.r||0),0)));
@@ -6189,6 +6190,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   }, [awayBat, awayStatMode]);
   useEffect(() => {
     if(homeStatMode !== "full") return;
+    if(editGameId) return; // don't overwrite loaded score during edit
     const active = homeBat.filter(p=>p.on);
     if(!active.length) return;
     setHomeScore(String(active.reduce((s,p)=>s+(+p.r||0),0)));
