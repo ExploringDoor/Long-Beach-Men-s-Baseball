@@ -1026,9 +1026,9 @@ function HomePage({ setTab, setTeamDetail }) {
       </div>
       {getPageContent("home_announcement") && <div style={{maxWidth:900,margin:"0 auto",padding:"0 clamp(12px,3vw,40px)"}} dangerouslySetInnerHTML={{__html:getPageContent("home_announcement")}} />}
 
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
-        <div className="home-two-col" style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:32,alignItems:"start"}}>
-          <div>
+      <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px",width:"100%",boxSizing:"border-box"}}>
+        <div className="home-two-col" style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:32,alignItems:"start",minWidth:0}}>
+          <div style={{minWidth:0,overflow:"hidden"}}>
             {newsItems.length > 0 && (
               <div style={{marginBottom:32}}>
                 <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
@@ -7517,45 +7517,41 @@ function StatsPage() {
     setPitSort(s => ({ col, dir: s.col===col && s.dir==="asc" ? "desc" : "asc" }));
   };
 
-  // Load individual player game log
+  // Load player career stats grouped by season
   const loadPlayer = (playerName, team) => {
     setSelectedPlayer({ playerName, team });
     setPlayerLoading(true);
 
-    const isAll = season === ALL_SEASONS_KEY;
+    async function fetchSeasonStats() {
+      const enc = encodeURIComponent(playerName);
+      const lines = await sbFetch(`batting_lines?select=game_id,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&player_name=eq.${enc}&limit=1000`);
+      if (!Array.isArray(lines) || lines.length === 0) return [];
+      const gameIds = [...new Set(lines.map(l => l.game_id))];
+      const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id&limit=500`);
+      const seasonIds = [...new Set(games.map(g => g.season_id).filter(Boolean))];
+      if (!seasonIds.length) return [];
+      const seasonList = await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.desc`);
+      const seasonNameMap = Object.fromEntries(seasonList.map(s => [s.id, s.name||s.year]));
+      const seasonYearMap = Object.fromEntries(seasonList.map(s => [s.id, s.year||0]));
+      const gameSeasonMap = Object.fromEntries(games.map(g => [g.id, g.season_id]));
+      // Group lines by season
+      const bySeasonId = {};
+      for (const l of lines) {
+        const sid = gameSeasonMap[l.game_id];
+        if (!sid) continue;
+        if (!bySeasonId[sid]) bySeasonId[sid] = { name: seasonNameMap[sid]||"?", year: seasonYearMap[sid]||0, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
+        const s = bySeasonId[sid];
+        s.games.add(l.game_id);
+        s.ab+=(l.ab||0); s.r+=(l.r||0); s.h+=(l.h||0); s.d+=(l.doubles||0);
+        s.t+=(l.triples||0); s.hr+=(l.hr||0); s.rbi+=(l.rbi||0); s.bb+=(l.bb||0);
+        s.k+=(l.k||0); s.hbp+=(l.hbp||0); s.sf+=(l.sf||0); s.sb+=(l.sb||0);
+      }
+      return Object.entries(bySeasonId)
+        .map(([sid, s]) => ({ sid, name: s.name, year: s.year, gp: s.games.size, ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb }))
+        .sort((a, b) => b.year - a.year);
+    }
 
-    const fetchGameLog = isAll
-      ? // All seasons: fetch all batting lines for this player, then join game info
-        sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,game_id&player_name=eq.${encodeURIComponent(playerName)}&team=eq.${encodeURIComponent(team)}&limit=500`)
-          .then(lines => {
-            if (!lines.length) return [];
-            const ids = [...new Set(lines.map(l => l.game_id))].join(",");
-            return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score&id=in.(${ids})&limit=500`)
-              .then(gs => {
-                const gameMap = {};
-                gs.forEach(g => gameMap[g.id] = g);
-                return lines.map(l => ({ ...l, games: gameMap[l.game_id] || null }))
-                  .sort((a,b) => (a.games?.game_date||"").localeCompare(b.games?.game_date||""));
-              });
-          })
-      : // Single season: filter by season first
-        sbFetch(`seasons?select=id,name&limit=100`)
-          .then(allSeasons => {
-            const found = allSeasons.find(s => s.name === season);
-            if (!found) return [];
-            return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score&season_id=eq.${found.id}&limit=200`)
-              .then(gs => {
-                if (!gs.length) return [];
-                const gameMap = {};
-                gs.forEach(g => gameMap[g.id] = g);
-                const ids = gs.map(g => g.id).join(",");
-                return sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,game_id&player_name=eq.${encodeURIComponent(playerName)}&team=eq.${encodeURIComponent(team)}&game_id=in.(${ids})&limit=200`)
-                  .then(lines => lines.map(l => ({ ...l, games: gameMap[l.game_id] || null }))
-                    .sort((a,b) => (a.games?.game_date||"").localeCompare(b.games?.game_date||"")));
-              });
-          });
-
-    fetchGameLog
+    fetchSeasonStats()
       .then(d => { setPlayerGames(d); setPlayerLoading(false); })
       .catch(() => setPlayerLoading(false));
   };
@@ -7658,73 +7654,83 @@ function StatsPage() {
           </div>
         )}
 
-        {/* Player game log modal */}
+        {/* Player career stats by season modal */}
         {selectedPlayer && (
           <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={() => setSelectedPlayer(null)}>
-            <div style={{background:"#fff",borderRadius:14,maxWidth:680,width:"100%",maxHeight:"80vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={e => e.stopPropagation()}>
+            <div style={{background:"#fff",borderRadius:14,maxWidth:760,width:"100%",maxHeight:"85vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={e => e.stopPropagation()}>
               <div style={{background:"#002d6e",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
                 <div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",textTransform:"uppercase"}}>{selectedPlayer.playerName}</div>
-                  <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{selectedPlayer.team} · {season === ALL_SEASONS_KEY ? "All Seasons" : season}</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{selectedPlayer.team} · Career Batting Stats</div>
                 </div>
                 <button onClick={() => setSelectedPlayer(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16}}>✕</button>
               </div>
               <div style={{overflowY:"auto",padding:"16px 18px"}}>
                 {playerLoading ? (
-                  <div style={{textAlign:"center",padding:40,color:"rgba(0,0,0,0.4)"}}>Loading game log…</div>
+                  <div style={{textAlign:"center",padding:40,color:"rgba(0,0,0,0.4)"}}>Loading stats…</div>
                 ) : playerGames.length === 0 ? (
-                  <div style={{textAlign:"center",padding:40,color:"rgba(0,0,0,0.4)"}}>No game data found.</div>
-                ) : (
-                  <>
-                    <div style={{fontSize:12,fontWeight:700,color:"rgba(0,0,0,0.4)",marginBottom:10,textTransform:"uppercase"}}>Game Log — {playerGames.length} games</div>
+                  <div style={{textAlign:"center",padding:40,color:"rgba(0,0,0,0.4)"}}>No stats found.</div>
+                ) : (() => {
+                  const fmtAvg = (h,ab) => ab>0 ? (h/ab).toFixed(3).replace(/^0/,"") : ".---";
+                  const fmtObp = (h,bb,hbp,ab,sf) => { const d=ab+bb+hbp+sf; return d>0 ? ((h+bb+hbp)/d).toFixed(3).replace(/^0/,"") : ".---"; };
+                  const fmtSlg = (h,d,t,hr,ab) => ab>0 ? ((h+d+2*t+3*hr)/ab).toFixed(3).replace(/^0/,"") : ".---";
+                  const careerTot = playerGames.reduce((a,s) => ({
+                    gp:a.gp+s.gp, ab:a.ab+s.ab, r:a.r+s.r, h:a.h+s.h, d:a.d+s.d, t:a.t+s.t,
+                    hr:a.hr+s.hr, rbi:a.rbi+s.rbi, bb:a.bb+s.bb, k:a.k+s.k, hbp:a.hbp+(s.hbp||0), sf:a.sf+(s.sf||0), sb:a.sb+s.sb,
+                  }), {gp:0,ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0});
+                  const cols = ["Season","GP","AB","R","H","2B","3B","HR","RBI","BB","K","SB","AVG","OBP","SLG"];
+                  return (
                     <div style={{overflowX:"auto"}}>
-                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
                         <thead>
-                          <tr style={{background:"#f8f9fb"}}>
-                            {["Date","Opponent","AB","R","H","RBI","BB","K","2B","3B","HR","SB"].map(c => (
-                              <th key={c} style={{padding:"6px 10px",textAlign:c==="Date"||c==="Opponent"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,textTransform:"uppercase",color:"rgba(0,0,0,0.5)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>{c}</th>
+                          <tr style={{background:"#f5f7fa",borderBottom:"2px solid #e5e7eb"}}>
+                            {cols.map(c => (
+                              <th key={c} style={{padding:"8px 10px",textAlign:c==="Season"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>{c}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {playerGames.map((g, i) => {
-                            const gd = g.games;
-                            const opp = gd ? (g.team === gd.home_team ? `vs ${gd.away_team}` : `@ ${gd.home_team}`) : "—";
-                            const date = gd?.game_date ? new Date(gd.game_date).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "—";
-                            return (
-                              <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.06)",background:i%2===0?"#fff":"#fafafa"}}>
-                                <td style={{padding:"7px 10px",whiteSpace:"nowrap",fontSize:12,color:"rgba(0,0,0,0.55)"}}>{date}</td>
-                                <td style={{padding:"7px 10px",whiteSpace:"nowrap",fontWeight:600}}>{opp}</td>
-                                {[g.ab,g.r,g.h,g.rbi,g.bb,g.k,g.doubles,g.triples,g.hr,g.sb].map((v,j) => (
-                                  <td key={j} style={{padding:"7px 10px",textAlign:"center",fontWeight:v>0&&[2,3,4,5,6,8,9]?.includes(j)?700:400,color:v>0&&[3,4,8,9]?.includes(j)?"#002d6e":"inherit"}}>{v||0}</td>
-                                ))}
-                              </tr>
-                            );
-                          })}
+                          {playerGames.map((s, i) => (
+                            <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
+                              <td style={{padding:"8px 10px",fontWeight:600,whiteSpace:"nowrap",color:"#111"}}>{s.name}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.gp}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.ab}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.r}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.h}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.d}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.t}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center",color:s.hr>0?"#c8102e":"inherit",fontWeight:s.hr>0?700:400}}>{s.hr}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center",fontWeight:s.rbi>0?600:400}}>{s.rbi}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.bb}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.k}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.sb}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#002d6e"}}>{fmtAvg(s.h,s.ab)}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center",color:"#374151"}}>{fmtObp(s.h,s.bb,s.hbp||0,s.ab,s.sf||0)}</td>
+                              <td style={{padding:"8px 10px",textAlign:"center",color:"#374151"}}>{fmtSlg(s.h,s.d,s.t,s.hr,s.ab)}</td>
+                            </tr>
+                          ))}
+                          <tr style={{borderTop:"2px solid #002d6e",background:"#f0f4ff",fontWeight:700}}>
+                            <td style={{padding:"8px 10px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:12,color:"#002d6e"}}>Career</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.gp}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.ab}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.r}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.h}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.d}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.t}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900,color:careerTot.hr>0?"#c8102e":"inherit"}}>{careerTot.hr}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.rbi}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.bb}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.k}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.sb}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900,color:"#002d6e"}}>{fmtAvg(careerTot.h,careerTot.ab)}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900,color:"#002d6e"}}>{fmtObp(careerTot.h,careerTot.bb,careerTot.hbp,careerTot.ab,careerTot.sf)}</td>
+                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900,color:"#002d6e"}}>{fmtSlg(careerTot.h,careerTot.d,careerTot.t,careerTot.hr,careerTot.ab)}</td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
-                    {(() => {
-                      const tot = playerGames.reduce((acc,g) => ({
-                        ab:acc.ab+(g.ab||0), r:acc.r+(g.r||0), h:acc.h+(g.h||0), rbi:acc.rbi+(g.rbi||0),
-                        bb:acc.bb+(g.bb||0), k:acc.k+(g.k||0), doubles:acc.doubles+(g.doubles||0),
-                        triples:acc.triples+(g.triples||0), hr:acc.hr+(g.hr||0), sb:acc.sb+(g.sb||0),
-                      }), {ab:0,r:0,h:0,rbi:0,bb:0,k:0,doubles:0,triples:0,hr:0,sb:0});
-                      const avg = tot.ab > 0 ? (tot.h/tot.ab).toFixed(3).replace(/^0/,"") : ".000";
-                      return (
-                        <div style={{marginTop:14,background:"#f0f4ff",border:"1px solid #c7d2fe",borderRadius:8,padding:"10px 14px",display:"flex",flexWrap:"wrap",gap:"10px 24px"}}>
-                          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,textTransform:"uppercase",color:"#002d6e",width:"100%",marginBottom:4}}>Season Totals</div>
-                          {[["AVG",avg],["AB",tot.ab],["H",tot.h],["R",tot.r],["RBI",tot.rbi],["2B",tot.doubles],["3B",tot.triples],["HR",tot.hr],["BB",tot.bb],["K",tot.k],["SB",tot.sb]].map(([lbl,val]) => (
-                            <div key={lbl} style={{textAlign:"center"}}>
-                              <div style={{fontSize:10,fontWeight:700,color:"rgba(0,0,45,0.5)",textTransform:"uppercase"}}>{lbl}</div>
-                              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e"}}>{val}</div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </>
-                )}
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -7735,7 +7741,7 @@ function StatsPage() {
           <Card>
             <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase"}}>Batting Leaderboard</div>
-              <div style={{fontSize:12,color:"rgba(0,0,0,0.4)"}}>{sortedBat.length} players · click column to sort · click name for game log</div>
+              <div style={{fontSize:12,color:"rgba(0,0,0,0.4)"}}>{sortedBat.length} players · click column to sort · click name for career stats</div>
             </div>
             <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:700}}>
@@ -8022,8 +8028,43 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     persist({...gs._hist[gs._hist.length-1],_hist:gs._hist.slice(0,-1)});
   };
 
-  // ── Stolen Base ──
+  // ── Stolen Base / Out Stealing ──
   // runnerName = name of runner on the stolen base (determined by batting order position)
+  const applyOutStealing = (fromBase) => {
+    const prevForUndo = {...gs,_hist:undefined};
+    const hist = [...(gs._hist||[]).slice(-4),prevForUndo];
+    let s = {...gs,_hist:hist};
+    let bases = [...s.bases];
+    const baseIdx = fromBase==="1B"?0:fromBase==="2B"?1:2;
+    // Find runner name from play log
+    let runnerName = null;
+    for (let i = s.plays.length-1; i >= 0; i--) {
+      const p = s.plays[i];
+      if (p.side === s.topBottom && p.inning === s.inning) {
+        if (["1B","2B","3B","BB","HBP","E","FC"].includes(p.outcome)) {
+          runnerName = p.batter;
+          break;
+        }
+      }
+    }
+    // Remove runner from base
+    bases[baseIdx] = false;
+    const newOuts = (s.outs||0) + 1;
+    const play = {inning:s.inning,side:s.topBottom,batter:runnerName||"?",outcome:"OUT",loc:fromBase,outType:"CS",rbis:0,runs:0};
+    let ns = {...s,bases,outs:newOuts,plays:[...s.plays,play]};
+    // End half-inning if 3 outs
+    if (newOuts >= 3) {
+      const side = ns.topBottom==="top"?"away":"home";
+      const opp  = ns.topBottom==="top"?"home":"away";
+      const nextInning = ns.topBottom==="bottom" ? ns.inning+1 : ns.inning;
+      const nextHalf   = ns.topBottom==="top" ? "bottom" : "top";
+      ns = {...ns, topBottom:nextHalf, inning:nextInning, outs:0, bases:[false,false,false], runsThisHalf:0};
+    }
+    persist(ns);
+    setStealBase(null);
+    setModal(null);
+  };
+
   const applySteal = (fromBase) => {
     const prevForUndo = {...gs,_hist:undefined};
     const hist = [...(gs._hist||[]).slice(-4),prevForUndo];
@@ -8673,9 +8714,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:6,textAlign:"center"}}>Runner on {stealBase}</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.55)",textAlign:"center",marginBottom:16}}>What happened?</div>
-            <button onClick={()=>applySteal(stealBase)} style={{width:"100%",marginBottom:8,padding:"14px",background:"rgba(255,215,0,0.15)",border:"2px solid rgba(255,215,0,0.4)",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,cursor:"pointer"}}>
-              🏃 Stolen Base — {stealBase==="3B"?"Scores!":stealBase==="2B"?"Advances to 3rd":"Advances to 2nd"}
-            </button>
+            <div style={{display:"flex",gap:10,marginBottom:8}}>
+              <button onClick={()=>applySteal(stealBase)} style={{flex:1,padding:"14px 8px",background:"rgba(255,215,0,0.15)",border:"2px solid rgba(255,215,0,0.4)",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,cursor:"pointer",textAlign:"center"}}>
+                🏃 Stolen Base{stealBase==="3B"?" — Scores!":stealBase==="2B"?" — 3rd":" — 2nd"}
+              </button>
+              <button onClick={()=>applyOutStealing(stealBase)} style={{flex:1,padding:"14px 8px",background:"rgba(220,38,38,0.15)",border:"2px solid rgba(220,38,38,0.4)",borderRadius:10,color:"#f87171",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,cursor:"pointer",textAlign:"center"}}>
+                ❌ Out Stealing
+              </button>
+            </div>
             <button onClick={()=>setStealBase(null)} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>Cancel</button>
           </div>
         </div>
