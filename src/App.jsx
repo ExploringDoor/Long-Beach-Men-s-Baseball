@@ -7846,17 +7846,27 @@ function StatsPage() {
 
 
 /* ─── LIVE SCORER ─────────────────────────────────────────────────────────── */
-function Diamond({ bases }) {
+function Diamond({ bases, onBaseClick }) {
   const c = (o) => o ? "#FFD700" : "rgba(255,255,255,0.75)";
+  const clickable = !!onBaseClick;
   return (
     <svg width={150} height={150} viewBox="0 0 150 150">
       <polygon points="75,140 140,75 75,10 10,75" fill="#1e4d1a" stroke="#3d7a35" strokeWidth={1.5}/>
       <circle cx={75} cy={80} r={44} fill="#c4935a" opacity={0.22}/>
       <circle cx={75} cy={80} r={6} fill="#a07040" stroke="#7a5028" strokeWidth={1}/>
       <rect x={68} y={133} width={14} height={9} rx={1} fill="rgba(255,255,255,0.85)"/>
-      <rect x={133} y={68} width={14} height={14} rx={2} fill={c(bases[0])}/>
-      <rect x={68} y={3} width={14} height={14} rx={2} fill={c(bases[1])}/>
-      <rect x={3} y={68} width={14} height={14} rx={2} fill={c(bases[2])}/>
+      {/* 1B */}
+      <rect x={133} y={68} width={14} height={14} rx={2} fill={c(bases[0])}
+        onClick={clickable && bases[0] ? ()=>onBaseClick("1B") : undefined}
+        style={clickable && bases[0] ? {cursor:"pointer"} : {}}/>
+      {/* 2B */}
+      <rect x={68} y={3} width={14} height={14} rx={2} fill={c(bases[1])}
+        onClick={clickable && bases[1] ? ()=>onBaseClick("2B") : undefined}
+        style={clickable && bases[1] ? {cursor:"pointer"} : {}}/>
+      {/* 3B */}
+      <rect x={3} y={68} width={14} height={14} rx={2} fill={c(bases[2])}
+        onClick={clickable && bases[2] ? ()=>onBaseClick("3B") : undefined}
+        style={clickable && bases[2] ? {cursor:"pointer"} : {}}/>
     </svg>
   );
 }
@@ -7875,6 +7885,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [pendingLoc, setPL] = useState(null);
   const [pendingOutType, setPOT] = useState(null);
   const [runnerDests, setRD] = useState({});
+  const [stealBase, setStealBase] = useState(null); // "1B","2B","3B" — base clicked for steal
   const [saving, setSaving] = useState(false);
   // Box score submission
   const [bsMode, setBsMode] = useState(false); // true = box score entry mode
@@ -7926,7 +7937,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const addOut = (s,n=1) => { const o=s.outs+n; return o>=3?endHalf({...s,outs:3}):{...s,outs:o}; };
   const updStat = (stats,name,d) => {
     if (!name||name==="—") return stats;
-    const c=stats[name]||{ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0};
+    const c=stats[name]||{ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};
     return {...stats,[name]:Object.entries(d).reduce((a,[k,v])=>({...a,[k]:(a[k]||0)+v}),c)};
   };
   const forceAdv = (bases) => {
@@ -8011,6 +8022,64 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     persist({...gs._hist[gs._hist.length-1],_hist:gs._hist.slice(0,-1)});
   };
 
+  // ── Stolen Base ──
+  // runnerName = name of runner on the stolen base (determined by batting order position)
+  const applySteal = (fromBase) => {
+    const prevForUndo = {...gs,_hist:undefined};
+    const hist = [...(gs._hist||[]).slice(-4),prevForUndo];
+    let s = {...gs,_hist:hist};
+    const side = s.topBottom==="top"?"away":"home";
+    let bases = [...s.bases];
+    let stats = {...s.stats};
+    let score = {...s.score};
+    let runs = 0;
+    // Identify which lineup slot occupies this base
+    // bases[0]=1B, bases[1]=2B, bases[2]=3B
+    const baseIdx = fromBase==="1B"?0:fromBase==="2B"?1:2;
+    // Find runner name: walk the batting order backwards from current batter to find who's on base
+    // The runner on a base is the last batter who reached that base and hasn't yet scored/been out.
+    // Since we track bases as booleans (not names), we use a heuristic: we can only record SB
+    // for the player whose name is associated with the base. We'll use the play log to find the
+    // most recent player to end up on that base.
+    let runnerName = null;
+    // Walk plays in reverse to find the last player who ended up on fromBase and hasn't yet left
+    const currentBases = [...s.bases]; // true/false per base
+    // Try to identify runner from play log
+    for (let i = s.plays.length-1; i >= 0; i--) {
+      const p = s.plays[i];
+      // We can't fully reconstruct base occupancy from play log alone without runner tracking,
+      // so fall back to batting order heuristic: the runner is the batter who batted most recently
+      // before the current batter, within the current half-inning, excluding the current batter.
+      if (p.side === s.topBottom && p.inning === s.inning) {
+        // Check if this player's outcome would leave them on this base
+        if (["1B","2B","3B","BB","HBP","E","FC"].includes(p.outcome)) {
+          runnerName = p.batter;
+          break;
+        }
+      }
+    }
+    // Advance base: 1B→2B, 2B→3B, 3B→score
+    if (fromBase==="3B") {
+      bases[2] = false;
+      runs = 1;
+      score[side] += 1;
+      if (runnerName) stats = updStat(stats, runnerName, {sb:1, r:1});
+    } else if (fromBase==="2B") {
+      bases[1] = false;
+      bases[2] = true;
+      if (runnerName) stats = updStat(stats, runnerName, {sb:1});
+    } else { // 1B
+      bases[0] = false;
+      bases[1] = true;
+      if (runnerName) stats = updStat(stats, runnerName, {sb:1});
+    }
+    const play = {inning:s.inning,side:s.topBottom,batter:runnerName||"?",outcome:"SB",loc:fromBase,outType:null,rbis:0,runs};
+    s = {...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+    persist(s);
+    setStealBase(null);
+    setModal(null);
+  };
+
   const initRunnerDests = (outcome) => {
     const d={};
     gs.bases.forEach((occ,i)=>{
@@ -8065,7 +8134,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         const awayIdx=gs.lineup.away.indexOf(name);
         const team=awayIdx>=0?gs.away:gs.home;
         const order=awayIdx>=0?awayIdx+1:gs.lineup.home.indexOf(name)+1;
-        batRows.push({game_id:gameId,player_name:name,team,batting_order:order,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0});
+        batRows.push({game_id:gameId,player_name:name,team,batting_order:order,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0,sb:st.sb||0});
       });
       if(batRows.length)await sbPost("batting_lines",batRows);
       clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");
@@ -8187,7 +8256,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         setView("boxscore");
         return;
       }
-      const si={};[...lineupDraft.away,...lineupDraft.home].forEach(n=>{si[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0};});
+      const si={};[...lineupDraft.away,...lineupDraft.home].forEach(n=>{si[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};});
       const state={away:g.away,home:g.home,date:g.date,field:g.field,time:g.time,inning:1,topBottom:"top",outs:0,bases:[false,false,false],score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,lineup:lineupDraft,batterIdx:{away:0,home:0},stats:si,plays:[],status:"in_progress"};
       persist({...state,_hist:[]});setView("game");
     };
@@ -8492,14 +8561,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           <button onClick={()=>persist({...gs,outs:0,bases:[false,false,false],balls:0,strikes:0,runsThisHalf:0})} style={{padding:"5px 8px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,color:"#ccc",fontSize:11,fontWeight:700,cursor:"pointer"}}>↺ Inning</button>
           <button onClick={()=>{
             if(!window.confirm("Full game reset?"))return;
-            const fi={};[...gs.lineup.away,...gs.lineup.home].forEach(n=>{fi[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0};});
+            const fi={};[...gs.lineup.away,...gs.lineup.home].forEach(n=>{fi[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};});
             persist({...gs,inning:1,topBottom:"top",outs:0,bases:[false,false,false],score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,batterIdx:{away:0,home:0},stats:fi,plays:[],_hist:[]});
           }} style={{padding:"5px 8px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,color:"#ccc",fontSize:11,fontWeight:700,cursor:"pointer"}}>↺ Game</button>
         </div>
       </div>
       {/* Diamond + batter */}
       <div style={{background:"#1a1a1a",padding:"14px 16px",display:"flex",gap:14,alignItems:"center"}}>
-        <Diamond bases={gs.bases}/>
+        <Diamond bases={gs.bases} onBaseClick={(base)=>setStealBase(base)}/>
         <div style={{flex:1}}>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:3}}>At Bat</div>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",lineHeight:1.1}}>{batter}</div>
@@ -8560,7 +8629,57 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         </table>
       </div>
 
+      {/* In-Game Box Score */}
+      <div style={{padding:"0 16px 16px",background:"#111",overflowX:"auto"}}>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:6}}>Box Score — Tap a base to steal</div>
+        {["away","home"].map(side=>{
+          const players = gs.lineup[side];
+          if (!players.length) return null;
+          return (
+            <div key={side} style={{marginBottom:10}}>
+              <div style={{fontSize:10,fontWeight:900,color:"#FFD700",textTransform:"uppercase",fontFamily:"'Barlow Condensed',sans-serif",marginBottom:4}}>{gs[side]}</div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                <thead>
+                  <tr style={{background:"rgba(255,255,255,0.05)"}}>
+                    <th style={{textAlign:"left",padding:"3px 6px",color:"rgba(255,255,255,0.4)",fontWeight:700,fontSize:10}}>Player</th>
+                    {["AB","R","H","RBI","BB","K","SB"].map(c=>(
+                      <th key={c} style={{textAlign:"center",padding:"3px 4px",color:c==="SB"?"#FFD700":"rgba(255,255,255,0.4)",fontWeight:700,fontSize:10}}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {players.map((name,i)=>{
+                    const st = gs.stats[name]||{};
+                    const isCur = side===(gs.topBottom==="top"?"away":"home") && i===gs.batterIdx[side]%players.length;
+                    return (
+                      <tr key={name} style={{background:isCur?"rgba(255,215,0,0.08)":"transparent",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                        <td style={{padding:"3px 6px",color:isCur?"#FFD700":"rgba(255,255,255,0.75)",fontWeight:isCur?700:400,fontSize:11,whiteSpace:"nowrap",maxWidth:90,overflow:"hidden",textOverflow:"ellipsis"}}>{name}</td>
+                        {[st.ab||0,st.r||0,st.h||0,st.rbi||0,st.bb||0,st.k||0,st.sb||0].map((v,ci)=>(
+                          <td key={ci} style={{textAlign:"center",padding:"3px 4px",color:ci===6&&v>0?"#FFD700":"rgba(255,255,255,0.65)",fontWeight:ci===6&&v>0?700:400,fontSize:11}}>{v||""}</td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+
       {/* ── MODALS ── */}
+      {stealBase&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+          <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:6,textAlign:"center"}}>Runner on {stealBase}</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.55)",textAlign:"center",marginBottom:16}}>What happened?</div>
+            <button onClick={()=>applySteal(stealBase)} style={{width:"100%",marginBottom:8,padding:"14px",background:"rgba(255,215,0,0.15)",border:"2px solid rgba(255,215,0,0.4)",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,cursor:"pointer"}}>
+              🏃 Stolen Base — {stealBase==="3B"?"Scores!":stealBase==="2B"?"Advances to 3rd":"Advances to 2nd"}
+            </button>
+            <button onClick={()=>setStealBase(null)} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>Cancel</button>
+          </div>
+        </div>
+      )}
       {modal==="loc"&&(
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.88)",zIndex:9000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onTouchStart={e=>e.stopPropagation()}>
           <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 40px",width:"100%",maxWidth:500}}>
