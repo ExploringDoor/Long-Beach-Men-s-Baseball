@@ -701,7 +701,7 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
           ? allSeasons.find(x => x.name.includes("Boomers"))
           : allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!season) { setLoading(false); return; }
-        const games = await sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${season.id}&away_score=not.is.null&status=not.in.(PPD,CAN)&limit=200`);
+        const games = await sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${season.id}&status=eq.Final&limit=200`);
         const rec = {};
         [away, home].forEach(t => { rec[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
         let awayW=0, homeW=0, ties=0;
@@ -1806,7 +1806,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
       .then(allSeasons => {
         const s = allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!s) return null;
-        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&away_score=not.is.null&status=not.in.(PPD,CAN)&limit=200`);
+        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&status=eq.Final&limit=200`);
       })
       .then(games => {
         if (!games || !games.length) return;
@@ -1845,7 +1845,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
       .then(allSeasons => {
         const s = allSeasons.find(x => x.name.includes("Boomers"));
         if (!s) return null;
-        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&away_score=not.is.null&status=not.in.(PPD,CAN)&limit=200`);
+        return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&status=eq.Final&limit=200`);
       })
       .then(games => {
         if (!games || !games.length) return;
