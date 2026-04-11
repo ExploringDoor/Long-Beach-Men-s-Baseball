@@ -4957,7 +4957,13 @@ function AdminSponsorsEditor({ onBack }) {
       .then(rows => { if (rows && rows[0] && rows[0].data) setSponsors(rows[0].data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
-  const save = async (arr) => { setSaving(true); await sbUpsert("lbdc_sponsors", {id:"main", data:arr}).catch(()=>{}); setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const [saveError, setSaveError] = useState("");
+  const save = async (arr) => {
+    setSaving(true); setSaveError("");
+    try { await sbUpsert("lbdc_sponsors", {id:"main", data:arr}); setSaved(true); setTimeout(()=>setSaved(false),2500); }
+    catch(e) { setSaveError(e.message || "Save failed"); }
+    setSaving(false);
+  };
   const reset = async () => { if(!window.confirm("Reset sponsors to default? All edits will be lost.")) return; await sbUpsert("lbdc_sponsors", {id:"main", data:SPONSORS_DATA}).catch(()=>{}); setSponsors(SPONSORS_DATA); };
   const upd = (i,f,v) => setSponsors(p=>p.map((s,j)=>j!==i?s:{...s,[f]:v}));
   const del = (i) => { if(!window.confirm(`Remove "${sponsors[i].name}"?`)) return; const u=sponsors.filter((_,j)=>j!==i); setSponsors(u); save(u); };
@@ -4978,6 +4984,7 @@ function AdminSponsorsEditor({ onBack }) {
           <button onClick={()=>save(sponsors)} disabled={saving} style={btn(saving?"#6b7280":saved?"#16a34a":"#002d6e")}>{saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}</button>
           <button onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
         </div>
+        {saveError && <div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#991b1b",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:14}}><strong>Save failed:</strong> {saveError}</div>}
         {loading ? <div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.4)"}}>Loading…</div> : sponsors.map((sp,i)=>(
           <div key={i} style={{background:"#fff",borderRadius:12,marginBottom:16,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${sp.featured?"#FFD700":"#002d6e"}`}}>
             <div style={{background:"rgba(0,0,0,0.02)",padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -5037,51 +5044,15 @@ function AdminFieldsEditor({ onBack }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   useEffect(() => {
-    sbFetch("lbdc_fields?select=*&order=sort_order.asc,id.asc")
-      .then(rows => {
-        if (rows && rows.length > 0) {
-          const byName = Object.fromEntries(rows.map(r => [r.name, r]));
-          setFields(FIELDS_INFO.map(f => {
-            const r = byName[f.name];
-            if (!r) return f;
-            return {
-              ...f,
-              address: r.address || f.address,
-              mapsUrl: r.maps_url || f.mapsUrl,
-              appleMapsUrl: r.apple_maps_url || f.appleMapsUrl,
-              notes: Array.isArray(r.notes) && r.notes.length > 0 ? r.notes : f.notes,
-              color: r.color || f.color,
-            };
-          }));
-        }
-        setLoading(false);
-      })
+    sbFetch("lbdc_fields?id=eq.main&select=data")
+      .then(rows => { if (rows && rows[0] && rows[0].data) setFields(rows[0].data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
   const save = async () => {
     setSaving(true);
     setSaveError("");
     try {
-      // Fetch existing rows so we know whether to PATCH or POST per field
-      const existing = await sbFetch("lbdc_fields?select=id,name");
-      const idByName = Object.fromEntries((existing || []).map(r => [r.name, r.id]));
-      for (let i = 0; i < fields.length; i++) {
-        const f = fields[i];
-        const payload = {
-          name: f.name,
-          address: f.address || "",
-          maps_url: f.mapsUrl || "",
-          apple_maps_url: f.appleMapsUrl || "",
-          color: f.color || "",
-          sort_order: i,
-          notes: f.notes || [],
-        };
-        if (idByName[f.name] != null) {
-          await sbPatch(`lbdc_fields?id=eq.${idByName[f.name]}`, payload);
-        } else {
-          await sbPost("lbdc_fields", payload);
-        }
-      }
+      await sbUpsert("lbdc_fields", {id:"main", data:fields});
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -5091,6 +5062,7 @@ function AdminFieldsEditor({ onBack }) {
   };
   const reset = async () => {
     if (!window.confirm("Reset to original field info?")) return;
+    await sbUpsert("lbdc_fields", {id:"main", data:FIELDS_INFO}).catch(()=>{});
     setFields(FIELDS_INFO);
   };
   const updField=(fi,f,v)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,[f]:v}));
