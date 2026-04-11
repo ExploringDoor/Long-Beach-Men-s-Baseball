@@ -6511,11 +6511,26 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               ? `👆 Tap your #${orderQueue.length+1} batter…`
               : "✅ All set!"}
           </div>
-          <div style={{display:"flex",gap:8}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             <button type="button" onClick={undoLast} disabled={orderQueue.length===0}
               style={{padding:"8px 14px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:7,
                 color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",opacity:orderQueue.length===0?0.4:1}}>
               ↩ Undo
+            </button>
+            <button type="button" onClick={()=>{
+              if(orderQueue.length===0){cancelOrder();return;}
+              // Apply whatever has been tapped so far, toggle off the rest
+              setter(prev => {
+                const tapped = orderQueue.map(qid => prev.find(p=>p._id===qid)).filter(Boolean);
+                const untapped = prev.filter(p=>p.on && !orderQueue.includes(p._id)).map(p=>({...p,on:false}));
+                const inactive = prev.filter(p=>!p.on);
+                return [...tapped,...untapped,...inactive];
+              });
+              setOrderMode(false); setOrderQueue([]);
+            }} disabled={orderQueue.length===0}
+              style={{padding:"8px 14px",background:"#22c55e",border:"none",borderRadius:7,
+                color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",opacity:orderQueue.length===0?0.4:1}}>
+              ✓ Done — {orderQueue.length} player{orderQueue.length!==1?"s":""}
             </button>
             <button type="button" onClick={cancelOrder}
               style={{padding:"8px 14px",background:"rgba(255,255,255,0.1)",border:"none",borderRadius:7,
