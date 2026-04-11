@@ -2235,8 +2235,13 @@ function PlayerStatsModal({ playerName, onClose }) {
 
 function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const team = ALL_TEAMS.find(t => t.name === teamName);
-  const roster = TEAM_ROSTERS[teamName] || [];
+  const [roster, setRoster] = useState(TEAM_ROSTERS[teamName] || []);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  useEffect(() => {
+    sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
+      .then(rows => { if (rows && rows.length > 0) setRoster(rows.map(r => ({number: r.number||"", name: r.name||""}))); })
+      .catch(() => {});
+  }, [teamName]);
   if (!team) return null;
   const color = TEAM_COLORS[teamName] || "#002d6e";
   const teamGames = SCORES.flatMap(s => s.weeks.flatMap(w => w.games)).filter(g => g.away===teamName||g.home===teamName).slice(0,5);
