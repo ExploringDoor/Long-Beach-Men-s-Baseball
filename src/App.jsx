@@ -1485,7 +1485,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
           setFwLoading(false);
           return Promise.reject(new Error("no_games_yet"));
         }
-        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&order=game_date.desc&limit=200`);
+        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&away_score=not.is.null&order=game_date.desc&limit=200`);
       })
       .then(games => {
         const weekMap = {};
