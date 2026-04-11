@@ -5240,7 +5240,6 @@ function AdminPage({ onAlertChange }) {
               style={{width:"100%",padding:"11px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase",cursor:"pointer"}}>
               Log In as Admin
             </button>
-            <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",textAlign:"center",marginTop:8}}>Password: lbdc2026</div>
           </div>
           {/* Captain login */}
           <div>
