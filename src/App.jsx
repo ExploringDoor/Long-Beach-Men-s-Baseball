@@ -7653,7 +7653,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
 
   const initRunnerDests = (outcome) => {
     const d={};
-    gs.bases.forEach((occ,i)=>{if(occ)d[["1B","2B","3B"][i]]="stay";});
+    gs.bases.forEach((occ,i)=>{
+      if(occ){
+        const base=["1B","2B","3B"][i];
+        const opts=getRunnerOpts(base,outcome);
+        // Pre-select the most likely destination (first option = scored on triple/double, etc.)
+        d[base]=opts[0];
+      }
+    });
     if(!["OUT","SAC"].includes(outcome))d["__batter__"]=outcome==="2B"?"2B":outcome==="3B"?"3B":"1B";
     setRD(d);
   };
@@ -8083,6 +8090,28 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const OUT_TYPES=[["GO","Ground Out"],["FO","Fly Out"],["LO","Line Out"],["PO","Pop Out"],["DP","Double Play"]];
   const DEST_OPTS=["scored","3B","2B","1B","out","stay"];
   const DEST_LBL={scored:"🏠 Scored","3B":"3rd","2B":"2nd","1B":"1st",out:"Out",stay:"Stay"};
+  // Returns only physically realistic destinations for a runner given the hit type
+  // base = "1B","2B","3B" (where they started), outcome = "1B","2B","3B"
+  const getRunnerOpts = (base, outcome) => {
+    if (outcome === "3B") {
+      // Triple: runner on 1B or 2B must score or be out; runner on 3B scores or out
+      return ["scored","out"];
+    }
+    if (outcome === "2B") {
+      // Double: runner on 1B can score or stop at 3rd (or out); runner on 2B scores or out; runner on 3B scores
+      if (base === "1B") return ["scored","3B","out"];
+      if (base === "2B") return ["scored","out"];
+      if (base === "3B") return ["scored","out"];
+    }
+    if (outcome === "1B") {
+      // Single: runners advance 1-2 bases typically
+      if (base === "1B") return ["scored","3B","2B","out"];
+      if (base === "2B") return ["scored","3B","out"];
+      if (base === "3B") return ["scored","out"];
+    }
+    // OUT/SAC: runners can advance or stay
+    return ["scored","3B","2B","1B","out","stay"];
+  };
 
   return (
     <div style={{minHeight:"100vh",background:"#111",color:"#fff",maxWidth:500,margin:"0 auto",paddingBottom:60}}>
@@ -8211,7 +8240,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
               <div key={k} style={{marginBottom:14}}>
                 <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.8)",marginBottom:6}}>{k==="__batter__"?`${batter} (batter)`:`Runner on ${k}`}</div>
                 <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                  {DEST_OPTS.map(d=>(
+                  {(k==="__batter__" ? DEST_OPTS : getRunnerOpts(k, pendingOutcome)).map(d=>(
                     <button key={d} onClick={()=>setRD(p=>({...p,[k]:d}))} style={{padding:"7px 11px",borderRadius:6,border:"2px solid",cursor:"pointer",fontSize:12,fontWeight:700,background:runnerDests[k]===d?"#FFD700":"rgba(255,255,255,0.07)",color:runnerDests[k]===d?"#002d6e":"#ddd",borderColor:runnerDests[k]===d?"#FFD700":"rgba(255,255,255,0.12)"}}>{DEST_LBL[d]}</button>
                   ))}
                 </div>
