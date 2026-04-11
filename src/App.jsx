@@ -6355,6 +6355,21 @@ async function sbUpsert(path, body) {
   return r.json();
 }
 
+// Paginated fetch — bypasses Supabase's 1000-row cap
+async function sbFetchAll(path) {
+  const allRows = [];
+  const PAGE = 1000;
+  let offset = 0;
+  const base = path.includes("?") ? path + "&" : path + "?";
+  while (true) {
+    const rows = await sbFetch(`${base}limit=${PAGE}&offset=${offset}`);
+    allRows.push(...rows);
+    if (rows.length < PAGE) break;
+    offset += PAGE;
+  }
+  return allRows;
+}
+
 function parseIP(str) {
   const s = String(str || "0");
   const [whole, frac] = s.split(".");
@@ -7395,8 +7410,8 @@ function StatsPage() {
 
     const fetchLines = isAll
       ? Promise.all([
-          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf&limit=10000`),
-          sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&limit=10000`),
+          sbFetchAll(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf`),
+          sbFetchAll(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision`),
         ])
       : sbFetch(`seasons?select=id,name&limit=100`)
           .then(allSeasons => {
@@ -7408,8 +7423,8 @@ function StatsPage() {
                 if (!gs.length) return [[],[]];
                 const ids = gs.map(g => g.id).join(",");
                 return Promise.all([
-                  sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf&game_id=in.(${ids})&limit=2000`),
-                  sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&limit=2000`),
+                  sbFetchAll(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf&game_id=in.(${ids})`),
+                  sbFetchAll(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})`),
                 ]);
               });
           });
