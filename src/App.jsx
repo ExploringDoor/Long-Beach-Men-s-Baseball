@@ -6355,14 +6355,28 @@ async function sbUpsert(path, body) {
   return r.json();
 }
 
-// Paginated fetch — bypasses Supabase's 1000-row cap
+// Fetch batting/pitching lines for a list of game IDs in batches of 100
+// More reliable than offset pagination — avoids PostgreSQL ordering issues
+async function sbFetchLinesByGameIds(table, selectCols, gameIds) {
+  if (!gameIds || gameIds.length === 0) return [];
+  const BATCH = 100;
+  const results = [];
+  for (let i = 0; i < gameIds.length; i += BATCH) {
+    const chunk = gameIds.slice(i, i + BATCH);
+    const rows = await sbFetch(`${table}?select=${selectCols}&game_id=in.(${chunk.join(",")})&limit=1000`);
+    results.push(...rows);
+  }
+  return results;
+}
+
+// Paginated fetch — bypasses Supabase's 1000-row cap (with ordering for consistency)
 async function sbFetchAll(path) {
   const allRows = [];
   const PAGE = 1000;
   let offset = 0;
   const base = path.includes("?") ? path + "&" : path + "?";
   while (true) {
-    const rows = await sbFetch(`${base}limit=${PAGE}&offset=${offset}`);
+    const rows = await sbFetch(`${base}limit=${PAGE}&offset=${offset}&order=id.asc`);
     allRows.push(...rows);
     if (rows.length < PAGE) break;
     offset += PAGE;
@@ -7408,11 +7422,18 @@ function StatsPage() {
 
     const isAll = season === ALL_SEASONS_KEY;
 
+    const BAT_COLS_SEL = "player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf";
+    const PIT_COLS_SEL = "player_name,team,ip,h,r,er,bb,k,decision";
+
     const fetchLines = isAll
-      ? Promise.all([
-          sbFetchAll(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf`),
-          sbFetchAll(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision`),
-        ])
+      ? sbFetch(`games?select=id&limit=1000`)
+          .then(allGames => {
+            const ids = allGames.map(g => g.id);
+            return Promise.all([
+              sbFetchLinesByGameIds("batting_lines", BAT_COLS_SEL, ids),
+              sbFetchLinesByGameIds("pitching_lines", PIT_COLS_SEL, ids),
+            ]);
+          })
       : sbFetch(`seasons?select=id,name&limit=100`)
           .then(allSeasons => {
             const found = allSeasons.find(s => s.name === season) ||
@@ -7421,10 +7442,10 @@ function StatsPage() {
             return sbFetch(`games?select=id&season_id=eq.${found.id}&limit=200`)
               .then(gs => {
                 if (!gs.length) return [[],[]];
-                const ids = gs.map(g => g.id).join(",");
+                const ids = gs.map(g => g.id);
                 return Promise.all([
-                  sbFetchAll(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,hbp,sf&game_id=in.(${ids})`),
-                  sbFetchAll(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})`),
+                  sbFetchLinesByGameIds("batting_lines", BAT_COLS_SEL, ids),
+                  sbFetchLinesByGameIds("pitching_lines", PIT_COLS_SEL, ids),
                 ]);
               });
           });
