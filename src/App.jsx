@@ -7353,11 +7353,25 @@ function StatsPage() {
 
   // Load seasons list + figure out which have data
   useEffect(() => {
+    // Paginate through batting_lines since Supabase caps at 1000 rows/request
+    const getAllBatGameIds = async () => {
+      const ids = new Set();
+      let offset = 0;
+      const PAGE = 1000;
+      while (true) {
+        const rows = await sbFetch(`batting_lines?select=game_id&limit=${PAGE}&offset=${offset}`);
+        rows.forEach(r => ids.add(r.game_id));
+        if (rows.length < PAGE) break;
+        offset += PAGE;
+      }
+      return ids;
+    };
+
     Promise.all([
       sbFetch("seasons?select=id,name&limit=100"),
-      sbFetch("games?select=id,season_id&limit=5000"),
-      sbFetch("batting_lines?select=game_id&limit=5000"),
-    ]).then(([allSeasons, allGames, allBatLines]) => {
+      sbFetch("games?select=id,season_id&limit=1000"),
+      getAllBatGameIds(),
+    ]).then(([allSeasons, allGames, gameIdsWithData]) => {
       // Sort seasons by year desc, then by id desc within same year
       const sorted = [...allSeasons].sort((a, b) => {
         const ya = seasonSortYear(a.name), yb = seasonSortYear(b.name);
@@ -7367,7 +7381,6 @@ function StatsPage() {
       setSeasons(sorted.map(s => s.name));
 
       // Build set of season IDs that have batting lines
-      const gameIdsWithData = new Set(allBatLines.map(l => l.game_id));
       const seasonIdsWithData = new Set(allGames.filter(g => gameIdsWithData.has(g.id)).map(g => g.season_id));
       const namesWithData = new Set(allSeasons.filter(s => seasonIdsWithData.has(s.id)).map(s => s.name));
       setSeasonsWithData(namesWithData);
