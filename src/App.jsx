@@ -5447,6 +5447,14 @@ function AdminPage({ onAlertChange }) {
                   <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Add, edit, or remove players from your team</div>
                 </div>
               </button>
+              <button onClick={()=>setCaptainView("instructions")}
+                style={{background:"#7c3aed",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
+                <div style={{fontSize:40}}>📖</div>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase",marginBottom:4}}>Captain Instructions</div>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)"}}>How to submit scores, manage your roster & use the site</div>
+                </div>
+              </button>
             </div>
           )}
           {captainView === "boxscore" && (
@@ -5468,6 +5476,64 @@ function AdminPage({ onAlertChange }) {
               </div>
               <div style={{padding:"20px"}}>
                 <CaptainRosterEditor teamName={captainTeam} />
+              </div>
+            </div>
+          )}
+          {captainView === "instructions" && (
+            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+                <button onClick={()=>setCaptainView("menu")} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>📖 Captain Instructions</div>
+              </div>
+              <div style={{padding:"24px 20px",display:"flex",flexDirection:"column",gap:24}}>
+                {[
+                  {icon:"📋", title:"How to Submit a Box Score", steps:[
+                    "After the game ends, log into the Captain Portal and tap Submit Box Score.",
+                    "Select the game from the dropdown — it will show today's games for your team.",
+                    "Enter the final score and each player's stats (AB, H, HR, RBI, BB, K for batters; IP, H, ER, BB, K for pitchers).",
+                    "Only players who appeared in the game need to be entered.",
+                    "Hit Submit when done. Stats will appear on the site immediately.",
+                    "Box scores must be submitted within 24 hours of the game.",
+                  ]},
+                  {icon:"👤", title:"Adding a Player to Your Lineup", steps:[
+                    "If a player shows up who isn't on your roster yet, go to Manage Roster first and add them.",
+                    "Once added to the roster, they'll appear in the player dropdowns when submitting a box score.",
+                    "You can add players on game day — just make sure to do it before submitting the box score.",
+                  ]},
+                  {icon:"👥", title:"Managing Your Roster", steps:[
+                    "Go to Manage Roster in the Captain Portal.",
+                    "Tap + Add Player, enter their name and jersey number, then save.",
+                    "To edit a player (name or number), tap their row and update the info.",
+                    "To remove a player, tap the ✕ next to their name.",
+                    "Changes save immediately — no need to hit a separate save button.",
+                  ]},
+                  {icon:"🌐", title:"Using the Website", steps:[
+                    "Scores & standings update automatically after box scores are submitted.",
+                    "Tap any team name or logo on the Standings or Schedule page to view their full roster and stats.",
+                    "The Scores page shows recent results with full recaps — updated after each game.",
+                    "The Schedule page shows upcoming games by date — tap any game for a preview.",
+                    "The ⚡ Live tab shows live scoring during games in progress.",
+                  ]},
+                  {icon:"📅", title:"Adding the Schedule to Your Phone Calendar", steps:[
+                    "On the Schedule page, look for the Add to Calendar button on any game.",
+                    "On iPhone: Open Safari, go to lbdc.vercel.app, tap the Share button (box with arrow), then tap Add to Home Screen for quick access.",
+                    "For Google Calendar on Android: Open the game, tap the date/time, and choose Add to Calendar.",
+                    "You can also manually add game dates from the Schedule page to your phone calendar.",
+                  ]},
+                ].map((section, si) => (
+                  <div key={si}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <span style={{fontSize:22}}>{section.icon}</span>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#002d6e"}}>{section.title}</div>
+                    </div>
+                    <ol style={{margin:0,paddingLeft:20,display:"flex",flexDirection:"column",gap:6}}>
+                      {section.steps.map((step, i) => (
+                        <li key={i} style={{fontSize:14,color:"rgba(0,0,0,0.7)",lineHeight:1.6}}>{step}</li>
+                      ))}
+                    </ol>
+                    {si < 4 && <div style={{height:1,background:"rgba(0,0,0,0.06)",marginTop:20}} />}
+                  </div>
+                ))}
               </div>
             </div>
           )}
