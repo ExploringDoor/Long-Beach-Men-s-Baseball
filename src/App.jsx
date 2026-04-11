@@ -5151,7 +5151,7 @@ function AdminPage({ onAlertChange }) {
           ? seasons.find(x => x.name.includes("Boomers"))
           : seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!s) return [];
-        return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&order=game_date.desc&limit=100`);
+        return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&away_score=not.is.null&order=game_date.desc&limit=100`);
       })
       .then(games => { setAdminGames(games || []); setAdminGamesLoading(false); })
       .catch(() => setAdminGamesLoading(false));
