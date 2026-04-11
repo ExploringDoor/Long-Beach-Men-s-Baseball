@@ -9,28 +9,28 @@ const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
 const LL_BASE = "https://www.leaguelineup.com";
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0";
 
-// All seasons — full re-scrape with corrected home/away
+// All seasons — division IDs verified from leaguelineup.com/games.asp?url=lbdc
 const TARGET_SEASONS = [
   { name: "Spring/Summer 2026 Diamond Classics Saturdays", divisionId: "1064043" },
-  { name: "2026 Fall/Winter Season (Season #10)",      divisionId: "1062218" },
+  { name: "2026 Fall/Winter Season (Season #10)",      divisionId: "1061488" },
   { name: "2026 NABA MLK 55+ Division",               divisionId: "1062824" },
   { name: "2025 Spring/Summer Season",                 divisionId: "1055551" },
-  { name: "2025 NABA AZ World Series 50's",            divisionId: "1056994" },
-  { name: "2025 NABA Father/Son",                      divisionId: "1058100" },
-  { name: "2025 NABA Las Vegas World Series 60's",     divisionId: "1058098" },
-  { name: "2025 4th of July-NABA",                     divisionId: "1057192" },
-  { name: "2025 Memorial Weekend Tournament-Las Vegas", divisionId: "1056996" },
-  { name: "2025 NABA Great Park Tournament",           divisionId: "1056992" },
-  { name: "2025 NABA MLK Tournament",                  divisionId: "1054388" },
-  { name: "2024/2025 Fall Winter Season",              divisionId: "1050267" },
-  { name: "2024 Spring/Summer Season",                 divisionId: "1044295" },
-  { name: "2024 4th of July-NABA",                     divisionId: "1046194" },
-  { name: "2024 Father/Son NABA",                      divisionId: "1046196" },
-  { name: "2024 MG Turkey Bowl Tournament",            divisionId: "1049540" },
-  { name: "2024 MLK-NABA",                             divisionId: "1043538" },
-  { name: "2024 NABA LAS VEGAS World Series - 60+",   divisionId: "1046190" },
-  { name: "2024 NABA World Series - 65+",              divisionId: "1046192" },
-  { name: "2023 Thanksgiving Turkey Bowl",             divisionId: "1042571" },
+  { name: "2025 NABA AZ World Series 50's",            divisionId: "1053560" },
+  { name: "2025 NABA Father/Son",                      divisionId: "1059946" },
+  { name: "2025 NABA Las Vegas World Series 60's",     divisionId: "1053561" },
+  { name: "2025 4th of July-NABA",                     divisionId: "1055104" },
+  { name: "2025 Memorial Weekend Tournament-Las Vegas", divisionId: "1056761" },
+  { name: "2025 NABA Great Park Tournament",           divisionId: "1055186" },
+  { name: "2025 NABA MLK Tournament",                  divisionId: "1053559" },
+  { name: "2024/2025 Fall Winter Season",              divisionId: "1049932" },
+  { name: "2024 Spring/Summer Season",                 divisionId: "1044289" },
+  { name: "2024 4th of July-NABA",                     divisionId: "1045846" },
+  { name: "2024 Father/Son NABA",                      divisionId: "1049256" },
+  { name: "2024 MG Turkey Bowl Tournament",            divisionId: "1053282" },
+  { name: "2024 MLK-NABA",                             divisionId: "1041797" },
+  { name: "2024 NABA LAS VEGAS World Series - 60+",   divisionId: "1042135" },
+  { name: "2024 NABA World Series - 65+",              divisionId: "1042134" },
+  { name: "2023 Thanksgiving Turkey Bowl",             divisionId: "1040473" },
   { name: "2023 Fall/Winter Season",                   divisionId: "1040472" },
   { name: "NABA World Series-LAS VEGAS 2023",          divisionId: "1041039" },
   { name: "2023 Spring/Summer Season",                 divisionId: "1032266" },
@@ -261,6 +261,17 @@ async function main() {
       console.log(`  ♻️  Season already exists id=${sbSeason.id}`);
     }
 
+    // Scrape games list FIRST before touching existing data
+    const gamesHtml = await get(`${LL_BASE}/games.asp?url=lbdc&divisionid=${season.divisionId}&teamid=99999`);
+    const games = parseGamesWithIds(gamesHtml);
+    console.log(`  📋 Found ${games.length} completed games`);
+
+    // Safety: never delete existing data if scrape returned nothing
+    if (games.length === 0) {
+      console.log(`  ⏭️  Skipping — no games found, preserving existing data`);
+      continue;
+    }
+
     // Load existing games for this season
     const existingGames = await sbGet(
       `games?select=id,game_date,away_team,home_team&season_id=eq.${sbSeason.id}&limit=200`
@@ -283,11 +294,6 @@ async function main() {
       }
       console.log(`  🗑️  Cleared ${existingGames.length} old games + stats`);
     }
-
-    // Scrape games list
-    const gamesHtml = await get(`${LL_BASE}/games.asp?url=lbdc&divisionid=${season.divisionId}&teamid=99999`);
-    const games = parseGamesWithIds(gamesHtml);
-    console.log(`  📋 Found ${games.length} completed games`);
 
     let seasonInserted = 0;
     for (const game of games) {
