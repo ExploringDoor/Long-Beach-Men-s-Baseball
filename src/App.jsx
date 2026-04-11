@@ -5936,6 +5936,18 @@ function AdminPage({ onAlertChange }) {
                         ✏️ Edit
                       </button>
                       <button type="button" onClick={async()=>{
+                        if(!window.confirm(`Reset ${g.away_team} vs ${g.home_team} (${g.game_date}) to 0–0?\n\nThis will erase ALL stats and scores for this game. Cannot be undone.`)) return;
+                        try{
+                          await sbDelete(`batting_lines?game_id=eq.${g.id}`);
+                          await sbDelete(`pitching_lines?game_id=eq.${g.id}`);
+                          await sbPatch(`games?id=eq.${g.id}`, {away_score:null,home_score:null,status:"Scheduled",headline:null});
+                          setAdminGames(prev=>prev.map(x=>x.id===g.id?{...x,away_score:null,home_score:null,status:"Scheduled",headline:null}:x));
+                          alert("Game reset successfully.");
+                        }catch(err){alert("Reset failed: "+err.message);}
+                      }} style={{padding:"6px 12px",background:"rgba(234,179,8,0.1)",border:"1px solid rgba(234,179,8,0.4)",borderRadius:6,color:"#b45309",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                        🔄 Reset
+                      </button>
+                      <button type="button" onClick={async()=>{
                         if(!window.confirm(`Delete ${g.away_team} vs ${g.home_team} (${g.game_date})?\nThis cannot be undone.`)) return;
                         try{
                           await sbDelete(`batting_lines?game_id=eq.${g.id}`);
