@@ -1679,6 +1679,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const [tournGames, setTournGames] = useState([]);
   const [previewGame, setPreviewGame] = useState(null);
   const [schedScores, setSchedScores] = useState({});
+  const [boomerScore, setBoomerScore] = useState(null);
   const week = SCHED[wk];
   const games = week.fields.flatMap(f => f.games.map(g => ({...g,field:f.name})));
   const dateStr = week.label;
@@ -1712,6 +1713,24 @@ function SchedulePage({ setTab, setTeamDetail }) {
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wk]);
+
+  useEffect(() => {
+    const bg = BOOMERS_SCHED[boomerWk];
+    if (!bg) return;
+    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
+      .then(rows => {
+        let best = null;
+        rows.forEach(r => {
+          if (!best) { best = r; return; }
+          const rFinal = r.status === 'Final', bFinal = best.status === 'Final';
+          const rHl = !!r.headline, bHl = !!best.headline;
+          if (rFinal && rHl && !(bFinal && bHl)) best = r;
+          else if (rFinal && !bFinal && !bHl) best = r;
+        });
+        setBoomerScore(best);
+      }).catch(()=>{});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boomerWk]);
 
   const byTournament = {};
   tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
@@ -1783,6 +1802,9 @@ function SchedulePage({ setTab, setTeamDetail }) {
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           {(() => {
             const g = BOOMERS_SCHED[boomerWk];
+            if (boomerScore && boomerScore.status === 'Final') {
+              return <LiveBoxScoreFinalCard game={boomerScore} onTeamClick={goTeam} />;
+            }
             return (
               <div onClick={()=>setPreviewGame({away:g.away,home:g.home,time:g.time,date:g.date,field:g.field})}
                 style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #7c3aed",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:"pointer",transition:"box-shadow .12s",display:"inline-flex"}}
