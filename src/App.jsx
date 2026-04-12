@@ -8308,9 +8308,8 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     const addPlayer=(name)=>{if(!name.trim()||cur.includes(name.trim()))return;setLineupDraft(p=>({...p,[lineupStep]:[...p[lineupStep],name.trim()]}));setNameInput("");};
     const doneTeam=()=>{
       if(!cur.length){alert("Add at least 1 player.");return;}
-      // Captain only enters their own lineup — skip opponent step
-      const isCaptain = !!teamFilter;
-      if(!isCaptain && lineupStep==="away"){setLineupStep("home");return;}
+      // Always require both lineups before starting
+      if(lineupStep==="away"){setLineupStep("home");return;}
       if(bsMode){
         // Route to box score entry
         const initBat={};
@@ -8332,7 +8331,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         <div style={{background:"#002d6e",padding:"14px 16px",display:"flex",alignItems:"center",gap:10}}>
           <button onClick={()=>lineupStep==="away"?setView("pick"):setLineupStep("away")} style={{padding:"6px 12px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>← Back</button>
           <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase"}}>{teamName} Batting Order</div>
-          <div style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{teamFilter ? "Your Lineup" : (lineupStep==="away"?"Step 1 of 2":"Step 2 of 2")}</div>
+          <div style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{lineupStep==="away"?"Step 1 of 2":"Step 2 of 2"}</div>
           {onExit && <button onClick={onExit} style={{padding:"6px 12px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:6,color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>✕ Exit</button>}
         </div>
         <div style={{maxWidth:500,margin:"0 auto",padding:"20px 16px 60px"}}>
