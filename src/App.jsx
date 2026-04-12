@@ -6407,6 +6407,25 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── localStorage draft persistence ──
+  const bseDraftKey = (g) => g ? `bse_draft_${g.away}_${g.home}_${g.date}`.replace(/[\s/]/g,"_") : null;
+  // Auto-save draft whenever key fields change (only when a game is selected and not in edit mode)
+  useEffect(() => {
+    if (!game || editGameId) return;
+    const key = bseDraftKey(game);
+    if (!key) return;
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        awayBat, homeBat, awayPit, homePit,
+        awayScore, homeScore, headline,
+        awayStatMode, homeStatMode,
+        awayInn, homeInn, awayH, awayE, homeH, homeE,
+        gameStatus,
+      }));
+    } catch(e) { /* ignore quota errors */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [awayBat, homeBat, awayPit, homePit, awayScore, homeScore, headline, awayStatMode, homeStatMode, awayInn, homeInn, awayH, awayE, homeH, homeE, gameStatus]);
+
   // ── Save ──
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
@@ -6510,15 +6529,67 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   const selectGame = (g) => {
     setGame(g);
-    setAwayBat(initBatters(g.away));
-    setHomeBat(initBatters(g.home));
-    setAwayPit([blankPitcher()]); setHomePit([blankPitcher()]);
-    setAwayScore(""); setHomeScore(""); setHeadline(""); setRecap("");
-    setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
-    setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
-    setAwayStatMode("simple"); setHomeStatMode("simple");
+    // Restore from localStorage draft if one exists for this game
+    const draftKey = bseDraftKey(g);
+    let draft = null;
+    if (draftKey) {
+      try { draft = JSON.parse(localStorage.getItem(draftKey)); } catch(e) { draft = null; }
+    }
+    if (draft) {
+      setAwayBat(draft.awayBat || initBatters(g.away));
+      setHomeBat(draft.homeBat || initBatters(g.home));
+      setAwayPit(draft.awayPit || [blankPitcher()]);
+      setHomePit(draft.homePit || [blankPitcher()]);
+      setAwayScore(draft.awayScore ?? "");
+      setHomeScore(draft.homeScore ?? "");
+      setHeadline(draft.headline ?? "");
+      setAwayStatMode(draft.awayStatMode || "simple");
+      setHomeStatMode(draft.homeStatMode || "simple");
+      setAwayInn(draft.awayInn || emptyInnings());
+      setHomeInn(draft.homeInn || emptyInnings());
+      setAwayH(draft.awayH ?? ""); setAwayE(draft.awayE ?? "");
+      setHomeH(draft.homeH ?? ""); setHomeE(draft.homeE ?? "");
+      setGameStatus(draft.gameStatus || "Final");
+    } else {
+      setAwayBat(initBatters(g.away));
+      setHomeBat(initBatters(g.home));
+      setAwayPit([blankPitcher()]); setHomePit([blankPitcher()]);
+      setAwayScore(""); setHomeScore(""); setHeadline(""); setRecap("");
+      setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
+      setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
+      setAwayStatMode("simple"); setHomeStatMode("simple");
+    }
     setSaveMsg(null);
   };
+
+  // ── Merge Supabase roster players that aren't in the hardcoded list ──
+  useEffect(() => {
+    if (!game || editGameId) return;
+    const away = game.away || game.away_team;
+    const home = game.home || game.home_team;
+    if (!away || !home) return;
+    const teamsToFetch = [...new Set([away, home])];
+    Promise.all(
+      teamsToFetch.map(t =>
+        sbFetch(`lbdc_rosters?select=name,number&team=eq.${encodeURIComponent(t)}&order=name.asc&limit=100`)
+          .then(rows => ({ team: t, rows }))
+          .catch(() => ({ team: t, rows: [] }))
+      )
+    ).then(results => {
+      results.forEach(({ team, rows }) => {
+        const names = rows.map(r => (r.name||"").trim()).filter(Boolean);
+        if (!names.length) return;
+        const setter = team === away ? setAwayBat : setHomeBat;
+        setter(prev => {
+          const existing = new Set(prev.map(p => p.name.trim().toLowerCase()));
+          const toAdd = names.filter(n => !existing.has(n.toLowerCase()));
+          if (!toAdd.length) return prev;
+          return [...prev, ...toAdd.map(blankBatter)];
+        });
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game]);
 
   // ── Helpers ──
   const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>{
@@ -6643,6 +6714,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       }));
       if(pitRows.length) await sbPost("pitching_lines",pitRows);
       setSaveMsg({ok:true,text:`✅ Box score ${editGameId?"updated":"saved"} for ${game.away} vs ${game.home}!`});
+      // Clear localStorage draft after successful submit
+      const draftKey = bseDraftKey(game);
+      if (draftKey) { try { localStorage.removeItem(draftKey); } catch(e) {} }
     } catch(err){setSaveMsg({ok:false,text:`❌ ${err.message}`});}
     setSaving(false);
   };
@@ -7832,6 +7906,17 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [bsSaving, setBsSaving] = useState(false);
 
   const lsKey = (a,h,d) => `lbdc_live_${a}_${h}_${d}`.replace(/[\s/]/g,"_");
+  const lineupDraftKey = (a,h,d) => `lbdc_lineup_${a}_${h}_${d}`.replace(/[\s/]/g,"_");
+  const saveLineupDraft = (draft, a, h, d) => { try { localStorage.setItem(lineupDraftKey(a,h,d), JSON.stringify(draft)); } catch(e) {} };
+  const loadLineupDraft = (a,h,d) => { try { return JSON.parse(localStorage.getItem(lineupDraftKey(a,h,d))); } catch(e) { return null; } };
+  const clearLineupDraft = (a,h,d) => { try { localStorage.removeItem(lineupDraftKey(a,h,d)); } catch(e) {} };
+  // Auto-save lineupDraft to localStorage when it changes (during lineup setup)
+  useEffect(() => {
+    if (!setupInfo || view !== "lineup") return;
+    saveLineupDraft(lineupDraft, setupInfo.away, setupInfo.home, setupInfo.date);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineupDraft, setupInfo, view]);
+
   const [liveStates, setLiveStates] = useState({});
   useEffect(() => {
     sbFetch("lbdc_live_state?select=id,data")
@@ -8192,8 +8277,8 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
                   <button onClick={()=>{setGs({...saved,_hist:[]});setView("game");}} style={{padding:"8px 16px",background:"#b45309",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>▶ Resume</button>
                 ):(
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(false);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep(side);setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
-                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(true);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep(side);setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#374151",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Box Score</button>
+                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(false);setSetupInfo(g);const saved=loadLineupDraft(g.away,g.home,g.date);setLineupDraft(saved||{away:[],home:[]});setLineupStep(side);setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
+                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(true);setSetupInfo(g);const saved=loadLineupDraft(g.away,g.home,g.date);setLineupDraft(saved||{away:[],home:[]});setLineupStep(side);setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#374151",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Box Score</button>
                   </div>
                 )}
               </div>
@@ -8229,6 +8314,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       }
       const si={};[...lineupDraft.away,...lineupDraft.home].forEach(n=>{si[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};});
       const state={away:g.away,home:g.home,date:g.date,field:g.field,time:g.time,inning:1,topBottom:"top",outs:0,bases:[false,false,false],score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,lineup:lineupDraft,batterIdx:{away:0,home:0},stats:si,plays:[],status:"in_progress"};
+      clearLineupDraft(g.away,g.home,g.date);
       persist({...state,_hist:[]});setView("game");
     };
     return (
@@ -8336,6 +8422,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           h:parseInt(p.h)||0,r:parseInt(p.r)||0,er:parseInt(p.er)||0,bb:parseInt(p.bb)||0,k:parseInt(p.k)||0,decision:p.decision||null
         }));
         if (pitRows.length) await sbPost("pitching_lines", pitRows);
+        clearLineupDraft(g.away,g.home,g.date);
         alert("Box score saved!");
         setView("pick"); setBsMode(false);
       } catch(e) { alert("Save failed: "+e.message); }
