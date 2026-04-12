@@ -8616,7 +8616,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       {/* Inning bar */}
       <div style={{background:"#001a4d",borderBottom:"1px solid rgba(255,215,0,0.2)",padding:"6px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div style={{textAlign:"center"}}>
-          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",letterSpacing:".08em"}}>{gs.topBottom==="top"?"▼ TOP":"▲ BOT"}</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",letterSpacing:".08em"}}>{gs.topBottom==="top"?"▲ TOP":"▼ BOT"}</div>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",lineHeight:1}}>{gs.inning}</div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>{gs[gs.topBottom==="top"?"away":"home"]} bat</div>
         </div>
@@ -8809,7 +8809,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
             {[...gs.plays].reverse().map((p,i)=>(
               <div key={i} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8,padding:"9px 12px",marginBottom:7}}>
                 <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:7}}>
-                  <span style={{fontSize:10,color:"rgba(255,255,255,0.35)",fontWeight:600}}>Inn {p.inning} {p.side==="top"?"▼":"▲"}</span>
+                  <span style={{fontSize:10,color:"rgba(255,255,255,0.35)",fontWeight:600}}>Inn {p.inning} {p.side==="top"?"▲":"▼"}</span>
                   <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{p.batter}</span>
                   <span style={{background:["1B","2B","3B","HR"].includes(p.outcome)?"rgba(0,80,200,0.4)":["K","OUT"].includes(p.outcome)?"rgba(220,38,38,0.25)":"rgba(255,255,255,0.1)",padding:"2px 8px",borderRadius:10,fontSize:12,fontWeight:700,color:["1B","2B","3B","HR"].includes(p.outcome)?"#93c5fd":"#fff"}}>{p.outcome}{p.outType?` (${p.outType})`:""}</span>
                   {p.loc&&<span style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>{p.loc}</span>}
