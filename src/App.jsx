@@ -1363,8 +1363,8 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
   const loadBoxData = async () => {
     const enc = s => encodeURIComponent(s);
     let [bat, pit] = await Promise.all([
-      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${game.id}&limit=100`),
-      sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${game.id}&limit=50`),
+      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${game.id}&order=id.asc&limit=100`),
+      sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${game.id}&order=id.asc&limit=50`),
     ]);
     const hasAway = bat.some(b => b.team === game.away_team);
     const hasHome = bat.some(b => b.team === game.home_team);
@@ -1378,8 +1378,8 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
       if (sibIds.length) {
         const ids = sibIds.join(',');
         const [moreBat, morePit] = await Promise.all([
-          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&limit=200`),
-          sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&limit=100`),
+          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&order=id.asc&limit=200`),
+          sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&order=id.asc&limit=100`),
         ]);
         if (!hasAway) bat = [...bat, ...moreBat.filter(b => b.team === game.away_team)];
         if (!hasHome) bat = [...bat, ...moreBat.filter(b => b.team === game.home_team)];
