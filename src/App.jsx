@@ -760,11 +760,13 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
 function Ticker({ setTab }) {
   const [preview, setPreview] = useState(null);
   const [liveScores, setLiveScores] = useState({}); // key: "away|home" → {away_score, home_score, status}
-  // Find the current or next upcoming week
+  // Find the most recently played week (latest date <= today), fallback to next upcoming
   const today = new Date(); today.setHours(0,0,0,0);
   const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
-  let weekIdx = SCHED.findIndex(w => parseLabel(w.label) >= today);
-  if (weekIdx < 0) weekIdx = SCHED.length - 1;
+  let weekIdx = -1;
+  for (let i = SCHED.length - 1; i >= 0; i--) { if (parseLabel(SCHED[i].label) <= today) { weekIdx = i; break; } }
+  if (weekIdx < 0) { weekIdx = SCHED.findIndex(w => parseLabel(w.label) >= today); }
+  if (weekIdx < 0) weekIdx = 0;
   const week = SCHED[weekIdx];
 
   const satGames = week.fields.flatMap(f => f.games.map(g => ({...g, field:f.name})));
@@ -959,7 +961,14 @@ function HomePage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
-    sbFetch("games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&status=not.in.(PPD,CAN)&away_score=not.is.null&game_date=gte.2026-04-11&order=game_date.desc&limit=6")
+    // Fetch season ID first to avoid picking up duplicate games from other seasons
+    sbFetch("seasons?select=id,name&limit=50")
+      .then(async allSeasons => {
+        let found = allSeasons.find(s => s.name === "Spring/Summer 2026 Diamond Classics Saturdays") || allSeasons.find(s => s.name.includes("Diamond Classics"));
+        if (!found) { const r = await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); found = r[0]; }
+        const filter = found ? `season_id=eq.${found.id}` : `game_date=gte.2026-04-11`;
+        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&${filter}&status=not.in.(PPD,CAN)&away_score=not.is.null&order=game_date.desc&limit=6`);
+      })
       .then(data => setRecentGames(data))
       .catch(() => {});
     sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=10")
