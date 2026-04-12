@@ -8177,7 +8177,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         const awayIdx=gs.lineup.away.indexOf(name);
         const team=awayIdx>=0?gs.away:gs.home;
         const order=awayIdx>=0?awayIdx+1:gs.lineup.home.indexOf(name)+1;
-        batRows.push({game_id:gameId,player_name:name,team,batting_order:order,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0,sb:st.sb||0});
+        batRows.push({game_id:gameId,player_name:name,team,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0,sb:st.sb||0});
       });
       if(batRows.length)await sbPost("batting_lines",batRows);
       clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");
@@ -8396,7 +8396,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         [...awayPlayers.map(n=>({n,team:g.away})),...homePlayers.map(n=>({n,team:g.home}))].forEach(({n,team},i) => {
           const s = bsBat[n]||{};
           if (!s.ab && !s.h) return;
-          batRows.push({game_id:gameId,player_name:n,team,batting_order:i+1,
+          batRows.push({game_id:gameId,player_name:n,team,
             ab:parseInt(s.ab)||0,h:parseInt(s.h)||0,r:parseInt(s.r)||0,rbi:parseInt(s.rbi)||0,
             bb:parseInt(s.bb)||0,k:parseInt(s.k)||0,doubles:parseInt(s.doubles)||0,
             triples:parseInt(s.triples)||0,hr:parseInt(s.hr)||0,hbp:parseInt(s.hbp)||0,sf:parseInt(s.sf)||0});
