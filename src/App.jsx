@@ -7031,6 +7031,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // ── GAME NOT SELECTED YET ──
   if(!game) return (
     <div>
+      {onClose && (
+        <button onClick={onClose} style={{marginBottom:12,padding:"6px 14px",background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}>← Back to Portal</button>
+      )}
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
         <button type="button" onClick={()=>{setCustomMode(false);setEditMode(false);}}
           style={{padding:"7px 16px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:700,
@@ -7155,9 +7158,16 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           </div>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginTop:2}}>{game.date} · {game.time} · {game.field}</div>
         </div>
-        <button onClick={()=>setGame(null)}
-          style={{padding:"5px 12px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",
-            borderRadius:6,color:"rgba(255,255,255,0.6)",fontSize:12,cursor:"pointer"}}>← Change Game</button>
+        <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
+          <button onClick={()=>setGame(null)}
+            style={{padding:"5px 12px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",
+              borderRadius:6,color:"rgba(255,255,255,0.6)",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>← Change Game</button>
+          {onClose && (
+            <button onClick={onClose}
+              style={{padding:"5px 12px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",
+                borderRadius:6,color:"rgba(255,255,255,0.5)",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>✕ Exit</button>
+          )}
+        </div>
       </div>
 
       {/* Score */}
