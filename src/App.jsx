@@ -759,6 +759,7 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
 /* ─── TICKER ─────────────────────────────────────────────────────────────── */
 function Ticker({ setTab }) {
   const [preview, setPreview] = useState(null);
+  const [liveScores, setLiveScores] = useState({}); // key: "away|home" → {away_score, home_score, status}
   // Find the current or next upcoming week
   const today = new Date(); today.setHours(0,0,0,0);
   const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
@@ -770,6 +771,18 @@ function Ticker({ setTab }) {
   const boomerGame = BOOMERS_SCHED.find(g => g.date === week.label);
   const games = boomerGame ? [...satGames, boomerGame] : satGames;
 
+  useEffect(() => {
+    // Fetch scores for this week's games
+    const pairs = games.map(g=>`(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
+    sbFetch(`games?select=away_team,home_team,away_score,home_score,status&or=(${pairs})&away_score=not.is.null&limit=20`)
+      .then(rows => {
+        const m = {};
+        rows.forEach(r => { m[`${r.away_team}|${r.home_team}`] = r; });
+        setLiveScores(m);
+      }).catch(()=>{});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [week.label]);
+
   return (
     <>
       {preview && <GamePreviewModal {...preview} onClose={()=>setPreview(null)} />}
@@ -780,23 +793,31 @@ function Ticker({ setTab }) {
           <span className="ticker-lbdc-date" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#fff",lineHeight:1,whiteSpace:"nowrap"}}>{week.label}</span>
         </div>
         <div className="ticker-scroll" style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
-          {games.map((g,i) => (
-            <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
-              className="ticker-game-item"
-              style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"6px 16px",borderRight:"1px solid rgba(255,255,255,0.1)",minWidth:160,gap:3,cursor:"pointer",transition:"background .12s",flexShrink:0}}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <span className="ticker-time" style={{fontSize:11,color:"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",lineHeight:1}}>{g.time}{g.status==="PPD"?" · PPD":""}</span>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <TLogo name={g.away} size={22} />
-                <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.away]||g.away}</span>
+          {games.map((g,i) => {
+            const sc = liveScores[`${g.away}|${g.home}`];
+            const isFinal = sc && (sc.status==="Final"||sc.status==="final");
+            return (
+              <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
+                className="ticker-game-item"
+                style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"6px 16px",borderRight:"1px solid rgba(255,255,255,0.1)",minWidth:160,gap:3,cursor:"pointer",transition:"background .12s",flexShrink:0}}
+                onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <span className="ticker-time" style={{fontSize:11,color:isFinal?"#4ade80":"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",lineHeight:1}}>
+                  {isFinal?"FINAL":g.time}{g.status==="PPD"?" · PPD":""}
+                </span>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <TLogo name={g.away} size={22} />
+                  <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.away]||g.away}</span>
+                  {isFinal&&<span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",marginLeft:"auto"}}>{sc.away_score}</span>}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <TLogo name={g.home} size={22} />
+                  <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.home]||g.home}</span>
+                  {isFinal&&<span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"rgba(255,215,0,0.6)",marginLeft:"auto"}}>{sc.home_score}</span>}
+                </div>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <TLogo name={g.home} size={22} />
-                <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"rgba(255,255,255,0.7)",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.home]||g.home}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div style={{display:"flex",alignItems:"center",padding:"0 14px",flexShrink:0,borderLeft:"1px solid rgba(255,255,255,0.1)",cursor:"pointer"}} onClick={() => setTab("schedule")}>
           <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"#FFD700",whiteSpace:"nowrap"}}>Schedule »</span>
