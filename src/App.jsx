@@ -1430,13 +1430,15 @@ function ScoresPage({ setTab, setTeamDetail }) {
     setFwLoading(true);
     setFwError(null);
     setFwWeeks([]);
-    sbFetch("seasons?select=id,name&limit=20")
-      .then(allSeasons => {
+    sbFetch("seasons?select=id,name&limit=50")
+      .then(async allSeasons => {
         let found;
         if (seasonIdx === 0) {
           found = allSeasons.find(s => s.name === "Spring/Summer 2026 Diamond Classics Saturdays") || allSeasons.find(s => s.name.includes("Diamond Classics"));
+          if (!found) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); found=r[0]; }
         } else if (seasonIdx === 1) {
           found = allSeasons.find(s => s.name === "2026 BOOMERS 60/70 Division") || allSeasons.find(s => s.name.toLowerCase().includes("boomers"));
+          if (!found) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("2026 BOOMERS 60/70 Division")}&limit=1`); found=r[0]; }
         }
         if (!found) {
           setFwLoading(false);
