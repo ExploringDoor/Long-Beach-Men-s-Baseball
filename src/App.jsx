@@ -774,6 +774,7 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
 /* ─── TICKER ─────────────────────────────────────────────────────────────── */
 function Ticker({ setTab }) {
   const [preview, setPreview] = useState(null);
+  const [finalGame, setFinalGame] = useState(null); // clicked Final game → open box score
   const [liveScores, setLiveScores] = useState({}); // key: "away|home" → {away_score, home_score, status}
   // Find the most recently played week (latest date <= today), fallback to next upcoming
   const today = new Date(); today.setHours(0,0,0,0);
@@ -812,6 +813,13 @@ function Ticker({ setTab }) {
   return (
     <>
       {preview && <GamePreviewModal {...preview} onClose={()=>setPreview(null)} />}
+      {finalGame && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setFinalGame(null)}>
+          <div style={{maxWidth:600,width:"100%"}} onClick={e=>e.stopPropagation()}>
+            <LiveBoxScoreFinalCard game={finalGame} onTeamClick={()=>setFinalGame(null)} />
+          </div>
+        </div>
+      )}
       <div className="ticker-outer" style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
         <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 10px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
           <span className="ticker-lbdc-text" style={{fontSize:18,lineHeight:1}}>⚾</span>
@@ -823,7 +831,7 @@ function Ticker({ setTab }) {
             const sc = liveScores[`${g.away}|${g.home}`];
             const isFinal = sc && (sc.status==="Final"||sc.status==="final");
             return (
-              <div key={i} onClick={()=>setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
+              <div key={i} onClick={()=>isFinal ? setFinalGame(sc) : setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
                 className="ticker-game-item"
                 style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"6px 16px",borderRight:"1px solid rgba(255,255,255,0.1)",minWidth:160,gap:3,cursor:"pointer",transition:"background .12s",flexShrink:0}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
