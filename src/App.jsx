@@ -1416,7 +1416,7 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
           </div>
         </div>
       )}
-      {game.status === "PPD" ? (
+      {(game.status === "PPD" || game.status === "CAN" || (game.status||"").toLowerCase().startsWith("postpone") || (game.status||"").toLowerCase().startsWith("cancel")) ? (
         <div style={{background:"#f5f5f5",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #999",borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column",width:"100%",opacity:0.7}}>
           <div style={{padding:"8px 10px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <span style={{fontSize:9,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>POSTPONED</span>
