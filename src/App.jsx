@@ -5449,6 +5449,8 @@ function AdminPage({ onAlertChange }) {
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
   const [adminGamesLeague, setAdminGamesLeague] = useState(0); // 0=Saturday, 1=Boomers
+  const [scoreEditId, setScoreEditId] = useState(null); // game id being inline-score-edited
+  const [scoreEditAway, setScoreEditAway] = useState(""); const [scoreEditHome, setScoreEditHome] = useState("");
 
   // News & Events
   const [newsItems, setNewsItems] = useState([]);
@@ -6178,7 +6180,26 @@ function AdminPage({ onAlertChange }) {
                         {g.headline && <span style={{marginLeft:6,color:"#444"}}>· {g.headline}</span>}
                       </div>
                     </div>
+                    {scoreEditId===g.id && (
+                      <div style={{width:"100%",display:"flex",alignItems:"center",gap:8,background:"#fffbe6",border:"1px solid #fcd34d",borderRadius:6,padding:"6px 10px",marginTop:6}}>
+                        <span style={{fontSize:12,fontWeight:700,color:"#92400e"}}>Fix Score:</span>
+                        <input type="number" value={scoreEditAway} onChange={e=>setScoreEditAway(e.target.value)} placeholder="Away" style={{width:52,padding:"3px 6px",border:"1px solid #ccc",borderRadius:4,fontSize:13,textAlign:"center"}} />
+                        <span style={{fontWeight:700,color:"#555"}}>–</span>
+                        <input type="number" value={scoreEditHome} onChange={e=>setScoreEditHome(e.target.value)} placeholder="Home" style={{width:52,padding:"3px 6px",border:"1px solid #ccc",borderRadius:4,fontSize:13,textAlign:"center"}} />
+                        <button type="button" onClick={async()=>{
+                          try{
+                            await sbPatch(`games?id=eq.${g.id}`,{away_score:parseInt(scoreEditAway)||0,home_score:parseInt(scoreEditHome)||0});
+                            setAdminGames(prev=>prev.map(x=>x.id===g.id?{...x,away_score:parseInt(scoreEditAway)||0,home_score:parseInt(scoreEditHome)||0}:x));
+                            setScoreEditId(null);
+                          }catch(err){alert("Score update failed: "+err.message);}
+                        }} style={{padding:"3px 12px",background:"#002d6e",border:"none",borderRadius:4,color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>Save</button>
+                        <button type="button" onClick={()=>setScoreEditId(null)} style={{padding:"3px 10px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:4,fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
+                      </div>
+                    )}
                     <div style={{display:"flex",gap:8,flexShrink:0}}>
+                      <button type="button" onClick={()=>{setScoreEditId(g.id);setScoreEditAway(String(g.away_score??""));setScoreEditHome(String(g.home_score??""));}} style={{padding:"6px 12px",background:"rgba(234,179,8,0.12)",border:"1px solid rgba(234,179,8,0.5)",borderRadius:6,color:"#92400e",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+                        🔢 Score
+                      </button>
                       <button type="button" onClick={()=>{
                         setPreloadGame(g);
                         setQuickView(null);
