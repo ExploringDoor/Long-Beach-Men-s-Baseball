@@ -6707,9 +6707,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const pitRows = [
         ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
         ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
-      ].map(({name,_t,ip,h,r,er,bb,k,hr,decision})=>({
+      ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
         game_id:gid,player_name:name,team:_t,
-        ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,hr:+hr||0,
+        ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
         decision:decision==="ND"?null:decision,
       }));
       if(pitRows.length) await sbPost("pitching_lines",pitRows);
@@ -8245,7 +8245,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       });
       if(batRows.length)await sbPost("batting_lines",batRows);
       const toIP=(v)=>{if(!v&&v!==0)return null;const s=String(v).trim();const m=s.match(/^(\d+)\.([012])?$/);if(m)return parseInt(m[1])+(parseInt(m[2]||0)/3);const n=parseFloat(s);return isNaN(n)?null:n;};
-      const pitRows=bsPit.filter(p=>p.name&&p.ip).map(p=>({game_id:gameId,player_name:p.name,team:p.team,ip:toIP(p.ip),h:+p.h||0,r:+p.r||0,er:+p.er||0,bb:+p.bb||0,k:+p.k||0,hr:0,decision:p.decision||"ND"}));
+      const pitRows=bsPit.filter(p=>p.name&&p.ip).map(p=>({game_id:gameId,player_name:p.name,team:p.team,ip:toIP(p.ip),h:+p.h||0,r:+p.r||0,er:+p.er||0,bb:+p.bb||0,k:+p.k||0,decision:p.decision||"ND"}));
       if(pitRows.length){await sbDelete(`pitching_lines?game_id=eq.${gameId}`);await sbPost("pitching_lines",pitRows);}
       clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");
     } catch(e){alert("Save failed: "+e.message);}
