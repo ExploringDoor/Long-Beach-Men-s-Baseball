@@ -6152,6 +6152,7 @@ function AdminPage({ onAlertChange }) {
          quickView==="tournaments"  ? <TournamentManagerPage onBack={()=>setQuickView(null)}/> :
          quickView==="eligibility"  ? <PlayerEligibilityPage onBack={()=>setQuickView(null)}/> :
          quickView==="email"        ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
+         quickView==="live"         ? <LiveScorerPage onExit={()=>setQuickView(null)}/> :
          quickView==="games"    ? (
           <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
             <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -6236,6 +6237,7 @@ function AdminPage({ onAlertChange }) {
             ) : (
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
                 {[
+                  {icon:"⚡",title:"Score Live",desc:"Score a game in real time",accent:"#16a34a",action:()=>setQuickView("live")},
                   {icon:"🚨",title:"League Alert Banner",desc:"Post urgent site-wide notices",accent:hasAlert?"#dc2626":"#002d6e",badge:hasAlert?"ACTIVE":null,action:()=>setQuickView("alert")},
                   {icon:"📰",title:"News & Events",desc:"Post announcements to the Home page",accent:"#b45309",action:()=>{setQuickView("news");loadNews();}},
                   {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",accent:"#002d6e",action:()=>{setPreloadGame(null);setShowBoxScore(true);}},
