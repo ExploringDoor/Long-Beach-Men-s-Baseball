@@ -791,10 +791,13 @@ function Ticker({ setTab }) {
   useEffect(() => {
     // Fetch scores for this week's games
     const pairs = games.map(g=>`(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
-    sbFetch(`games?select=away_team,home_team,away_score,home_score,status&or=(${pairs})&away_score=not.is.null&limit=20`)
+    sbFetch(`games?select=away_team,home_team,away_score,home_score,status&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
       .then(rows => {
         const m = {};
-        rows.forEach(r => { m[`${r.away_team}|${r.home_team}`] = r; });
+        rows.forEach(r => {
+          const k = `${r.away_team}|${r.home_team}`;
+          if (!m[k] || r.status === 'Final') m[k] = r;
+        });
         setLiveScores(m);
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1135,7 +1138,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:"#f8f9fb"}}>
-              {["Player","AB","R","H","HR","RBI","BB","SO"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
+              {["Player","AB","R","H","HR","RBI","BB","SO","SB"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
             </tr></thead>
             <tbody>
               {rows.map((r,i)=>(
@@ -1143,7 +1146,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
                   <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>
                     <button type="button" onClick={()=>setSelectedPlayer(r.player_name)} style={{background:"none",border:"none",padding:0,fontWeight:600,cursor:"pointer",color:"#002d6e",textDecoration:"underline",textDecorationStyle:"dotted",fontSize:"inherit",fontFamily:"inherit",whiteSpace:"nowrap"}}>{r.player_name}</button>
                   </td>
-                  {[r.ab,r.r,r.h,r.hr||0,r.rbi,r.bb,r.k].map((v,j)=>(
+                  {[r.ab,r.r,r.h,r.hr||0,r.rbi,r.bb,r.k,r.sb||0].map((v,j)=>(
                     <td key={j} style={{padding:"5px 8px",textAlign:"center",
                       fontWeight:v>0&&[1,2,4].includes(j)?700:400,
                       color:j===3&&v>0?"#c8102e":"inherit"}}>{v||0}</td>
@@ -1152,7 +1155,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
               ))}
               <tr style={{borderTop:"2px solid rgba(0,0,0,0.1)",background:"#f8f9fb",fontWeight:700}}>
                 <td style={{padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:11}}>Totals</td>
-                {["ab","r","h","hr","rbi","bb","k"].map(f=>(
+                {["ab","r","h","hr","rbi","bb","k","sb"].map(f=>(
                   <td key={f} style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{rows.reduce((s,r)=>s+(r[f]||0),0)}</td>
                 ))}
               </tr>
@@ -1642,6 +1645,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const [boomerWk, setBoomerWk] = useState(0);
   const [tournGames, setTournGames] = useState([]);
   const [previewGame, setPreviewGame] = useState(null);
+  const [schedScores, setSchedScores] = useState({});
   const week = SCHED[wk];
   const games = week.fields.flatMap(f => f.games.map(g => ({...g,field:f.name})));
   const dateStr = week.label;
@@ -1655,6 +1659,21 @@ function SchedulePage({ setTab, setTeamDetail }) {
       .then(data => setTournGames(data || []))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (games.length === 0) return;
+    const pairs = games.map(g=>`(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
+    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
+      .then(rows => {
+        const m = {};
+        rows.forEach(r => {
+          const k = `${r.away_team}|${r.home_team}`;
+          if (!m[k] || r.status === 'Final') m[k] = r;
+        });
+        setSchedScores(m);
+      }).catch(()=>{});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wk]);
 
   const byTournament = {};
   tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
@@ -1684,7 +1703,13 @@ function SchedulePage({ setTab, setTeamDetail }) {
         </div>
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           <div style={{display:"flex",flexDirection:"column",gap:10,alignItems:"flex-start"}}>
-            {games.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />)}
+            {games.map((g,i) => {
+              const sc = schedScores[`${g.away}|${g.home}`];
+              if (sc && sc.status === 'Final') {
+                return <LiveBoxScoreFinalCard key={i} game={sc} onTeamClick={goTeam} />;
+              }
+              return <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />;
+            })}
           </div>
           {byeTeams.length > 0 && (
             <div style={{display:"flex",alignItems:"center",gap:12,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"3px solid #c8102e",borderRadius:8,padding:"12px 18px",marginTop:16}}>
