@@ -8107,67 +8107,103 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     const batter = getBatter(s);
     let stats={...s.stats}, bases=[...s.bases], score={...s.score}, runs=0, rbis=0;
 
+    // applyDests: resolves runner destinations, credits R to runners who score,
+    // and returns updated baseRunners so each play properly tracks who's on base.
     const applyDests = (d) => {
       let nb=[false,false,false],r=0,rbi=0,runnerOuts=0;
+      const oldBr=s.baseRunners||{};
+      let newBr={0:null,1:null,2:null};
       Object.entries(d||{}).forEach(([k,v])=>{
         const isBatter=k==="__batter__";
-        if (v==="scored"){r++;score[side]++;if(!isBatter)rbi++;}
-        else if(v==="out"&&!isBatter){runnerOuts++;}
-        else if(v==="3B")nb[2]=true; else if(v==="2B")nb[1]=true; else if(v==="1B")nb[0]=true;
-        else if(v==="stay"&&!isBatter){if(k==="3B")nb[2]=true;else if(k==="2B")nb[1]=true;else if(k==="1B")nb[0]=true;}
+        const srcIdx=!isBatter?(k==="1B"?0:k==="2B"?1:k==="3B"?2:-1):-1;
+        const runner=isBatter?batter:(srcIdx>=0?oldBr[srcIdx]:null);
+        if(v==="scored"){
+          r++;score[side]++;
+          if(!isBatter){rbi++;if(runner)stats=updStat(stats,runner,{r:1});}
+        } else if(v==="out"&&!isBatter){runnerOuts++;}
+        else {
+          const dstIdx=v==="1B"?0:v==="2B"?1:v==="3B"?2:-1;
+          if(dstIdx>=0){nb[dstIdx]=true;if(runner)newBr[dstIdx]=runner;}
+          else if(v==="stay"&&!isBatter){
+            if(k==="3B"){nb[2]=true;if(runner)newBr[2]=runner;}
+            else if(k==="2B"){nb[1]=true;if(runner)newBr[1]=runner;}
+            else if(k==="1B"){nb[0]=true;if(runner)newBr[0]=runner;}
+          }
+        }
       });
-      return {nb,r,rbi,runnerOuts};
+      return {nb,r,rbi,runnerOuts,newBr};
     };
 
-    if (outcome==="BB"){stats=updStat(stats,batter,{bb:1});const[nb,r]=forceAdv(bases);bases=nb;runs=r;rbis=r;score[side]+=runs;}
-    else if(outcome==="HBP"){stats=updStat(stats,batter,{hbp:1});const[nb,r]=forceAdv(bases);bases=nb;runs=r;rbis=r;score[side]+=runs;}
+    if(outcome==="BB"||outcome==="HBP"){
+      if(outcome==="BB")stats=updStat(stats,batter,{bb:1});
+      else stats=updStat(stats,batter,{hbp:1});
+      const[nb,r]=forceAdv(bases);
+      // Credit run to 3B runner if bases were loaded (force-scored)
+      const oldBr=s.baseRunners||{};
+      const force3=bases[0]&&bases[1]&&bases[2];
+      if(r>0&&force3&&oldBr[2])stats=updStat(stats,oldBr[2],{r:1});
+      // Shift baseRunners: batter→1B, 1B→2B (if forced), 2B→3B (if forced), 3B scored
+      const force1=bases[0],force2=bases[0]&&bases[1];
+      const newBrWalk={0:batter,1:force1?oldBr[0]:oldBr[1],2:force2?oldBr[1]:oldBr[2]};
+      bases=nb;runs=r;rbis=r;score[side]+=runs;
+      s={...s,baseRunners:newBrWalk};
+    }
     else if(outcome==="K"){
       stats=updStat(stats,batter,{ab:1,k:1});
       const play={inning:s.inning,side:s.topBottom,batter,outcome:"K",loc:null,outType:null,rbis:0,runs:0};
       s={...s,stats,bases,score,plays:[...s.plays,play]};s=addOut(s);s=advBatter(s,side);persist(s);setModal(null);setPO(null);return;
     }
-    else if(outcome==="HR"){runs=bases.filter(Boolean).length+1;rbis=runs;score[side]+=runs;stats=updStat(stats,batter,{ab:1,h:1,hr:1,r:1,rbi:rbis});bases=[false,false,false];}
+    else if(outcome==="HR"){
+      runs=bases.filter(Boolean).length+1;rbis=runs;score[side]+=runs;
+      // Credit R to all runners already on base
+      const oldBr=s.baseRunners||{};
+      [0,1,2].forEach(i=>{if(bases[i]&&oldBr[i])stats=updStat(stats,oldBr[i],{r:1});});
+      stats=updStat(stats,batter,{ab:1,h:1,hr:1,r:1,rbi:rbis});
+      bases=[false,false,false];
+      s={...s,baseRunners:{0:null,1:null,2:null}};
+    }
     else if(outcome==="OUT"){
       stats=updStat(stats,batter,{ab:1});
-      let runnerOuts=0;
-      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;}
+      let runnerOuts=0,newBr=s.baseRunners||{};
+      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;newBr=res.newBr;}
       const play={inning:s.inning,side:s.topBottom,batter,outcome:"OUT",loc,outType,rbis,runs};
-      s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+      s={...s,stats,bases,score,baseRunners:newBr,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
       s=addOut(s,(outType==="DP"?2:1)+runnerOuts);s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     else if(outcome==="SAC"){
-      let runnerOuts=0;
-      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;}
+      let runnerOuts=0,newBr=s.baseRunners||{};
+      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;newBr=res.newBr;}
       stats=updStat(stats,batter,{rbi:rbis});
       const play={inning:s.inning,side:s.topBottom,batter,outcome:"SAC",loc,outType,rbis,runs};
-      s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+      s={...s,stats,bases,score,baseRunners:newBr,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
       s=addOut(s,1+runnerOuts);s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     else if(outcome==="E"||outcome==="FC"){
       stats=updStat(stats,batter,{ab:1});if(outcome==="E")stats=updStat(stats,batter,{e:1});
-      let runnerOuts=0;
-      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;}
-      else bases=[true,...s.bases.slice(0,2)];
+      let runnerOuts=0,newBr=s.baseRunners||{};
+      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;newBr=res.newBr;}
+      else{bases=[true,...s.bases.slice(0,2)];const ob=s.baseRunners||{};newBr={0:batter,1:ob[0],2:ob[1]};}
       const play={inning:s.inning,side:s.topBottom,batter,outcome,loc,outType:null,rbis,runs};
-      s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+      s={...s,stats,bases,score,baseRunners:newBr,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
       if(runnerOuts>0){s=addOut(s,runnerOuts);} s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     else{
       stats=updStat(stats,batter,{ab:1,h:1});
       if(outcome==="2B")stats=updStat(stats,batter,{doubles:1});
       if(outcome==="3B")stats=updStat(stats,batter,{triples:1});
-      let runnerOuts=0;
+      let runnerOuts=0,newBr=s.baseRunners||{};
       if(dests){
-        const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;
+        const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;newBr=res.newBr;
         if(dests["__batter__"]==="scored")stats=updStat(stats,batter,{r:1});
         stats=updStat(stats,batter,{rbi:rbis});
       } else {
-        if(outcome==="1B")bases=[true,s.bases[0],s.bases[1]];
-        else if(outcome==="2B")bases=[false,true,s.bases[0]];
-        else if(outcome==="3B")bases=[false,false,true];
+        const ob=s.baseRunners||{};
+        if(outcome==="1B"){bases=[true,s.bases[0],s.bases[1]];newBr={0:batter,1:ob[0],2:ob[1]};}
+        else if(outcome==="2B"){bases=[false,true,s.bases[0]];newBr={0:null,1:batter,2:ob[0]};}
+        else if(outcome==="3B"){bases=[false,false,true];newBr={0:null,1:null,2:batter};}
       }
       const play={inning:s.inning,side:s.topBottom,batter,outcome,loc,outType:null,rbis,runs};
-      s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+      s={...s,stats,bases,score,baseRunners:newBr,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
       if(runnerOuts>0)s=addOut(s,runnerOuts);
       s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
