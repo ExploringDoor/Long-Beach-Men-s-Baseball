@@ -774,7 +774,7 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
 /* ─── TICKER ─────────────────────────────────────────────────────────────── */
 function Ticker({ setTab }) {
   const [preview, setPreview] = useState(null);
-  const [finalGame, setFinalGame] = useState(null); // clicked Final game → open box score
+  const [boxModal, setBoxModal] = useState(null); // {game, batting, pitching}
   const [liveScores, setLiveScores] = useState({}); // key: "away|home" → {away_score, home_score, status}
   // Find the most recently played week (latest date <= today), fallback to next upcoming
   const today = new Date(); today.setHours(0,0,0,0);
@@ -792,7 +792,7 @@ function Ticker({ setTab }) {
   useEffect(() => {
     // Fetch scores for this week's games
     const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
-    sbFetch(`games?select=away_team,home_team,away_score,home_score,status,headline&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
+    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
       .then(rows => {
         const m = {};
         rows.forEach(r => {
@@ -810,16 +810,35 @@ function Ticker({ setTab }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week.label]);
 
+  const openFinalBox = async (sc) => {
+    const enc = s => encodeURIComponent(s);
+    const [bat, pit] = await Promise.all([
+      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${sc.id}&order=id.asc&limit=100`),
+      sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${sc.id}&order=id.asc&limit=50`),
+    ]).catch(()=>[[], []]);
+    // Sibling fallback if a team's rows are missing
+    const hasAway = bat.some(b=>b.team===sc.away_team), hasHome = bat.some(b=>b.team===sc.home_team);
+    if (!hasAway || !hasHome) {
+      const sibs = await sbFetch(`games?select=id&away_team=eq.${enc(sc.away_team)}&home_team=eq.${enc(sc.home_team)}&id=neq.${sc.id}&away_score=not.is.null&limit=5`).catch(()=>[]);
+      if (sibs.length) {
+        const ids = sibs.map(s=>s.id).join(',');
+        const [mb, mp] = await Promise.all([
+          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&order=id.asc&limit=200`),
+          sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&order=id.asc&limit=100`),
+        ]).catch(()=>[[], []]);
+        const batFull = [...bat, ...(!hasAway?mb.filter(b=>b.team===sc.away_team):[]), ...(!hasHome?mb.filter(b=>b.team===sc.home_team):[])];
+        const pitFull = [...pit, ...(!pit.some(p=>p.team===sc.away_team)?mp.filter(p=>p.team===sc.away_team):[]), ...(!pit.some(p=>p.team===sc.home_team)?mp.filter(p=>p.team===sc.home_team):[])];
+        setBoxModal({game:sc, batting:batFull, pitching:pitFull});
+        return;
+      }
+    }
+    setBoxModal({game:sc, batting:bat, pitching:pit});
+  };
+
   return (
     <>
       {preview && <GamePreviewModal {...preview} onClose={()=>setPreview(null)} />}
-      {finalGame && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setFinalGame(null)}>
-          <div style={{maxWidth:600,width:"100%"}} onClick={e=>e.stopPropagation()}>
-            <LiveBoxScoreFinalCard game={finalGame} onTeamClick={()=>setFinalGame(null)} />
-          </div>
-        </div>
-      )}
+      {boxModal && <BoxScoreModal game={boxModal.game} batting={boxModal.batting} pitching={boxModal.pitching} onClose={()=>setBoxModal(null)} />}
       <div className="ticker-outer" style={{background:"#001a3e",borderBottom:"2px solid #002d6e",display:"flex",alignItems:"stretch",overflow:"hidden",width:"100%"}}>
         <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"6px 10px",borderRight:"1px solid rgba(255,255,255,0.15)",flexShrink:0,gap:2}}>
           <span className="ticker-lbdc-text" style={{fontSize:18,lineHeight:1}}>⚾</span>
@@ -831,7 +850,7 @@ function Ticker({ setTab }) {
             const sc = liveScores[`${g.away}|${g.home}`];
             const isFinal = sc && (sc.status==="Final"||sc.status==="final");
             return (
-              <div key={i} onClick={()=>isFinal ? setFinalGame(sc) : setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
+              <div key={i} onClick={()=>isFinal ? openFinalBox(sc) : setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
                 className="ticker-game-item"
                 style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"6px 16px",borderRight:"1px solid rgba(255,255,255,0.1)",minWidth:160,gap:3,cursor:"pointer",transition:"background .12s",flexShrink:0}}
                 onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
@@ -1243,7 +1262,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
   return (
     <>
     {selectedPlayer && <PlayerStatsModal playerName={selectedPlayer} onClose={()=>setSelectedPlayer(null)} />}
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px",overflowY:"auto"}} onClick={onClose}>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1200,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"16px",overflowY:"auto"}} onClick={onClose}>
       <div style={{background:"#fff",borderRadius:14,maxWidth:680,width:"100%",overflow:"hidden",marginTop:20,marginBottom:20}} onClick={e=>e.stopPropagation()}>
         <div style={{background:"#002d6e",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
