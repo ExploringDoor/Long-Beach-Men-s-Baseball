@@ -790,13 +790,19 @@ function Ticker({ setTab }) {
 
   useEffect(() => {
     // Fetch scores for this week's games
-    const pairs = games.map(g=>`(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
-    sbFetch(`games?select=away_team,home_team,away_score,home_score,status&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
+    const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
+    sbFetch(`games?select=away_team,home_team,away_score,home_score,status,headline&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
       .then(rows => {
         const m = {};
         rows.forEach(r => {
           const k = `${r.away_team}|${r.home_team}`;
-          if (!m[k] || r.status === 'Final') m[k] = r;
+          const cur = m[k];
+          if (!cur) { m[k] = r; return; }
+          const rFinal = r.status === 'Final', curFinal = cur.status === 'Final';
+          const rHl = !!r.headline, curHl = !!cur.headline;
+          // Prefer: Final+headline > Final > non-Final; keep higher id among equal rank
+          if (rFinal && rHl && !(curFinal && curHl)) m[k] = r;
+          else if (rFinal && !curFinal && !curHl) m[k] = r;
         });
         setLiveScores(m);
       }).catch(()=>{});
@@ -1662,13 +1668,18 @@ function SchedulePage({ setTab, setTeamDetail }) {
 
   useEffect(() => {
     if (games.length === 0) return;
-    const pairs = games.map(g=>`(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
+    const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
     sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
       .then(rows => {
         const m = {};
         rows.forEach(r => {
           const k = `${r.away_team}|${r.home_team}`;
-          if (!m[k] || r.status === 'Final') m[k] = r;
+          const cur = m[k];
+          if (!cur) { m[k] = r; return; }
+          const rFinal = r.status === 'Final', curFinal = cur.status === 'Final';
+          const rHl = !!r.headline, curHl = !!cur.headline;
+          if (rFinal && rHl && !(curFinal && curHl)) m[k] = r;
+          else if (rFinal && !curFinal && !curHl) m[k] = r;
         });
         setSchedScores(m);
       }).catch(()=>{});
