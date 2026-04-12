@@ -1015,16 +1015,37 @@ function HomePage({ setTab, setTeamDetail }) {
     // Filter by known Saturday team names — avoids season record confusion
     const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
     const tf = satTeams.map(t=>`away_team.eq.${encodeURIComponent(t)}`).join(",");
-    sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${tf})&status=not.in.(PPD,CAN)&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=30`)
-      .then(data => data.filter(g => satTeams.includes(g.home_team)))
-      .then(data => {
+    const bomTeamList = [...BOOMERS_TEAMS];
+    const bf = bomTeamList.map(t=>`away_team.eq.${encodeURIComponent(t)}`).join(",");
+    Promise.all([
+      sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${tf})&status=not.in.(PPD,CAN)&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=30`)
+        .then(data => data.filter(g => satTeams.includes(g.home_team))),
+      sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${bf})&status=eq.Final&away_score=not.is.null&order=id.desc&limit=10`)
+        .then(data => data.filter(g => BOOMERS_TEAMS.has(g.home_team))),
+    ]).then(([satData, bomData]) => {
+        // Dedup Boomers — prefer Final+headline, keep highest id
+        const bm = {};
+        bomData.forEach(r => {
+          const k = `${r.away_team}|${r.home_team}`, cur = bm[k];
+          if (!cur) { bm[k] = r; return; }
+          const rHl=!!r.headline, cHl=!!cur.headline;
+          if (rHl && !cHl) bm[k] = r;
+        });
+        const bomDeduped = Object.values(bm);
+        const data = [...satData];
         // Pass 1: dedup same date+teams (prefer: most runs > has headline > highest id)
         const s1={}; data.forEach(g=>{const k=`${g.game_date||""}|${g.away_team}|${g.home_team}`,t=(g.away_score||0)+(g.home_score||0),hl=!!g.headline,c=s1[k];if(!c||t>c.t||(t===c.t&&hl&&!c.hl)||(t===c.t&&hl===c.hl&&g.id>c.id))s1[k]={id:g.id,t,hl};});
         let p1=data.filter(g=>s1[`${g.game_date||""}|${g.away_team}|${g.home_team}`]?.id===g.id);
         // Pass 2: merge null-date records into dated counterparts (null-date wins if more runs)
         const dated=p1.filter(g=>g.game_date),nulls=p1.filter(g=>!g.game_date);
         if(nulls.length){const res=[...dated];nulls.forEach(ng=>{const nt=(ng.away_score||0)+(ng.home_score||0),nhl=!!ng.headline,m=res.find(d=>d.away_team===ng.away_team&&d.home_team===ng.home_team);if(m){const mt=(m.away_score||0)+(m.home_score||0),mhl=!!m.headline;if(nt>mt||(nt===mt&&nhl&&!mhl))res[res.indexOf(m)]={...ng,game_date:m.game_date};}else res.push(ng);});p1=res;}
-        setRecentGames(p1.slice(0,6));
+        // Merge Boomers + Saturday, sort by date desc then id desc, cap at 6
+        const combined = [...p1, ...bomDeduped].sort((a,b) => {
+          if (a.game_date && b.game_date) return a.game_date < b.game_date ? 1 : a.game_date > b.game_date ? -1 : b.id - a.id;
+          if (a.game_date) return -1; if (b.game_date) return 1;
+          return b.id - a.id;
+        });
+        setRecentGames(combined.slice(0, 6));
       })
       .catch(() => {});
     sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=10")
