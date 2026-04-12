@@ -1002,8 +1002,8 @@ function Navbar({ tab, setTab }) {
 
 /* ─── HOME PAGE ──────────────────────────────────────────────────────────── */
 function HomePage({ setTab, setTeamDetail }) {
-  const topTeams = [...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8);
-  const boomersTeams = [...ALL_TEAMS].filter(t=>t.divKey==="BOM").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct));
+  const [topTeams, setTopTeams] = useState([...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8));
+  const [boomersTeams, setBoomersTeams] = useState([...ALL_TEAMS].filter(t=>t.divKey==="BOM").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)));
   const today = new Date(); today.setHours(0,0,0,0);
   const parseSchedLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
   const nextWeek = SCHED.find(w => parseSchedLabel(w.label) > today) || SCHED[SCHED.length - 1];
@@ -1013,6 +1013,43 @@ function HomePage({ setTab, setTeamDetail }) {
   const [standingsDiv, setStandingsDiv] = useState("SAT");
   const [previewGame, setPreviewGame] = useState(null);
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
+
+  // Live standings fetch
+  useEffect(() => {
+    const calcRows = (games, divTeams) => {
+      const tm = {};
+      divTeams.forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
+      games.forEach(g => {
+        if (!g.away_score && g.away_score !== 0) return;
+        if (g.status === "PPD" || g.status === "CAN") return;
+        const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
+        if(!tm[a]||!tm[h]) return;
+        tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
+        tm[h].rs+=hs; tm[h].ra+=as; tm[h].gp++;
+        if(as>hs){tm[a].w++;tm[h].l++;} else if(hs>as){tm[h].w++;tm[a].l++;} else{tm[a].t++;tm[h].t++;}
+      });
+      return Object.entries(tm).map(([name,s]) => {
+        const pts=s.w*2+s.t, max=(s.gp||1)*2;
+        const pct=s.gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"");
+        return {name,w:s.w,l:s.l,t:s.t,pct,gp:s.gp,rs:s.rs,ra:s.ra};
+      }).sort((a,b) => {
+        const ar=(a.w*2+a.t)/(a.gp||1), br=(b.w*2+b.t)/(b.gp||1);
+        if(br!==ar) return br-ar;
+        return (b.rs-b.ra)-(a.rs-a.ra);
+      });
+    };
+    sbFetch("seasons?select=id,name&limit=20").then(seasons => {
+      const satSeason = seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+      const bomSeason = seasons.find(x => x.name.includes("Boomers"));
+      return Promise.all([
+        satSeason ? sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${satSeason.id}&status=eq.Final&limit=200`) : [],
+        bomSeason ? sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${bomSeason.id}&status=eq.Final&limit=200`) : [],
+      ]);
+    }).then(([satGames, bomGames]) => {
+      if (satGames.length) setTopTeams(calcRows(satGames, DIV.SAT.teams).slice(0,8));
+      if (bomGames.length) setBoomersTeams(calcRows(bomGames, DIV.BOM.teams));
+    }).catch(()=>{});
+  }, []);
 
   useEffect(() => {
     // Filter by known Saturday team names — avoids season record confusion
