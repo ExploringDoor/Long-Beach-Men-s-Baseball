@@ -7957,7 +7957,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
 
   const getBatter = (s) => { const side=s.topBottom==="top"?"away":"home"; const lu=s.lineup[side]; return lu.length?lu[s.batterIdx[side]%lu.length]:"—"; };
   const getOnDeck = (s) => { const side=s.topBottom==="top"?"away":"home"; const lu=s.lineup[side]; return lu.length?lu[(s.batterIdx[side]+1)%lu.length]:"—"; };
-  const advBatter = (s) => { const side=s.topBottom==="top"?"away":"home"; return {...s,batterIdx:{...s.batterIdx,[side]:s.batterIdx[side]+1},balls:0,strikes:0}; };
+  const advBatter = (s, explicitSide) => { const side=explicitSide||(s.topBottom==="top"?"away":"home"); return {...s,batterIdx:{...s.batterIdx,[side]:s.batterIdx[side]+1},balls:0,strikes:0}; };
   const endHalf = (s) => {
     const side=s.topBottom==="top"?"away":"home";
     const ls={...s.lineScore,[side]:[...s.lineScore[side],s.runsThisHalf]};
@@ -8007,7 +8007,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     else if(outcome==="K"){
       stats=updStat(stats,batter,{ab:1,k:1});
       const play={inning:s.inning,side:s.topBottom,batter,outcome:"K",loc:null,outType:null,rbis:0,runs:0};
-      s={...s,stats,bases,score,plays:[...s.plays,play]};s=addOut(s);s=advBatter(s);persist(s);setModal(null);setPO(null);return;
+      s={...s,stats,bases,score,plays:[...s.plays,play]};s=addOut(s);s=advBatter(s,side);persist(s);setModal(null);setPO(null);return;
     }
     else if(outcome==="HR"){runs=bases.filter(Boolean).length+1;rbis=runs;score[side]+=runs;stats=updStat(stats,batter,{ab:1,h:1,hr:1,r:1,rbi:rbis});bases=[false,false,false];}
     else if(outcome==="OUT"){
@@ -8015,14 +8015,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       if(dests){const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;}
       const play={inning:s.inning,side:s.topBottom,batter,outcome:"OUT",loc,outType,rbis,runs};
       s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
-      s=addOut(s,outType==="DP"?2:1);s=advBatter(s);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
+      s=addOut(s,outType==="DP"?2:1);s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     else if(outcome==="SAC"){
       if(dests){const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;}
       stats=updStat(stats,batter,{rbi:rbis});
       const play={inning:s.inning,side:s.topBottom,batter,outcome:"SAC",loc,outType,rbis,runs};
       s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
-      s=addOut(s);s=advBatter(s);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
+      s=addOut(s);s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     else if(outcome==="E"||outcome==="FC"){
       stats=updStat(stats,batter,{ab:1});if(outcome==="E")stats=updStat(stats,batter,{e:1});
