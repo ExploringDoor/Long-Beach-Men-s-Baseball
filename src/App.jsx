@@ -6968,16 +6968,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           )}
         </div>
       ))}
-      {statMode==="full" && (
-        <div style={{display:"flex",gap:6,marginTop:6}}>
-          <input type="text" value={addName} onChange={e=>setAddName(e.target.value)}
-            placeholder="Add player..." onKeyDown={e=>{if(e.key==="Enter"&&addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
-            style={{flex:1,padding:"6px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
-          <button onClick={()=>{if(addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
-            style={{padding:"6px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",
-              borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add</button>
-        </div>
-      )}
+      <div style={{display:"flex",gap:6,marginTop:6}}>
+        <input type="text" value={addName} onChange={e=>setAddName(e.target.value)}
+          placeholder="Add player..." onKeyDown={e=>{if(e.key==="Enter"&&addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
+          style={{flex:1,padding:"6px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+        <button onClick={()=>{if(addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
+          style={{padding:"6px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",
+            borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add</button>
+      </div>
     </div>
     );
   };
