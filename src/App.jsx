@@ -8232,7 +8232,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r[0];}
       }
       const existing=await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
-      const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home,away_linescore:gs.lineScore.away.join("-"),home_linescore:gs.lineScore.home.join("-")};
+      const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home};
       let gameId;
       if(existing.length){gameId=existing[0].id;await sbPatch(`games?id=eq.${gameId}`,gameData);await sbDelete(`batting_lines?game_id=eq.${gameId}`);}
       else{const r=await sbPost("games",[gameData]);gameId=r[0].id;}
