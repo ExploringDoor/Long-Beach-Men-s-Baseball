@@ -8224,9 +8224,11 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       let season;
       if(isBoomerGame){
         season=seasons.find(s=>s.name==="2026 BOOMERS 60/70 Division")||seasons.find(s=>s.name.toLowerCase().includes("boomers"));
+        if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.2026%20BOOMERS%2060%2F70%20Division&limit=1`);season=byName[0];}
         if(!season){const r=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=r[0];}
       }else{
         season=seasons.find(s=>s.name==="Spring/Summer 2026 Diamond Classics Saturdays")||seasons.find(s=>s.name.includes("Diamond Classics"));
+        if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`);season=byName[0];}
         if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r[0];}
       }
       const existing=await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
