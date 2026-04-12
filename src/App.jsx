@@ -970,10 +970,13 @@ function HomePage({ setTab, setTeamDetail }) {
         return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&${filter}&status=not.in.(PPD,CAN)&away_score=not.is.null&order=game_date.desc,id.desc&limit=20`);
       })
       .then(data => {
-        // Deduplicate: prefer highest total score (manually corrected > live scorer), then highest id
-        const seen = {};
-        data.forEach(g => { const k=`${g.game_date}|${g.away_team}|${g.home_team}`,tot=(g.away_score||0)+(g.home_score||0),cur=seen[k]; if(!cur||tot>cur.total||(tot===cur.total&&g.id>cur.id)) seen[k]={id:g.id,total:tot}; });
-        setRecentGames(data.filter(g=>seen[`${g.game_date}|${g.away_team}|${g.home_team}`]?.id===g.id).slice(0,6));
+        // Pass 1: dedup same date+teams
+        const s1={}; data.forEach(g=>{const k=`${g.game_date||""}|${g.away_team}|${g.home_team}`,t=(g.away_score||0)+(g.home_score||0),c=s1[k];if(!c||t>c.t||(t===c.t&&g.id>c.id))s1[k]={id:g.id,t};});
+        let p1=data.filter(g=>s1[`${g.game_date||""}|${g.away_team}|${g.home_team}`]?.id===g.id);
+        // Pass 2: merge null-date records into dated counterparts (null-date wins if more runs)
+        const dated=p1.filter(g=>g.game_date),nulls=p1.filter(g=>!g.game_date);
+        if(nulls.length){const res=[...dated];nulls.forEach(ng=>{const nt=(ng.away_score||0)+(ng.home_score||0),m=res.find(d=>d.away_team===ng.away_team&&d.home_team===ng.home_team);if(m){if(nt>(m.away_score||0)+(m.home_score||0))res[res.indexOf(m)]={...ng,game_date:m.game_date};}else res.push(ng);});p1=res;}
+        setRecentGames(p1.slice(0,6));
       })
       .catch(() => {});
     sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=10")
@@ -1461,15 +1464,31 @@ function ScoresPage({ setTab, setTeamDetail }) {
         return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&away_score=not.is.null&order=game_date.desc&limit=200`);
       })
       .then(games => {
-        // Deduplicate: for same away+home+date, prefer highest total score (manually corrected > live scorer missed runs), then highest id
-        const seen = {};
+        // Pass 1: dedup same date+teams, prefer highest total score then highest id
+        const seen1 = {};
         games.forEach(g => {
-          const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
-          const total = (g.away_score||0)+(g.home_score||0);
-          const cur = seen[key];
-          if (!cur || total > cur.total || (total === cur.total && g.id > cur.id)) seen[key] = {id:g.id, total};
+          const key = `${g.game_date||""}|${g.away_team}|${g.home_team}`;
+          const tot = (g.away_score||0)+(g.home_score||0), cur = seen1[key];
+          if (!cur || tot > cur.tot || (tot===cur.tot && g.id > cur.id)) seen1[key] = {id:g.id, tot};
         });
-        const deduped = games.filter(g => seen[`${g.game_date}|${g.away_team}|${g.home_team}`]?.id === g.id);
+        let pass1 = games.filter(g => seen1[`${g.game_date||""}|${g.away_team}|${g.home_team}`]?.id === g.id);
+        // Pass 2: merge null-date records into their dated counterparts (same teams)
+        // A record with no game_date is a duplicate entry missing a date — replace its dated match if it has more runs
+        const dated = pass1.filter(g => g.game_date), nullDates = pass1.filter(g => !g.game_date);
+        let deduped;
+        if (!nullDates.length) {
+          deduped = pass1;
+        } else {
+          const result = [...dated];
+          nullDates.forEach(ng => {
+            const ngTot = (ng.away_score||0)+(ng.home_score||0);
+            const match = result.find(dg => dg.away_team===ng.away_team && dg.home_team===ng.home_team);
+            if (match) {
+              if (ngTot > (match.away_score||0)+(match.home_score||0)) result[result.indexOf(match)] = {...ng, game_date:match.game_date};
+            } else result.push(ng);
+          });
+          deduped = result;
+        }
         const weekMap = {};
         deduped.forEach(g => {
           const d = g.game_date || "Unknown";
@@ -5499,7 +5518,7 @@ function AdminPage({ onAlertChange }) {
 
   const loadAdminGames = (leagueIdx = adminGamesLeague) => {
     setAdminGamesLoading(true);
-    sbFetch("seasons?select=id,name&limit=20")
+    sbFetch("seasons?select=id,name&limit=50")
       .then(seasons => {
         const s = leagueIdx === 1
           ? seasons.find(x => x.name.includes("Boomers"))
