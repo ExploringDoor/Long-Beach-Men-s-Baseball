@@ -1350,22 +1350,46 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
   const [pitching, setPitching] = useState([]);
   const [boxLoaded, setBoxLoaded] = useState(false);
   const aWin = game.away_score > game.home_score, hWin = game.home_score > game.away_score;
+  // Fetch box score, falling back to sibling game records if a team's rows are missing
+  const loadBoxData = async () => {
+    const enc = s => encodeURIComponent(s);
+    let [bat, pit] = await Promise.all([
+      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${game.id}&limit=100`),
+      sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${game.id}&limit=50`),
+    ]);
+    const hasAway = bat.some(b => b.team === game.away_team);
+    const hasHome = bat.some(b => b.team === game.home_team);
+    if (!hasAway || !hasHome) {
+      // Look for duplicate/sibling game records that may hold missing batting lines
+      const [datedSibs, nullSibs] = await Promise.all([
+        sbFetch(`games?select=id&away_team=eq.${enc(game.away_team)}&home_team=eq.${enc(game.home_team)}&id=neq.${game.id}&away_score=not.is.null&game_date=gte.2026-01-01&limit=10`),
+        sbFetch(`games?select=id&away_team=eq.${enc(game.away_team)}&home_team=eq.${enc(game.home_team)}&id=neq.${game.id}&away_score=not.is.null&game_date=is.null&limit=10`),
+      ]);
+      const sibIds = [...datedSibs, ...nullSibs].map(s => s.id);
+      if (sibIds.length) {
+        const ids = sibIds.join(',');
+        const [moreBat, morePit] = await Promise.all([
+          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&limit=200`),
+          sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&limit=100`),
+        ]);
+        if (!hasAway) bat = [...bat, ...moreBat.filter(b => b.team === game.away_team)];
+        if (!hasHome) bat = [...bat, ...moreBat.filter(b => b.team === game.home_team)];
+        if (!pit.some(p => p.team === game.away_team)) pit = [...pit, ...morePit.filter(p => p.team === game.away_team)];
+        if (!pit.some(p => p.team === game.home_team)) pit = [...pit, ...morePit.filter(p => p.team === game.home_team)];
+      }
+    }
+    return [bat, pit];
+  };
   const handleBoxScore = () => {
     if (!boxLoaded) {
-      Promise.all([
-        sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${game.id}&limit=100`),
-        sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${game.id}&limit=50`),
-      ]).then(([bat, pit]) => { setBatting(bat); setPitching(pit); setBoxLoaded(true); setShowBox(true); });
+      loadBoxData().then(([bat, pit]) => { setBatting(bat); setPitching(pit); setBoxLoaded(true); setShowBox(true); });
     } else setShowBox(true);
   };
   const recap = boxLoaded ? buildRealRecap(game, batting, pitching) : null;
   const [showRecap, setShowRecap] = useState(false);
   const handleRecap = () => {
     if (!boxLoaded) {
-      Promise.all([
-        sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${game.id}&limit=100`),
-        sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${game.id}&limit=50`),
-      ]).then(([bat, pit]) => { setBatting(bat); setPitching(pit); setBoxLoaded(true); setShowRecap(true); });
+      loadBoxData().then(([bat, pit]) => { setBatting(bat); setPitching(pit); setBoxLoaded(true); setShowRecap(true); });
     } else setShowRecap(true);
   };
   return (
