@@ -8102,45 +8102,33 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     // Identify which lineup slot occupies this base
     // bases[0]=1B, bases[1]=2B, bases[2]=3B
     const baseIdx = fromBase==="1B"?0:fromBase==="2B"?1:2;
-    // Find runner name: walk the batting order backwards from current batter to find who's on base
-    // The runner on a base is the last batter who reached that base and hasn't yet scored/been out.
-    // Since we track bases as booleans (not names), we use a heuristic: we can only record SB
-    // for the player whose name is associated with the base. We'll use the play log to find the
-    // most recent player to end up on that base.
-    let runnerName = null;
-    // Walk plays in reverse to find the last player who ended up on fromBase and hasn't yet left
-    const currentBases = [...s.bases]; // true/false per base
-    // Try to identify runner from play log
-    for (let i = s.plays.length-1; i >= 0; i--) {
-      const p = s.plays[i];
-      // We can't fully reconstruct base occupancy from play log alone without runner tracking,
-      // so fall back to batting order heuristic: the runner is the batter who batted most recently
-      // before the current batter, within the current half-inning, excluding the current batter.
-      if (p.side === s.topBottom && p.inning === s.inning) {
-        // Check if this player's outcome would leave them on this base
-        if (["1B","2B","3B","BB","HBP","E","FC"].includes(p.outcome)) {
-          runnerName = p.batter;
-          break;
+    // Use explicit baseRunners tracking if set, else fall back to play log heuristic
+    let runnerName = (s.baseRunners||{})[baseIdx] || null;
+    if (!runnerName) {
+      for (let i = s.plays.length-1; i >= 0; i--) {
+        const p = s.plays[i];
+        if (p.side === s.topBottom && p.inning === s.inning) {
+          if (["1B","2B","3B","BB","HBP","E","FC"].includes(p.outcome)) { runnerName = p.batter; break; }
         }
       }
     }
+    let br = {...(s.baseRunners||{0:null,1:null,2:null})};
     // Advance base: 1B→2B, 2B→3B, 3B→score
     if (fromBase==="3B") {
-      bases[2] = false;
-      runs = 1;
-      score[side] += 1;
+      bases[2] = false; runs = 1; score[side] += 1;
       if (runnerName) stats = updStat(stats, runnerName, {sb:1, r:1});
+      br[2] = null;
     } else if (fromBase==="2B") {
-      bases[1] = false;
-      bases[2] = true;
+      bases[1] = false; bases[2] = true;
       if (runnerName) stats = updStat(stats, runnerName, {sb:1});
-    } else { // 1B
-      bases[0] = false;
-      bases[1] = true;
+      br[2] = runnerName; br[1] = null;
+    } else {
+      bases[0] = false; bases[1] = true;
       if (runnerName) stats = updStat(stats, runnerName, {sb:1});
+      br[1] = runnerName; br[0] = null;
     }
     const play = {inning:s.inning,side:s.topBottom,batter:runnerName||"?",outcome:"SB",loc:fromBase,outType:null,rbis:0,runs};
-    s = {...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+    s = {...s,stats,bases,baseRunners:br,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
     persist(s);
     setStealBase(null);
     setModal(null);
@@ -8156,26 +8144,30 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     let stats = {...s.stats};
     let score = {...s.score};
     let runs = 0;
-    // Find runner name from play log (same heuristic as applySteal)
-    let runnerName = null;
-    for (let i = s.plays.length-1; i >= 0; i--) {
-      const p = s.plays[i];
-      if (p.side === s.topBottom && p.inning === s.inning) {
-        if (["1B","2B","3B","BB","HBP","E","FC"].includes(p.outcome)) {
-          runnerName = p.batter; break;
+    const baseIdx = fromBase==="1B"?0:fromBase==="2B"?1:2;
+    let runnerName = (s.baseRunners||{})[baseIdx] || null;
+    if (!runnerName) {
+      for (let i = s.plays.length-1; i >= 0; i--) {
+        const p = s.plays[i];
+        if (p.side === s.topBottom && p.inning === s.inning) {
+          if (["1B","2B","3B","BB","HBP","E","FC"].includes(p.outcome)) { runnerName = p.batter; break; }
         }
       }
     }
+    let br = {...(s.baseRunners||{0:null,1:null,2:null})};
     if (fromBase==="3B") {
       bases[2] = false; runs = 1; score[side] += 1;
       if (runnerName) stats = updStat(stats, runnerName, {r:1});
+      br[2] = null;
     } else if (fromBase==="2B") {
       bases[1] = false; bases[2] = true;
+      br[2] = runnerName; br[1] = null;
     } else {
       bases[0] = false; bases[1] = true;
+      br[1] = runnerName; br[0] = null;
     }
     const play = {inning:s.inning,side:s.topBottom,batter:runnerName||"?",outcome:type,loc:fromBase,outType:null,rbis:0,runs};
-    s = {...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+    s = {...s,stats,bases,baseRunners:br,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
     persist(s);
     setStealBase(null);
     setModal(null);
@@ -8357,7 +8349,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         return;
       }
       const si={};[...lineupDraft.away,...lineupDraft.home].forEach(n=>{si[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};});
-      const state={away:g.away,home:g.home,date:g.date,field:g.field,time:g.time,inning:1,topBottom:"top",outs:0,bases:[false,false,false],score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,lineup:lineupDraft,batterIdx:{away:0,home:0},stats:si,plays:[],status:"in_progress"};
+      const state={away:g.away,home:g.home,date:g.date,field:g.field,time:g.time,inning:1,topBottom:"top",outs:0,bases:[false,false,false],baseRunners:{0:null,1:null,2:null},score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,lineup:lineupDraft,batterIdx:{away:0,home:0},stats:si,plays:[],status:"in_progress"};
       clearLineupDraft(g.away,g.home,g.date);
       persist({...state,_hist:[]});setView("game");
     };
@@ -8807,10 +8799,47 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
                 🥊 Passed Ball{stealBase==="3B"?" — Scores!":stealBase==="2B"?" — 3rd":" — 2nd"}
               </button>
             </div>
+            <button onClick={()=>{setModal("setCR");}} style={{width:"100%",padding:"11px",background:"rgba(234,179,8,0.12)",border:"2px solid rgba(234,179,8,0.3)",borderRadius:10,color:"#fde047",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,cursor:"pointer",marginBottom:8}}>
+              🔄 Courtesy / Pinch Runner on {stealBase}
+            </button>
             <button onClick={()=>setStealBase(null)} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>Cancel</button>
           </div>
         </div>
       )}
+      {modal==="setCR"&&stealBase&&(()=>{
+        const side=gs.topBottom==="top"?"away":"home";
+        const lineup=gs.lineup[side]||[];
+        const baseIdx=stealBase==="1B"?0:stealBase==="2B"?1:2;
+        const currentRunner=(gs.baseRunners||{})[baseIdx];
+        const teamName=gs[side];
+        const roster=(rosterCache[teamName]||TEAM_ROSTERS[teamName]||[]).map(p=>typeof p==="string"?p:p.name);
+        const candidates=[...new Set([...lineup,...roster])].filter(n=>n);
+        return (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:700,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+            <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fde047",textTransform:"uppercase",marginBottom:4,textAlign:"center"}}>Courtesy / Pinch Runner</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",textAlign:"center",marginBottom:14}}>
+                Who is running on <strong style={{color:"#fff"}}>{stealBase}</strong>?{currentRunner&&<span> (currently <strong style={{color:"#fde047"}}>{currentRunner}</strong>)</span>}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:320,overflowY:"auto",marginBottom:10}}>
+                {candidates.map((name,i)=>(
+                  <button key={i} onClick={()=>{
+                    const br={...(gs.baseRunners||{0:null,1:null,2:null}),[baseIdx]:name};
+                    // Add to stats if new player
+                    const newStats={...gs.stats};
+                    if(!newStats[name])newStats[name]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};
+                    persist({...gs,baseRunners:br,stats:newStats});
+                    setModal(null);setStealBase(null);
+                  }} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",background:name===currentRunner?"rgba(253,224,71,0.15)":"rgba(255,255,255,0.05)",border:`2px solid ${name===currentRunner?"rgba(253,224,71,0.5)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:name===currentRunner?"#fde047":"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",textAlign:"left"}}>
+                    {name}{name===currentRunner&&<span style={{marginLeft:"auto",fontSize:11}}>← current</span>}
+                  </button>
+                ))}
+              </div>
+              <button onClick={()=>{setModal(null);}} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>← Back</button>
+            </div>
+          </div>
+        );
+      })()}
       {modal==="loc"&&(
         <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.88)",zIndex:9000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onTouchStart={e=>e.stopPropagation()}>
           <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 40px",width:"100%",maxWidth:500}}>
