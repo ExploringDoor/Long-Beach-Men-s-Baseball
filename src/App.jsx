@@ -590,7 +590,7 @@ function FinalCard({ g, onTeamClick }) {
 function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick, onPreview }) {
   return (
     <div onClick={() => onPreview?.({away, home, time, date, field})}
-      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview?"pointer":"default",transition:"box-shadow .12s",width:"fit-content",minWidth:420}}
+      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview?"pointer":"default",transition:"box-shadow .12s",width:"100%",minWidth:280}}
       onMouseEnter={e=>{if(onPreview)e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)";}}
       onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)";}}>
       <div style={{display:"flex",alignItems:"center",padding:"12px 14px",gap:60}}>
@@ -1783,13 +1783,13 @@ function SchedulePage({ setTab, setTeamDetail }) {
           </div>
         </div>
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
-          <div style={{display:"flex",flexDirection:"column",gap:10,alignItems:"flex-start"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
             {games.map((g,i) => {
               const sc = schedScores[`${g.away}|${g.home}`];
               if (sc && sc.status === 'Final') {
                 return <LiveBoxScoreFinalCard key={i} game={sc} onTeamClick={goTeam} />;
               }
-              return <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />;
+              return <div key={i} style={{width:"100%"}}><UpcomingCard away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} /></div>;
             })}
           </div>
           {byeTeams.length > 0 && (
