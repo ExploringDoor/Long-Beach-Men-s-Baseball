@@ -8360,7 +8360,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
             </div>
           </div>
           <button onClick={doneTeam} style={{width:"100%",padding:"14px",background:"#002d6e",border:"none",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",cursor:"pointer"}}>
-            {teamFilter ? "▶ Start Game!" : (lineupStep==="away"?`Next: ${g.home} Order →`:"▶ Start Game!")}
+            {lineupStep==="away"?`Next: ${g.home} Order →`:"▶ Start Game!"}
           </button>
         </div>
       </div>
