@@ -1118,7 +1118,7 @@ function HomePage({ setTab, setTeamDetail }) {
                 </div>
                 <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
                 {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={`${nextWeek.label}, 2026`} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />)}
               </div>
             </div>
@@ -1829,29 +1829,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
             if (boomerScore && boomerScore.status === 'Final') {
               return <LiveBoxScoreFinalCard game={boomerScore} onTeamClick={goTeam} />;
             }
-            return (
-              <div onClick={()=>setPreviewGame({away:g.away,home:g.home,time:g.time,date:g.date,field:g.field})}
-                style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #7c3aed",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:"pointer",transition:"box-shadow .12s",display:"inline-flex"}}
-                onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
-                onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)"}>
-                <div style={{display:"flex",alignItems:"center",padding:"24px 28px",gap:40}}>
-                  <div style={{display:"flex",flexDirection:"column",gap:14,flex:"0 0 auto",minWidth:0}}>
-                    {[g.away, g.home].map((t,j) => (
-                      <div key={j} style={{display:"flex",alignItems:"center",gap:14}}>
-                        <TLogo name={t} size={60} />
-                        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",textTransform:"uppercase",lineHeight:1,whiteSpace:"nowrap"}}>{t}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{flexShrink:0,borderLeft:"2px solid rgba(0,0,0,0.08)",paddingLeft:24}}>
-                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:46,color:"#002d6e",lineHeight:1}}>{g.time}</div>
-                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,color:"rgba(0,0,0,0.55)",fontWeight:700,marginTop:6}}>{g.date}</div>
-                    <div style={{fontSize:15,color:"rgba(0,0,0,0.4)",marginTop:4}}>{g.field}</div>
-                    <div style={{fontSize:13,fontWeight:700,color:"rgba(0,45,110,0.45)",marginTop:6}}>⚾ Preview →</div>
-                  </div>
-                </div>
-              </div>
-            );
+            return <UpcomingCard away={g.away} home={g.home} time={g.time} date={g.date} field={g.field} isNext={false} onTeamClick={goTeam} onPreview={p=>setPreviewGame(p)} />;
           })()}
         </div>
       </>}
