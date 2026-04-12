@@ -1004,7 +1004,10 @@ function Navbar({ tab, setTab }) {
 function HomePage({ setTab, setTeamDetail }) {
   const topTeams = [...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct)).slice(0,8);
   const boomersTeams = [...ALL_TEAMS].filter(t=>t.divKey==="BOM").sort((a,b) => parseFloat(b.pct) - parseFloat(a.pct));
-  const nextGames = SCHED[0].fields.flatMap(f => f.games.map(g => ({...g,field:f.name}))).slice(0,5);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const parseSchedLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
+  const nextWeek = SCHED.find(w => parseSchedLabel(w.label) > today) || SCHED[SCHED.length - 1];
+  const nextGames = nextWeek.fields.flatMap(f => f.games.map(g => ({...g,field:f.name,date:nextWeek.label}))).slice(0,5);
   const [recentGames, setRecentGames] = useState([]);
   const [newsItems, setNewsItems] = useState([]);
   const [standingsDiv, setStandingsDiv] = useState("SAT");
@@ -1116,7 +1119,7 @@ function HomePage({ setTab, setTeamDetail }) {
                 <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date="Apr 11, 2026" onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />)}
+                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={`${nextWeek.label}, 2026`} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />)}
               </div>
             </div>
           </div>
