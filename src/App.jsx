@@ -7895,6 +7895,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [saving, setSaving] = useState(false);
   // Box score submission
   const [bsMode, setBsMode] = useState(false); // true = box score entry mode
+  const [rosterCache, setRosterCache] = useState({}); // {teamName: [{name,number}]}
   const [bsTab, setBsTab] = useState("batting"); // "batting" | "pitching" | "paste"
   const [bsScore, setBsScore] = useState({away:"",home:""});
   const [bsBat, setBsBat] = useState({}); // {playerName: {ab,h,r,rbi,bb,k,doubles,triples,hr,hbp,sf}}
@@ -8263,8 +8264,8 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
                   <button onClick={()=>{setGs({...saved,_hist:[]});setView("game");}} style={{padding:"8px 16px",background:"#b45309",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>▶ Resume</button>
                 ):(
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(false);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep(side);setView("lineup");}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
-                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(true);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep(side);setView("lineup");}} style={{padding:"8px 16px",background:"#374151",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Box Score</button>
+                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(false);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep(side);setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
+                    <button onClick={()=>{const side=teamFilter&&g.home===teamFilter?"home":"away";setBsMode(true);setSetupInfo(g);setLineupDraft({away:[],home:[]});setLineupStep(side);setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#374151",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Box Score</button>
                   </div>
                 )}
               </div>
@@ -8279,7 +8280,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   if (view==="lineup") {
     const g=setupInfo;
     const teamName=g[lineupStep];
-    const roster=TEAM_ROSTERS[teamName]||[];
+    const roster=rosterCache[teamName]||TEAM_ROSTERS[teamName]||[];
     const cur=lineupDraft[lineupStep];
     const addPlayer=(name)=>{if(!name.trim()||cur.includes(name.trim()))return;setLineupDraft(p=>({...p,[lineupStep]:[...p[lineupStep],name.trim()]}));setNameInput("");};
     const doneTeam=()=>{
