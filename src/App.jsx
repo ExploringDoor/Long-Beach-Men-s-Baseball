@@ -8665,7 +8665,16 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           <div style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>{gs[gs.topBottom==="top"?"away":"home"]} bat</div>
         </div>
         <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>persist({...gs,outs:0,bases:[false,false,false],balls:0,strikes:0,runsThisHalf:0})} style={{padding:"5px 8px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,color:"#ccc",fontSize:11,fontWeight:700,cursor:"pointer"}}>↺ Inning</button>
+          <button onClick={()=>{
+            if(!window.confirm(`Reset ${gs.topBottom==="top"?"TOP":"BOT"} ${gs.inning}? Outs, runs, and batting order will revert to the start of this half.`))return;
+            const side=gs.topBottom==="top"?"away":"home";
+            const playsThisHalf=gs.plays.filter(p=>p.inning===gs.inning&&p.side===gs.topBottom);
+            const pas=playsThisHalf.length;
+            const newScore={...gs.score,[side]:Math.max(0,gs.score[side]-(gs.runsThisHalf||0))};
+            const newBatterIdx={...gs.batterIdx,[side]:Math.max(0,gs.batterIdx[side]-pas)};
+            const newPlays=gs.plays.filter(p=>!(p.inning===gs.inning&&p.side===gs.topBottom));
+            persist({...gs,outs:0,bases:[false,false,false],balls:0,strikes:0,runsThisHalf:0,score:newScore,batterIdx:newBatterIdx,plays:newPlays,_hist:gs._hist||[]});
+          }} style={{padding:"5px 8px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,color:"#ccc",fontSize:11,fontWeight:700,cursor:"pointer"}}>↺ Half</button>
           <button onClick={()=>{
             if(!window.confirm("Full game reset?"))return;
             const fi={};[...gs.lineup.away,...gs.lineup.home].forEach(n=>{fi[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};});
