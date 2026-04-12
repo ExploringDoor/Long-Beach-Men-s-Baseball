@@ -8244,6 +8244,9 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         batRows.push({game_id:gameId,player_name:name,team,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0,sb:st.sb||0});
       });
       if(batRows.length)await sbPost("batting_lines",batRows);
+      const toIP=(v)=>{if(!v&&v!==0)return null;const s=String(v).trim();const m=s.match(/^(\d+)\.([012])?$/);if(m)return parseInt(m[1])+(parseInt(m[2]||0)/3);const n=parseFloat(s);return isNaN(n)?null:n;};
+      const pitRows=bsPit.filter(p=>p.name&&p.ip).map(p=>({game_id:gameId,player_name:p.name,team:p.team,ip:toIP(p.ip),h:+p.h||0,r:+p.r||0,er:+p.er||0,bb:+p.bb||0,k:+p.k||0,hr:0,decision:p.decision||"ND"}));
+      if(pitRows.length){await sbDelete(`pitching_lines?game_id=eq.${gameId}`);await sbPost("pitching_lines",pitRows);}
       clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");
     } catch(e){alert("Save failed: "+e.message);}
     setSaving(false);
@@ -8660,7 +8663,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       <div style={{background:"#002d6e",padding:"10px 12px",display:"flex",alignItems:"center",gap:8,position:"sticky",top:62,zIndex:200}}>
         <button onClick={()=>setView("pick")} style={{padding:"5px 10px",background:"rgba(255,255,255,0.1)",border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>← Games</button>
         <div style={{flex:1,textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase"}}>{gs.away} {gs.score.away} – {gs.score.home} {gs.home}</div>
-        <button onClick={()=>setModal("endgame")} style={{padding:"5px 10px",background:"rgba(220,38,38,0.4)",border:"1px solid rgba(220,38,38,0.5)",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>End Game</button>
+        <button onClick={()=>{
+          // Pre-populate one blank pitcher per team
+          setBsPit([
+            {name:"",team:gs.away,ip:"",h:"",r:"",er:"",bb:"",k:"",decision:"ND"},
+            {name:"",team:gs.home,ip:"",h:"",r:"",er:"",bb:"",k:"",decision:"ND"},
+          ]);
+          setModal("endgame");
+        }} style={{padding:"5px 10px",background:"rgba(220,38,38,0.4)",border:"1px solid rgba(220,38,38,0.5)",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>End Game</button>
         {onExit && <button onClick={onExit} style={{padding:"5px 10px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>✕ Admin</button>}
       </div>
       {/* Inning bar */}
@@ -9011,17 +9021,64 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         </div>
       )}
       {modal==="endgame"&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div style={{background:"#1c1c1c",border:"2px solid rgba(255,215,0,0.25)",borderRadius:16,padding:"28px 22px",width:"100%",maxWidth:340,textAlign:"center"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:30,color:"#FFD700",textTransform:"uppercase",marginBottom:6}}>Final Score</div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginBottom:22}}>
-              <div><div style={{fontSize:12,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",fontWeight:700}}>{gs.away}</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1}}>{gs.score.away}</div></div>
-              <div style={{color:"rgba(255,255,255,0.25)",fontSize:22,fontWeight:700}}>–</div>
-              <div><div style={{fontSize:12,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",fontWeight:700}}>{gs.home}</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:54,color:"#fff",lineHeight:1}}>{gs.score.home}</div></div>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:600,display:"flex",flexDirection:"column"}}>
+          <div style={{background:"#002d6e",padding:"12px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+            <button onClick={()=>setModal(null)} style={{padding:"6px 10px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>← Back</button>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase"}}>End Game</div>
+          </div>
+          <div style={{flex:1,overflowY:"auto",padding:"16px"}}>
+            {/* Score */}
+            <div style={{background:"#1c1c1c",borderRadius:12,padding:"16px",marginBottom:14,textAlign:"center"}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#FFD700",textTransform:"uppercase",marginBottom:8}}>Final Score</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14}}>
+                <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",fontWeight:700}}>{gs.away}</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:48,color:"#fff",lineHeight:1}}>{gs.score.away}</div></div>
+                <div style={{color:"rgba(255,255,255,0.25)",fontSize:20,fontWeight:700}}>–</div>
+                <div><div style={{fontSize:11,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",fontWeight:700}}>{gs.home}</div><div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:48,color:"#fff",lineHeight:1}}>{gs.score.home}</div></div>
+              </div>
             </div>
-            <button onClick={endGame} disabled={saving} style={{width:"100%",padding:"13px",background:"#16a34a",border:"none",borderRadius:10,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase",cursor:"pointer",marginBottom:8,opacity:saving?0.6:1}}>{saving?"Saving…":"✅ Mark Game Final"}</button>
-            <button onClick={()=>{if(!window.confirm("Reset game?"))return;clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");}} style={{width:"100%",padding:"11px",background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:10,color:"#f87171",fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:8}}>↺ Reset Game</button>
-            <button onClick={()=>setModal(null)} style={{padding:"7px",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:12}}>Cancel</button>
+            {/* Pitching */}
+            <div style={{background:"#1c1c1c",borderRadius:12,padding:"16px",marginBottom:14}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase",marginBottom:12}}>Pitching (optional)</div>
+              {bsPit.map((p,i)=>(
+                <div key={i} style={{marginBottom:14,paddingBottom:14,borderBottom:i<bsPit.length-1?"1px solid rgba(255,255,255,0.07)":"none"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.5)",textTransform:"uppercase",width:50,flexShrink:0}}>{p.team}</div>
+                    <input value={p.name} onChange={e=>setBsPit(prev=>prev.map((r,j)=>j===i?{...r,name:e.target.value}:r))}
+                      placeholder="Pitcher name" style={{flex:1,padding:"7px 10px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,color:"#fff",fontSize:13,fontFamily:"inherit"}}/>
+                    <select value={p.decision} onChange={e=>setBsPit(prev=>prev.map((r,j)=>j===i?{...r,decision:e.target.value}:r))}
+                      style={{padding:"7px 6px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,color:"#fff",fontSize:13,fontFamily:"inherit"}}>
+                      {["ND","W","L","S"].map(d=><option key={d} value={d}>{d}</option>)}
+                    </select>
+                    {bsPit.filter(r=>r.team===p.team).length>1&&(
+                      <button onClick={()=>setBsPit(prev=>prev.filter((_,j)=>j!==i))} style={{padding:"4px 8px",background:"rgba(220,38,38,0.15)",border:"none",borderRadius:4,color:"#f87171",fontWeight:700,cursor:"pointer"}}>✕</button>
+                    )}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+                    {[["IP","ip",true],["H","h"],["R","r"],["ER","er"],["BB","bb"],["K","k"]].map(([lbl,f,isText])=>(
+                      <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center"}}>
+                        <span style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.4)",textTransform:"uppercase"}}>{lbl}</span>
+                        <input type={isText?"text":"number"} min="0" value={p[f]} placeholder={isText?"6.0":"0"}
+                          onChange={e=>setBsPit(prev=>prev.map((r,j)=>j===i?{...r,[f]:e.target.value}:r))}
+                          style={{width:"100%",padding:"5px 2px",textAlign:"center",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:4,color:"#fff",fontSize:13,fontFamily:"inherit"}}/>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div style={{display:"flex",gap:8,marginTop:4}}>
+                {[gs.away,gs.home].map(team=>(
+                  <button key={team} onClick={()=>setBsPit(prev=>[...prev,{name:"",team,ip:"",h:"",r:"",er:"",bb:"",k:"",decision:"ND"}])}
+                    style={{flex:1,padding:"7px",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,color:"rgba(255,255,255,0.5)",fontSize:12,cursor:"pointer"}}>
+                    + {team} pitcher
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{padding:"12px 16px",background:"#111",flexShrink:0,display:"flex",flexDirection:"column",gap:8}}>
+            <button onClick={endGame} disabled={saving} style={{width:"100%",padding:"14px",background:"#16a34a",border:"none",borderRadius:10,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase",cursor:"pointer",opacity:saving?0.6:1}}>{saving?"Saving…":"✅ Mark Game Final"}</button>
+            <button onClick={()=>{if(!window.confirm("Reset game?"))return;clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");}} style={{width:"100%",padding:"11px",background:"rgba(220,38,38,0.15)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:10,color:"#f87171",fontWeight:700,fontSize:14,cursor:"pointer"}}>↺ Reset Game</button>
+            <button onClick={()=>setModal(null)} style={{padding:"7px",background:"none",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:12,textAlign:"center"}}>Cancel</button>
           </div>
         </div>
       )}
