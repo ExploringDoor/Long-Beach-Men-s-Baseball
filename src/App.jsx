@@ -7992,14 +7992,15 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     let stats={...s.stats}, bases=[...s.bases], score={...s.score}, runs=0, rbis=0;
 
     const applyDests = (d) => {
-      let nb=[false,false,false],r=0,rbi=0;
+      let nb=[false,false,false],r=0,rbi=0,runnerOuts=0;
       Object.entries(d||{}).forEach(([k,v])=>{
         const isBatter=k==="__batter__";
         if (v==="scored"){r++;score[side]++;if(!isBatter)rbi++;}
+        else if(v==="out"&&!isBatter){runnerOuts++;}
         else if(v==="3B")nb[2]=true; else if(v==="2B")nb[1]=true; else if(v==="1B")nb[0]=true;
         else if(v==="stay"&&!isBatter){if(k==="3B")nb[2]=true;else if(k==="2B")nb[1]=true;else if(k==="1B")nb[0]=true;}
       });
-      return {nb,r,rbi};
+      return {nb,r,rbi,runnerOuts};
     };
 
     if (outcome==="BB"){stats=updStat(stats,batter,{bb:1});const[nb,r]=forceAdv(bases);bases=nb;runs=r;rbis=r;score[side]+=runs;}
@@ -8012,29 +8013,36 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     else if(outcome==="HR"){runs=bases.filter(Boolean).length+1;rbis=runs;score[side]+=runs;stats=updStat(stats,batter,{ab:1,h:1,hr:1,r:1,rbi:rbis});bases=[false,false,false];}
     else if(outcome==="OUT"){
       stats=updStat(stats,batter,{ab:1});
-      if(dests){const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;}
+      let runnerOuts=0;
+      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;}
       const play={inning:s.inning,side:s.topBottom,batter,outcome:"OUT",loc,outType,rbis,runs};
       s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
-      s=addOut(s,outType==="DP"?2:1);s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
+      s=addOut(s,(outType==="DP"?2:1)+runnerOuts);s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     else if(outcome==="SAC"){
-      if(dests){const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;}
+      let runnerOuts=0;
+      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;}
       stats=updStat(stats,batter,{rbi:rbis});
       const play={inning:s.inning,side:s.topBottom,batter,outcome:"SAC",loc,outType,rbis,runs};
       s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
-      s=addOut(s);s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
+      s=addOut(s,1+runnerOuts);s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     else if(outcome==="E"||outcome==="FC"){
       stats=updStat(stats,batter,{ab:1});if(outcome==="E")stats=updStat(stats,batter,{e:1});
-      if(dests){const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;}
+      let runnerOuts=0;
+      if(dests){const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;}
       else bases=[true,...s.bases.slice(0,2)];
+      const play={inning:s.inning,side:s.topBottom,batter,outcome,loc,outType:null,rbis,runs};
+      s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+      if(runnerOuts>0){s=addOut(s,runnerOuts);} s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     else{
       stats=updStat(stats,batter,{ab:1,h:1});
       if(outcome==="2B")stats=updStat(stats,batter,{doubles:1});
       if(outcome==="3B")stats=updStat(stats,batter,{triples:1});
+      let runnerOuts=0;
       if(dests){
-        const{nb,r,rbi}=applyDests(dests);bases=nb;runs=r;rbis=rbi;
+        const res=applyDests(dests);bases=res.nb;runs=res.r;rbis=res.rbi;runnerOuts=res.runnerOuts;
         if(dests["__batter__"]==="scored")stats=updStat(stats,batter,{r:1});
         stats=updStat(stats,batter,{rbi:rbis});
       } else {
@@ -8042,10 +8050,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         else if(outcome==="2B")bases=[false,true,s.bases[0]];
         else if(outcome==="3B")bases=[false,false,true];
       }
+      const play={inning:s.inning,side:s.topBottom,batter,outcome,loc,outType:null,rbis,runs};
+      s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+      if(runnerOuts>0)s=addOut(s,runnerOuts);
+      s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});return;
     }
     const play={inning:s.inning,side:s.topBottom,batter,outcome,loc,outType:null,rbis,runs};
     s={...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
-    s=advBatter(s);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});
+    s=advBatter(s,side);persist(s);setModal(null);setPO(null);setPL(null);setPOT(null);setRD({});
   };
 
   const undoPlay = () => {
