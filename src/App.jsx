@@ -8347,10 +8347,16 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`);season=byName[0];}
         if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r[0];}
       }
-      const existing=await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
+      const existing=await sbFetch(`games?select=id,headline&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
       const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home,game_date:toISODate(gs.date)||null,game_time:gs.time||null,field:gs.field||null};
       let gameId;
-      if(existing.length){gameId=existing[0].id;await sbPatch(`games?id=eq.${gameId}`,gameData);await sbDelete(`batting_lines?game_id=eq.${gameId}`);}
+      if(existing.length){
+        gameId=existing[0].id;
+        await sbPatch(`games?id=eq.${gameId}`,gameData);
+        // Only overwrite batting lines if the game wasn't manually entered via BoxScoreEntry
+        // (manually entered games have a headline set)
+        if(!existing[0].headline){await sbDelete(`batting_lines?game_id=eq.${gameId}`);}
+      }
       else{const r=await sbPost("games",[gameData]);gameId=r[0].id;}
       const batRows=[];
       Object.entries(gs.stats).forEach(([name,st])=>{
