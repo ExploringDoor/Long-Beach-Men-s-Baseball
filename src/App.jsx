@@ -8309,6 +8309,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           <button onClick={()=>lineupStep==="away"?setView("pick"):setLineupStep("away")} style={{padding:"6px 12px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer"}}>← Back</button>
           <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase"}}>{teamName} Batting Order</div>
           <div style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{teamFilter ? "Your Lineup" : (lineupStep==="away"?"Step 1 of 2":"Step 2 of 2")}</div>
+          {onExit && <button onClick={onExit} style={{padding:"6px 12px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:6,color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>✕ Exit</button>}
         </div>
         <div style={{maxWidth:500,margin:"0 auto",padding:"20px 16px 60px"}}>
           <div style={{background:"#fff",borderRadius:12,padding:"20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
@@ -8595,6 +8596,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         <button onClick={()=>setView("pick")} style={{padding:"5px 10px",background:"rgba(255,255,255,0.1)",border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>← Games</button>
         <div style={{flex:1,textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase"}}>{gs.away} {gs.score.away} – {gs.score.home} {gs.home}</div>
         <button onClick={()=>setModal("endgame")} style={{padding:"5px 10px",background:"rgba(220,38,38,0.4)",border:"1px solid rgba(220,38,38,0.5)",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>End Game</button>
+        {onExit && <button onClick={onExit} style={{padding:"5px 10px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>✕ Admin</button>}
       </div>
       {/* Inning bar */}
       <div style={{background:"#001a4d",borderBottom:"1px solid rgba(255,215,0,0.2)",padding:"6px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
