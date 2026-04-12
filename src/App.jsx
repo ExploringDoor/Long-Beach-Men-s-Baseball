@@ -17,6 +17,21 @@ const TEAM_LOGOS = {
 
 const BOOMERS_TEAMS = new Set(["Eddie Murray Mashers '56", "Greg Maddux Magicians '66"]);
 
+// ── Convert "Apr 11" / "Apr 11, 2026" → "2026-04-11" for Supabase ──
+const toISODate = (str) => {
+  if(!str) return null;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // already ISO
+  const MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  const m = str.match(/([A-Za-z]+)\s+(\d{1,2})/);
+  if(!m) return null;
+  const month = MON[m[1].slice(0,3).toLowerCase()];
+  const day   = parseInt(m[2]);
+  const yearM = str.match(/(\d{4})/);
+  const year  = yearM ? parseInt(yearM[1]) : 2026;
+  if(!month || !day) return null;
+  return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+};
+
 // Short display names for the ticker
 const TICKER_NAME = {
   "Eddie Murray Mashers '56":  "Mashers",
@@ -6719,21 +6734,6 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     );
   };
 
-  // ── Convert "Apr 11" / "Apr 11, 2026" → "2026-04-11" for Supabase ──
-  const toISODate = (str) => {
-    if(!str) return null;
-    if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // already ISO
-    const MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-    const m = str.match(/([A-Za-z]+)\s+(\d{1,2})/);
-    if(!m) return null;
-    const month = MON[m[1].slice(0,3).toLowerCase()];
-    const day   = parseInt(m[2]);
-    const yearM = str.match(/(\d{4})/);
-    const year  = yearM ? parseInt(yearM[1]) : 2026;
-    if(!month || !day) return null;
-    return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-  };
-
   // ── Save handler ──
   const handleSave = async () => {
     if(!game){setSaveMsg({ok:false,text:"Select a game first."});return;}
@@ -8321,7 +8321,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r[0];}
       }
       const existing=await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
-      const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home,game_date:gs.date||null,game_time:gs.time||null,field:gs.field||null};
+      const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home,game_date:toISODate(gs.date)||null,game_time:gs.time||null,field:gs.field||null};
       let gameId;
       if(existing.length){gameId=existing[0].id;await sbPatch(`games?id=eq.${gameId}`,gameData);await sbDelete(`batting_lines?game_id=eq.${gameId}`);}
       else{const r=await sbPost("games",[gameData]);gameId=r[0].id;}
