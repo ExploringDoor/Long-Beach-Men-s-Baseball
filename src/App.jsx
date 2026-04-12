@@ -967,9 +967,15 @@ function HomePage({ setTab, setTeamDetail }) {
         let found = allSeasons.find(s => s.name === "Spring/Summer 2026 Diamond Classics Saturdays") || allSeasons.find(s => s.name.includes("Diamond Classics"));
         if (!found) { const r = await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); found = r[0]; }
         const filter = found ? `season_id=eq.${found.id}` : `game_date=gte.2026-04-11`;
-        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&${filter}&status=not.in.(PPD,CAN)&away_score=not.is.null&order=game_date.desc&limit=6`);
+        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&${filter}&status=not.in.(PPD,CAN)&away_score=not.is.null&order=game_date.desc,id.desc&limit=20`);
       })
-      .then(data => setRecentGames(data))
+      .then(data => {
+        // Deduplicate: keep highest id per away+home+date matchup
+        const seen = {}, deduped = [];
+        data.forEach(g => { const k=`${g.game_date}|${g.away_team}|${g.home_team}`; if(!seen[k]||g.id>seen[k]) seen[k]=g.id; });
+        data.forEach(g => { const k=`${g.game_date}|${g.away_team}|${g.home_team}`; if(seen[k]===g.id) deduped.push(g); });
+        setRecentGames(deduped.slice(0,6));
+      })
       .catch(() => {});
     sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=10")
       .then(data => setNewsItems(data || []))
@@ -1456,8 +1462,19 @@ function ScoresPage({ setTab, setTeamDetail }) {
         return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&away_score=not.is.null&order=game_date.desc&limit=200`);
       })
       .then(games => {
-        const weekMap = {};
+        // Deduplicate: if two records share the same away+home+date, keep the one with the higher id (most recently saved)
+        const seen = {};
+        const deduped = [];
         games.forEach(g => {
+          const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
+          if (!seen[key] || g.id > seen[key]) { seen[key] = g.id; }
+        });
+        games.forEach(g => {
+          const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
+          if (seen[key] === g.id) deduped.push(g);
+        });
+        const weekMap = {};
+        deduped.forEach(g => {
           const d = g.game_date || "Unknown";
           if (!weekMap[d]) weekMap[d] = [];
           weekMap[d].push(g);
@@ -6499,7 +6516,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   const loadSavedGames = () => {
     setSavedLoading(true);
-    sbFetch("seasons?select=id,name&limit=20")
+    sbFetch("seasons?select=id,name&limit=50")
       .then(async seasons => {
         const sat = seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
         const bom = seasons.find(x=>x.name.includes("Boomers"));
