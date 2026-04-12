@@ -8161,11 +8161,11 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       const isBoomerGame=BOOMERS_TEAMS.has(gs.away)&&BOOMERS_TEAMS.has(gs.home);
       let season;
       if(isBoomerGame){
-        season=seasons.find(s=>s.name.includes("Boomers"));
-        if(!season){const r=await sbPost("seasons",[{name:"Boomers 60/70 2026"}]);season=r[0];}
+        season=seasons.find(s=>s.name==="2026 BOOMERS 60/70 Division")||seasons.find(s=>s.name.toLowerCase().includes("boomers"));
+        if(!season){const r=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=r[0];}
       }else{
-        season=seasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
-        if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=r[0];}
+        season=seasons.find(s=>s.name==="Spring/Summer 2026 Diamond Classics Saturdays")||seasons.find(s=>s.name.includes("Diamond Classics"));
+        if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r[0];}
       }
       const existing=await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
       const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home,away_linescore:gs.lineScore.away.join("-"),home_linescore:gs.lineScore.home.join("-")};
