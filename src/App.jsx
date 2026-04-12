@@ -8146,6 +8146,41 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     setModal(null);
   };
 
+  // Wild Pitch / Passed Ball — advance runner without SB credit
+  const applyAdvance = (fromBase, type) => {
+    const prevForUndo = {...gs,_hist:undefined};
+    const hist = [...(gs._hist||[]).slice(-4),prevForUndo];
+    let s = {...gs,_hist:hist};
+    const side = s.topBottom==="top"?"away":"home";
+    let bases = [...s.bases];
+    let stats = {...s.stats};
+    let score = {...s.score};
+    let runs = 0;
+    // Find runner name from play log (same heuristic as applySteal)
+    let runnerName = null;
+    for (let i = s.plays.length-1; i >= 0; i--) {
+      const p = s.plays[i];
+      if (p.side === s.topBottom && p.inning === s.inning) {
+        if (["1B","2B","3B","BB","HBP","E","FC"].includes(p.outcome)) {
+          runnerName = p.batter; break;
+        }
+      }
+    }
+    if (fromBase==="3B") {
+      bases[2] = false; runs = 1; score[side] += 1;
+      if (runnerName) stats = updStat(stats, runnerName, {r:1});
+    } else if (fromBase==="2B") {
+      bases[1] = false; bases[2] = true;
+    } else {
+      bases[0] = false; bases[1] = true;
+    }
+    const play = {inning:s.inning,side:s.topBottom,batter:runnerName||"?",outcome:type,loc:fromBase,outType:null,rbis:0,runs};
+    s = {...s,stats,bases,score,runsThisHalf:(s.runsThisHalf||0)+runs,plays:[...s.plays,play]};
+    persist(s);
+    setStealBase(null);
+    setModal(null);
+  };
+
   const initRunnerDests = (outcome) => {
     const d={};
     gs.bases.forEach((occ,i)=>{
@@ -8751,6 +8786,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
               </button>
               <button onClick={()=>applyOutStealing(stealBase)} style={{flex:1,padding:"14px 8px",background:"rgba(220,38,38,0.15)",border:"2px solid rgba(220,38,38,0.4)",borderRadius:10,color:"#f87171",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,cursor:"pointer",textAlign:"center"}}>
                 ❌ Out Stealing
+              </button>
+            </div>
+            <div style={{display:"flex",gap:10,marginBottom:8}}>
+              <button onClick={()=>applyAdvance(stealBase,"WP")} style={{flex:1,padding:"12px 8px",background:"rgba(99,102,241,0.15)",border:"2px solid rgba(99,102,241,0.4)",borderRadius:10,color:"#a5b4fc",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,cursor:"pointer",textAlign:"center"}}>
+                ⚡ Wild Pitch{stealBase==="3B"?" — Scores!":stealBase==="2B"?" — 3rd":" — 2nd"}
+              </button>
+              <button onClick={()=>applyAdvance(stealBase,"PB")} style={{flex:1,padding:"12px 8px",background:"rgba(20,184,166,0.15)",border:"2px solid rgba(20,184,166,0.4)",borderRadius:10,color:"#5eead4",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,cursor:"pointer",textAlign:"center"}}>
+                🥊 Passed Ball{stealBase==="3B"?" — Scores!":stealBase==="2B"?" — 3rd":" — 2nd"}
               </button>
             </div>
             <button onClick={()=>setStealBase(null)} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>Cancel</button>
