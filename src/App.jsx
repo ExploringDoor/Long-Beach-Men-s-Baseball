@@ -970,11 +970,10 @@ function HomePage({ setTab, setTeamDetail }) {
         return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&${filter}&status=not.in.(PPD,CAN)&away_score=not.is.null&order=game_date.desc,id.desc&limit=20`);
       })
       .then(data => {
-        // Deduplicate: keep highest id per away+home+date matchup
-        const seen = {}, deduped = [];
-        data.forEach(g => { const k=`${g.game_date}|${g.away_team}|${g.home_team}`; if(!seen[k]||g.id>seen[k]) seen[k]=g.id; });
-        data.forEach(g => { const k=`${g.game_date}|${g.away_team}|${g.home_team}`; if(seen[k]===g.id) deduped.push(g); });
-        setRecentGames(deduped.slice(0,6));
+        // Deduplicate: prefer highest total score (manually corrected > live scorer), then highest id
+        const seen = {};
+        data.forEach(g => { const k=`${g.game_date}|${g.away_team}|${g.home_team}`,tot=(g.away_score||0)+(g.home_score||0),cur=seen[k]; if(!cur||tot>cur.total||(tot===cur.total&&g.id>cur.id)) seen[k]={id:g.id,total:tot}; });
+        setRecentGames(data.filter(g=>seen[`${g.game_date}|${g.away_team}|${g.home_team}`]?.id===g.id).slice(0,6));
       })
       .catch(() => {});
     sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=10")
@@ -1462,17 +1461,15 @@ function ScoresPage({ setTab, setTeamDetail }) {
         return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&away_score=not.is.null&order=game_date.desc&limit=200`);
       })
       .then(games => {
-        // Deduplicate: if two records share the same away+home+date, keep the one with the higher id (most recently saved)
+        // Deduplicate: for same away+home+date, prefer highest total score (manually corrected > live scorer missed runs), then highest id
         const seen = {};
-        const deduped = [];
         games.forEach(g => {
           const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
-          if (!seen[key] || g.id > seen[key]) { seen[key] = g.id; }
+          const total = (g.away_score||0)+(g.home_score||0);
+          const cur = seen[key];
+          if (!cur || total > cur.total || (total === cur.total && g.id > cur.id)) seen[key] = {id:g.id, total};
         });
-        games.forEach(g => {
-          const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
-          if (seen[key] === g.id) deduped.push(g);
-        });
+        const deduped = games.filter(g => seen[`${g.game_date}|${g.away_team}|${g.home_team}`]?.id === g.id);
         const weekMap = {};
         deduped.forEach(g => {
           const d = g.game_date || "Unknown";
@@ -6711,20 +6708,28 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const headlineVal = (headline||"")+submitterTag || null;
       let gid;
       if(editGameId) {
-        // UPDATE existing game
-        await sbPatch(`games?id=eq.${editGameId}`, {
+        // UPDATE existing game — also stamp season_id so it's visible to season-filtered queries
+        const allSeasonsE = await sbFetch("seasons?select=id,name&limit=50");
+        const isBoomerE = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
+        let seasonE = isBoomerE
+          ? (allSeasonsE.find(s=>s.name.includes("Boomers"))||allSeasonsE.find(s=>s.name.toLowerCase().includes("boomers")))
+          : (allSeasonsE.find(s=>s.name.includes("Spring")&&s.name.includes("2026"))||allSeasonsE.find(s=>s.name.includes("Diamond Classics")));
+        if (!seasonE && !isBoomerE) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); seasonE=r[0]; }
+        const patchData = {
           game_date:toISODate(game.date), game_time:game.time, field:game.field,
           away_team:game.away, home_team:game.home,
           away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
           headline:headlineVal, status:gameStatus,
-        });
+        };
+        if (seasonE) patchData.season_id = seasonE.id;
+        await sbPatch(`games?id=eq.${editGameId}`, patchData);
         // Delete old lines then reinsert fresh
         await sbDelete(`batting_lines?game_id=eq.${editGameId}`);
         await sbDelete(`pitching_lines?game_id=eq.${editGameId}`);
         gid = editGameId;
       } else {
         // INSERT new game — detect which season based on teams
-        const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
+        const allSeasons = await sbFetch("seasons?select=id,name&limit=50");
         const isBoomerGame = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
         let season;
         if (isBoomerGame) {
