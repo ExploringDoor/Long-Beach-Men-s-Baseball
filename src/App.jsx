@@ -8687,7 +8687,9 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         <Diamond bases={gs.bases} onBaseClick={(base)=>setStealBase(base)}/>
         <div style={{flex:1}}>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:3}}>At Bat</div>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",lineHeight:1.1}}>{batter}</div>
+          <div onClick={()=>setModal("setBatter")} style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",lineHeight:1.1,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+            {batter}<span style={{fontSize:11,color:"rgba(255,215,0,0.5)",fontWeight:400}}>✎</span>
+          </div>
           <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{bSt.h||0}-{bSt.ab||0} · {avg}</div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginTop:5}}>On deck: {onDeck}</div>
           <div style={{display:"flex",gap:10,marginTop:10,alignItems:"center"}}>
@@ -8859,6 +8861,34 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           </div>
         </div>
       )}
+      {modal==="setBatter"&&(()=>{
+        const side=gs.topBottom==="top"?"away":"home";
+        const lineup=gs.lineup[side]||[];
+        return (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+            <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:6,textAlign:"center"}}>Who's up?</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",textAlign:"center",marginBottom:16}}>Tap to set the current batter</div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:360,overflowY:"auto"}}>
+                {lineup.map((name,i)=>{
+                  const isCurrent=name===batter;
+                  return (
+                    <button key={i} onClick={()=>{
+                      persist({...gs,batterIdx:{...gs.batterIdx,[side]:i},balls:0,strikes:0});
+                      setModal(null);
+                    }} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",background:isCurrent?"rgba(255,215,0,0.15)":"rgba(255,255,255,0.05)",border:`2px solid ${isCurrent?"rgba(255,215,0,0.5)":"rgba(255,255,255,0.1)"}`,borderRadius:10,color:isCurrent?"#FFD700":"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,cursor:"pointer",textAlign:"left"}}>
+                      <span style={{width:24,height:24,borderRadius:"50%",background:isCurrent?"rgba(255,215,0,0.2)":"rgba(255,255,255,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>{i+1}</span>
+                      {name}
+                      {isCurrent&&<span style={{marginLeft:"auto",fontSize:12}}>← current</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={()=>setModal(null)} style={{width:"100%",marginTop:12,padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>Cancel</button>
+            </div>
+          </div>
+        );
+      })()}
       {modal==="log"&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:600,display:"flex",flexDirection:"column"}}>
           <div style={{background:"#002d6e",padding:"12px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
