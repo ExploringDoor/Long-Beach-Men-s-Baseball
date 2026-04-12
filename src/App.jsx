@@ -555,8 +555,8 @@ function FinalCard({ g, onTeamClick }) {
               ))}
             </div>
             <div style={{padding:"14px 16px"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#002d6e",marginBottom:6,textTransform:"uppercase"}}>📰 Game Recap</div>
-              <p style={{fontSize:13,color:"rgba(0,0,0,0.65)",lineHeight:1.6}}>{recap}</p>
+              <div style={{fontSize:11,fontWeight:700,color:"#002d6e",marginBottom:8,textTransform:"uppercase",letterSpacing:".08em"}}>📰 Game Recap</div>
+              <p style={{fontSize:15,color:"#222",lineHeight:1.75,fontWeight:400}}>{recap}</p>
             </div>
           </div>
         </div>
@@ -1448,8 +1448,8 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
               ))}
             </div>
             <div style={{padding:"14px 16px"}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#002d6e",marginBottom:6,textTransform:"uppercase"}}>📰 Game Recap</div>
-              <p style={{fontSize:13,color:"rgba(0,0,0,0.65)",lineHeight:1.6}}>{recap}</p>
+              <div style={{fontSize:11,fontWeight:700,color:"#002d6e",marginBottom:8,textTransform:"uppercase",letterSpacing:".08em"}}>📰 Game Recap</div>
+              <p style={{fontSize:15,color:"#222",lineHeight:1.75,fontWeight:400}}>{recap}</p>
             </div>
           </div>
         </div>
