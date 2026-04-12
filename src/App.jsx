@@ -961,14 +961,11 @@ function HomePage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
-    // Fetch season ID first to avoid picking up duplicate games from other seasons
-    sbFetch("seasons?select=id,name&limit=50")
-      .then(async allSeasons => {
-        let found = allSeasons.find(s => s.name === "Spring/Summer 2026 Diamond Classics Saturdays") || allSeasons.find(s => s.name.includes("Diamond Classics"));
-        if (!found) { const r = await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); found = r[0]; }
-        const filter = found ? `season_id=eq.${found.id}` : `game_date=gte.2026-04-11`;
-        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&${filter}&status=not.in.(PPD,CAN)&away_score=not.is.null&order=game_date.desc,id.desc&limit=20`);
-      })
+    // Filter by known Saturday team names — avoids season record confusion
+    const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
+    const tf = satTeams.map(t=>`away_team.eq.${encodeURIComponent(t)}`).join(",");
+    sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${tf})&status=not.in.(PPD,CAN)&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=30`)
+      .then(data => data.filter(g => satTeams.includes(g.home_team)))
       .then(data => {
         // Pass 1: dedup same date+teams
         const s1={}; data.forEach(g=>{const k=`${g.game_date||""}|${g.away_team}|${g.home_team}`,t=(g.away_score||0)+(g.home_score||0),c=s1[k];if(!c||t>c.t||(t===c.t&&g.id>c.id))s1[k]={id:g.id,t};});
@@ -1447,22 +1444,20 @@ function ScoresPage({ setTab, setTeamDetail }) {
     setFwLoading(true);
     setFwError(null);
     setFwWeeks([]);
-    sbFetch("seasons?select=id,name&limit=50")
-      .then(async allSeasons => {
-        let found;
-        if (seasonIdx === 0) {
-          found = allSeasons.find(s => s.name === "Spring/Summer 2026 Diamond Classics Saturdays") || allSeasons.find(s => s.name.includes("Diamond Classics"));
-          if (!found) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); found=r[0]; }
-        } else if (seasonIdx === 1) {
-          found = allSeasons.find(s => s.name === "2026 BOOMERS 60/70 Division") || allSeasons.find(s => s.name.toLowerCase().includes("boomers"));
-          if (!found) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("2026 BOOMERS 60/70 Division")}&limit=1`); found=r[0]; }
-        }
-        if (!found) {
-          setFwLoading(false);
-          return Promise.reject(new Error("no_games_yet"));
-        }
-        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&season_id=eq.${found.id}&away_score=not.is.null&order=game_date.desc&limit=200`);
-      })
+    // Filter by known team names instead of season lookup — avoids season record confusion
+    const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
+    const bomTeams = [...BOOMERS_TEAMS];
+    const teams = seasonIdx === 0 ? satTeams : bomTeams;
+    const teamFilter = teams.map(t => `away_team.eq.${encodeURIComponent(t)}`).join(",");
+    Promise.resolve(
+      sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${teamFilter})&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=200`)
+        .then(rows => rows.filter(g => {
+          const inLeague = seasonIdx === 0
+            ? (satTeams.includes(g.away_team) && satTeams.includes(g.home_team))
+            : (BOOMERS_TEAMS.has(g.away_team) && BOOMERS_TEAMS.has(g.home_team));
+          return inLeague;
+        }))
+    )
       .then(games => {
         // Pass 1: dedup same date+teams, prefer highest total score then highest id
         const seen1 = {};
