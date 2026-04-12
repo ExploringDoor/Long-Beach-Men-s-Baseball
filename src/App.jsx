@@ -8692,7 +8692,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         <div style={{flex:1}}>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:3}}>At Bat</div>
           <div onClick={()=>setModal("setBatter")} style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",lineHeight:1.1,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
-            {batter}<span style={{fontSize:11,color:"rgba(255,215,0,0.5)",fontWeight:400}}>✎</span>
+            {batter}<span style={{fontSize:11,color:"#FFD700",fontWeight:700,background:"rgba(255,215,0,0.15)",border:"1px solid rgba(255,215,0,0.35)",borderRadius:4,padding:"1px 5px",marginLeft:2}}>✎ edit</span>
           </div>
           <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{bSt.h||0}-{bSt.ab||0} · {avg}</div>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.25)",marginTop:5}}>On deck: {onDeck}</div>
