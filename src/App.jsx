@@ -204,78 +204,6 @@ const SCORES = [
       {week:"Season opens Apr 11, 2026", games:[]},
     ]
   },
-  {
-    season:"Fall/Winter 2026",
-    weeks:[
-      {week:"Mar 14, 2026 — Championship", games:[
-        {away:"Dodgers",aScore:10,home:"Tribe",hScore:5,div:"Championship",note:"Dodgers Advance To Championship Game!"},
-        {away:"Generals",aScore:12,home:"Brooklyn",hScore:8,div:"Championship",note:"General Potvin Takes Out Brooklyn!"},
-      ]},
-      {week:"Feb 28, 2026", games:[
-        {away:"Pirates",aScore:20,home:"Titans",hScore:10,div:"FW26"},
-        {away:"Generals",aScore:5,home:"Titans",hScore:4,div:"FW26",note:"Generals clinch playoff berth"},
-        {away:"Dodgers",aScore:13,home:"Tribe",hScore:0,div:"FW26"},
-      ]},
-      {week:"Feb 21, 2026", games:[
-        {away:"Brooklyn",aScore:11,home:"Titans",hScore:4,div:"FW26",note:"Brooklyn Bests Titans"},
-      ]},
-      {week:"Feb 14, 2026", games:[
-        {away:"Tribe",aScore:15,home:"Pirates",hScore:5,div:"FW26"},
-        {away:"Dodgers",aScore:10,home:"Titans",hScore:4,div:"FW26"},
-        {away:"Brooklyn",aScore:10,home:"Generals",hScore:6,div:"FW26",note:"Brooklyn Stages Comeback!"},
-      ]},
-      {week:"Feb 7, 2026", games:[
-        {away:"Dodgers",aScore:9,home:"Pirates",hScore:0,div:"FW26",note:"Forfeit — Protest Upheld"},
-        {away:"Brooklyn",aScore:10,home:"Tribe",hScore:9,div:"FW26",note:"Brooklyn Survives Tribal Scare!"},
-      ]},
-      {week:"Jan 31, 2026", games:[
-        {away:"Tribe",aScore:21,home:"Titans",hScore:4,div:"FW26"},
-        {away:"Dodgers",aScore:14,home:"Generals",hScore:4,div:"FW26"},
-        {away:"Pirates",aScore:4,home:"Brooklyn",hScore:4,div:"FW26",note:"Tie"},
-      ]},
-      {week:"Jan 24, 2026", games:[
-        {away:"Generals",aScore:18,home:"Pirates",hScore:6,div:"FW26",note:"Generals Cruise to Win"},
-        {away:"Tribe",aScore:12,home:"Dodgers",hScore:4,div:"FW26"},
-        {away:"Titans",aScore:7,home:"Brooklyn",hScore:5,div:"FW26",note:"Weinrich Holds Off Brooklyn!"},
-      ]},
-      {week:"Jan 10, 2026", games:[
-        {away:"Tribe",aScore:16,home:"Pirates",hScore:9,div:"FW26"},
-        {away:"Brooklyn",aScore:6,home:"Generals",hScore:2,div:"FW26",note:"Brooklyn Holds Off Generals"},
-        {away:"Dodgers",aScore:10,home:"Titans",hScore:3,div:"FW26"},
-      ]},
-      {week:"Dec 20, 2025", games:[
-        {away:"Tribe",aScore:11,home:"Generals",hScore:6,div:"FW26"},
-        {away:"Brooklyn",aScore:7,home:"Dodgers",hScore:4,div:"FW26",note:"Brooklyn Holds Off Dodgers"},
-      ]},
-      {week:"Dec 13, 2025", games:[
-        {away:"Titans",aScore:9,home:"Generals",hScore:0,div:"FW26"},
-        {away:"Brooklyn",aScore:10,home:"Tribe",hScore:4,div:"FW26",note:"Brooklyn Holds Off Tribe"},
-        {away:"Dodgers",aScore:16,home:"Pirates",hScore:1,div:"FW26"},
-      ]},
-      {week:"Dec 6, 2025", games:[
-        {away:"Tribe",aScore:21,home:"Titans",hScore:5,div:"FW26"},
-        {away:"Generals",aScore:10,home:"Dodgers",hScore:5,div:"FW26"},
-        {away:"Brooklyn",aScore:11,home:"Pirates",hScore:0,div:"FW26",note:"Pirates Garner Just 2 Hits"},
-      ]},
-      {week:"Nov 8, 2025 — Opening Week", games:[
-        {away:"Brooklyn",aScore:15,home:"Dodgers",hScore:3,div:"FW26",note:"Brooklyn Breaks Open Game Late"},
-        {away:"Generals",aScore:5,home:"Tribe",hScore:4,div:"FW26",note:"Generals win a close game"},
-        {away:"Titans",aScore:10,home:"Pirates",hScore:6,div:"FW26",note:"Titans start season with a W"},
-      ]},
-    ]
-  },
-  {
-    season:"2025 NABA AZ World Series",
-    weeks:[
-      {week:"Oct 5–9, 2025 — Tempe, AZ", games:[
-        {away:"Diamond Classics Titans",aScore:18,home:"Guam",hScore:0,div:"NABA",note:"Oct 5 · Tempe Diablo #2"},
-        {away:"Dallas Redbirds",aScore:15,home:"Diamond Classics Titans",hScore:1,div:"NABA",note:"Oct 6 · Red Mountain #3"},
-        {away:"KC Royals",aScore:18,home:"Diamond Classics Titans",hScore:8,div:"NABA",note:"Oct 7 · Tempe Diablo Stadium"},
-        {away:"Diamond Classics Titans",aScore:19,home:"Serpientes",hScore:9,div:"NABA",note:"Oct 8 · Indian School Park #2"},
-        {away:"Diamond Classics Titans",aScore:10,home:"Serpientes",hScore:5,div:"NABA",note:"Oct 9 · Indian School Park #3"},
-      ]},
-    ]
-  },
 ];
 
 const SCHED = [
@@ -1463,7 +1391,7 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
 }
 
 function ScoresPage({ setTab, setTeamDetail }) {
-  // Tab indices: 0=Spring/Summer 2026, 1=Boomers 60/70, 2=Fall/Winter 2026 (static), 3=NABA
+  // Tab indices: 0=Spring/Summer 2026, 1=Boomers 60/70
   const [seasonIdx, setSeasonIdx] = useState(0);
   const [weekIdx, setWeekIdx] = useState(0);
   const [fwWeeks, setFwWeeks] = useState([]);
@@ -1473,7 +1401,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
   const season = SCORES[seasonIdx];
   const week = season?.weeks?.[weekIdx];
   const isLive = seasonIdx === 0 || seasonIdx === 1; // Spring/Summer (0) and Boomers (1) load from Supabase
-  const isFW = seasonIdx === 2;
+  const isFW = false;
 
   // Load live data whenever we switch to a live tab
   useEffect(() => {
@@ -1485,9 +1413,9 @@ function ScoresPage({ setTab, setTeamDetail }) {
       .then(allSeasons => {
         let found;
         if (seasonIdx === 0) {
-          found = allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
+          found = allSeasons.find(s => s.name === "Spring/Summer 2026 Diamond Classics Saturdays") || allSeasons.find(s => s.name.includes("Diamond Classics"));
         } else if (seasonIdx === 1) {
-          found = allSeasons.find(s => s.name.includes("Boomers"));
+          found = allSeasons.find(s => s.name === "2026 BOOMERS 60/70 Division") || allSeasons.find(s => s.name.toLowerCase().includes("boomers"));
         }
         if (!found) {
           setFwLoading(false);
