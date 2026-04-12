@@ -8861,15 +8861,67 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           </div>
         </div>
       )}
-      {modal==="setBatter"&&(()=>{
+      {(modal==="setBatter"||modal==="setPH")&&(()=>{
         const side=gs.topBottom==="top"?"away":"home";
         const lineup=gs.lineup[side]||[];
+        const curIdx=gs.batterIdx[side]%lineup.length;
+        const teamName=gs[side];
+        const roster=(rosterCache[teamName]||TEAM_ROSTERS[teamName]||[]).map(p=>typeof p==="string"?p:p.name);
+        const rosterNotInLineup=roster.filter(n=>!lineup.includes(n));
+
+        if(modal==="setPH") return (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+            <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:4,textAlign:"center"}}>Pinch Hitter</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",textAlign:"center",marginBottom:14}}>Replacing <strong style={{color:"#fff"}}>{lineup[curIdx]}</strong> in slot #{curIdx+1}</div>
+              {rosterNotInLineup.length>0&&(
+                <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:220,overflowY:"auto",marginBottom:12}}>
+                  {rosterNotInLineup.map(name=>(
+                    <button key={name} onClick={()=>{
+                      const newLineup=[...lineup];newLineup[curIdx]=name;
+                      const newStats={...gs.stats};
+                      if(!newStats[name])newStats[name]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};
+                      persist({...gs,lineup:{...gs.lineup,[side]:newLineup},stats:newStats,balls:0,strikes:0});
+                      setModal(null);setNameInput("");
+                    }} style={{padding:"11px 14px",background:"rgba(255,255,255,0.05)",border:"2px solid rgba(255,255,255,0.1)",borderRadius:10,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,cursor:"pointer",textAlign:"left"}}>
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <input value={nameInput} onChange={e=>setNameInput(e.target.value)}
+                  onKeyDown={e=>{
+                    if(e.key!=="Enter"||!nameInput.trim())return;
+                    const name=nameInput.trim();
+                    const newLineup=[...lineup];newLineup[curIdx]=name;
+                    const newStats={...gs.stats};
+                    if(!newStats[name])newStats[name]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};
+                    persist({...gs,lineup:{...gs.lineup,[side]:newLineup},stats:newStats,balls:0,strikes:0});
+                    setModal(null);setNameInput("");
+                  }}
+                  placeholder="Type name + Enter…" style={{flex:1,padding:"10px 12px",background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:8,color:"#fff",fontSize:15,fontFamily:"inherit"}}/>
+                <button onClick={()=>{
+                  if(!nameInput.trim())return;
+                  const name=nameInput.trim();
+                  const newLineup=[...lineup];newLineup[curIdx]=name;
+                  const newStats={...gs.stats};
+                  if(!newStats[name])newStats[name]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};
+                  persist({...gs,lineup:{...gs.lineup,[side]:newLineup},stats:newStats,balls:0,strikes:0});
+                  setModal(null);setNameInput("");
+                }} style={{padding:"10px 16px",background:"#002d6e",border:"none",borderRadius:8,color:"#FFD700",fontWeight:700,cursor:"pointer"}}>Sub In</button>
+              </div>
+              <button onClick={()=>{setModal("setBatter");setNameInput("");}} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>← Back</button>
+            </div>
+          </div>
+        );
+
         return (
           <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
             <div style={{background:"#1c1c1c",borderRadius:"16px 16px 0 0",padding:"20px 16px 32px",width:"100%",maxWidth:480}}>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase",marginBottom:6,textAlign:"center"}}>Who's up?</div>
               <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",textAlign:"center",marginBottom:16}}>Tap to set the current batter</div>
-              <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:360,overflowY:"auto"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:300,overflowY:"auto",marginBottom:10}}>
                 {lineup.map((name,i)=>{
                   const isCurrent=name===batter;
                   return (
@@ -8884,7 +8936,10 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
                   );
                 })}
               </div>
-              <button onClick={()=>setModal(null)} style={{width:"100%",marginTop:12,padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>Cancel</button>
+              <button onClick={()=>setModal("setPH")} style={{width:"100%",padding:"12px",background:"rgba(99,102,241,0.15)",border:"2px solid rgba(99,102,241,0.35)",borderRadius:10,color:"#a5b4fc",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,cursor:"pointer",marginBottom:6}}>
+                🔄 Pinch Hitter for {batter}
+              </button>
+              <button onClick={()=>setModal(null)} style={{width:"100%",padding:"10px",background:"none",border:"none",color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:13}}>Cancel</button>
             </div>
           </div>
         );
