@@ -1741,6 +1741,8 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const [previewGame, setPreviewGame] = useState(null);
   const [schedScores, setSchedScores] = useState({});
   const [boomerScore, setBoomerScore] = useState(null);
+  const [satSeasonId, setSatSeasonId] = useState(null);
+  const [bomSeasonId, setBomSeasonId] = useState(null);
   const week = SCHED[wk];
   const games = week.fields.flatMap(f => f.games.map(g => ({...g,field:f.name})));
   const dateStr = week.label;
@@ -1753,12 +1755,18 @@ function SchedulePage({ setTab, setTeamDetail }) {
     sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=tournament_name.asc,game_date.asc,game_time.asc")
       .then(data => setTournGames(data || []))
       .catch(() => {});
+    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+      const sat = seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+      const bom = seasons.find(x => x.name.toLowerCase().includes("boomers"));
+      if (sat) setSatSeasonId(sat.id);
+      if (bom) setBomSeasonId(bom.id);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (games.length === 0) return;
+    if (games.length === 0 || !satSeasonId) return;
     const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
-    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
+    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${satSeasonId}&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
       .then(rows => {
         const m = {};
         rows.forEach(r => {
@@ -1773,12 +1781,12 @@ function SchedulePage({ setTab, setTeamDetail }) {
         setSchedScores(m);
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wk]);
+  }, [wk, satSeasonId]);
 
   useEffect(() => {
     const bg = BOOMERS_SCHED[boomerWk];
-    if (!bg) return;
-    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
+    if (!bg || !bomSeasonId) return;
+    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${bomSeasonId}&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
       .then(rows => {
         let best = null;
         rows.forEach(r => {
@@ -1791,7 +1799,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
         setBoomerScore(best);
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boomerWk]);
+  }, [boomerWk, bomSeasonId]);
 
   const byTournament = {};
   tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
@@ -2405,13 +2413,39 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const team = ALL_TEAMS.find(t => t.name === teamName);
   const [roster, setRoster] = useState(TEAM_ROSTERS[teamName] || []);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [liveRecord, setLiveRecord] = useState(null);
   useEffect(() => {
     sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
       .then(rows => { if (rows && rows.length > 0) setRoster(rows.map(r => ({number: r.number||"", name: r.name||""}))); })
       .catch(() => {});
   }, [teamName]);
+  useEffect(() => {
+    const isBoomers = BOOMERS_TEAMS.has(teamName);
+    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+      const s = isBoomers
+        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
+        : (seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026")));
+      if (!s) return;
+      return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&status=eq.Final&limit=200`);
+    }).then(games => {
+      if (!games) return;
+      let w=0,l=0,t=0,gp=0,rs=0,ra=0;
+      games.forEach(g => {
+        const isAway = g.away_team === teamName, isHome = g.home_team === teamName;
+        if (!isAway && !isHome) return;
+        const myScore = isAway ? +g.away_score : +g.home_score;
+        const oppScore = isAway ? +g.home_score : +g.away_score;
+        gp++; rs+=myScore; ra+=oppScore;
+        if(myScore>oppScore) w++; else if(oppScore>myScore) l++; else t++;
+      });
+      const pts=w*2+t, max=(gp||1)*2;
+      const pct = gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"");
+      setLiveRecord({w,l,t,gp,rs,ra,pct});
+    }).catch(()=>{});
+  }, [teamName]);
   if (!team) return null;
   const color = TEAM_COLORS[teamName] || "#002d6e";
+  const rec = liveRecord || {w:team.w,l:team.l,t:team.t,pct:team.pct,rs:team.rs,ra:team.ra};
   const teamGames = SCORES.flatMap(s => s.weeks.flatMap(w => w.games)).filter(g => g.away===teamName||g.home===teamName).slice(0,5);
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); } };
 
@@ -2446,9 +2480,9 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
             </div>
             <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
               <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${color}`,borderRadius:10,padding:"16px 24px",textAlign:"center"}}>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:44,color,lineHeight:1}}>{team.w}-{team.l}</div>
-                <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:4,fontFamily:"'Barlow Condensed',sans-serif"}}>{team.pct} PCT</div>
-                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:2}}>{team.rs} RF · {team.ra} RA</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:44,color,lineHeight:1}}>{rec.w}-{rec.l}</div>
+                <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:4,fontFamily:"'Barlow Condensed',sans-serif"}}>{rec.pct} PCT</div>
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:2}}>{rec.rs} RF · {rec.ra} RA</div>
               </div>
               {TEAM_CAL_LINKS[teamName] && (
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
