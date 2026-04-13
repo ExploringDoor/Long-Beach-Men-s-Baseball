@@ -1733,6 +1733,16 @@ function ScoresPage({ setTab, setTeamDetail }) {
 }
 
 /* ─── SCHEDULE PAGE ───────────────────────────────────────────────────────── */
+// Build flat game list from static SCHED for a given week index
+const buildStaticSatWeeks = () => SCHED.map(week => ({
+  label: week.label,
+  games: week.fields.flatMap(f => f.games.map(g => ({...g, field: f.name}))),
+}));
+const buildStaticBomWeeks = () => BOOMERS_SCHED.map(g => ({
+  label: g.date,
+  games: [g],
+}));
+
 function SchedulePage({ setTab, setTeamDetail }) {
   const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers, 2=Tournaments
   const [wk,setWk] = useState(0);
@@ -1743,9 +1753,13 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const [boomerScore, setBoomerScore] = useState(null);
   const [satSeasonId, setSatSeasonId] = useState(null);
   const [bomSeasonId, setBomSeasonId] = useState(null);
-  const week = SCHED[wk];
-  const games = week.fields.flatMap(f => f.games.map(g => ({...g,field:f.name})));
-  const dateStr = week.label;
+  const [satWeeks, setSatWeeks] = useState(buildStaticSatWeeks);
+  const [bomWeeks, setBomWeeks] = useState(buildStaticBomWeeks);
+
+  const week = satWeeks[wk] || satWeeks[0];
+  const games = week ? week.games : [];
+  const dateStr = week ? week.label : "";
+  const boomerWeek = bomWeeks[boomerWk] || bomWeeks[0];
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const allTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
   const playingTeams = new Set(games.flatMap(g => [g.away, g.home]));
@@ -1760,6 +1774,19 @@ function SchedulePage({ setTab, setTeamDetail }) {
       const bom = seasons.find(x => x.name.toLowerCase().includes("boomers"));
       if (sat) setSatSeasonId(sat.id);
       if (bom) setBomSeasonId(bom.id);
+    }).catch(() => {});
+    // Load live schedule overrides from lbdc_schedules
+    sbFetch("lbdc_schedules?id=in.(sat,bom)&select=id,data").then(rows => {
+      rows.forEach(r => {
+        if (!r.data || !r.data.length) return;
+        const byDate = {};
+        r.data.forEach(g => { if(!byDate[g.date]) byDate[g.date]=[]; byDate[g.date].push(g); });
+        const weeks = Object.entries(byDate)
+          .sort((a,b)=>(toISODate(a[0])||a[0])<(toISODate(b[0])||b[0])?-1:1)
+          .map(([label,gs])=>({label,games:gs}));
+        if (r.id === "sat") setSatWeeks(weeks);
+        if (r.id === "bom") setBomWeeks(weeks);
+      });
     }).catch(() => {});
   }, []);
 
@@ -1784,9 +1811,9 @@ function SchedulePage({ setTab, setTeamDetail }) {
   }, [wk, satSeasonId]);
 
   useEffect(() => {
-    const bg = BOOMERS_SCHED[boomerWk];
+    const bg = boomerWeek ? boomerWeek.games[0] : null;
     if (!bg || !bomSeasonId) return;
-    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${bomSeasonId}&game_date=eq.${toISODate(bg.date)}&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
+    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${bomSeasonId}&game_date=eq.${toISODate(boomerWeek.label)}&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
       .then(rows => {
         let best = null;
         rows.forEach(r => {
@@ -1799,7 +1826,8 @@ function SchedulePage({ setTab, setTeamDetail }) {
         setBoomerScore(best);
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boomerWk, bomSeasonId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boomerWk, bomSeasonId, bomWeeks]);
 
   const byTournament = {};
   tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
@@ -1816,7 +1844,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
       {league === 0 && <>
         <div style={{borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fff",padding:"0 clamp(12px,3vw,40px)"}}>
           <div style={{maxWidth:1400,margin:"0 auto",overflowX:"auto",display:"flex",gap:0,scrollbarWidth:"none"}}>
-            {SCHED.map((s,i) => (
+            {satWeeks.map((s,i) => (
               <button key={i} onClick={() => setWk(i)} style={{
                 fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
                 textTransform:"uppercase",color:wk===i?"#111":"rgba(0,0,0,0.38)",
@@ -1857,24 +1885,25 @@ function SchedulePage({ setTab, setTeamDetail }) {
         {/* Boomers date tab bar */}
         <div style={{borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fff",padding:"0 clamp(12px,3vw,40px)"}}>
           <div style={{maxWidth:1400,margin:"0 auto",overflowX:"auto",display:"flex",gap:0,scrollbarWidth:"none"}}>
-            {BOOMERS_SCHED.map((g,i) => (
+            {bomWeeks.map((w,i) => (
               <button key={i} onClick={()=>setBoomerWk(i)} style={{
                 fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
                 textTransform:"uppercase",color:boomerWk===i?"#111":"rgba(0,0,0,0.38)",
                 padding:"12px 16px",background:"none",border:"none",
                 borderBottom:boomerWk===i?"3px solid #111":"3px solid transparent",
                 cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,
-              }}>{g.date}</button>
+              }}>{w.label}</button>
             ))}
           </div>
         </div>
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           {(() => {
-            const g = BOOMERS_SCHED[boomerWk];
+            const g = boomerWeek ? boomerWeek.games[0] : null;
+            if (!g) return null;
             if (boomerScore && boomerScore.status === 'Final') {
               return <LiveBoxScoreFinalCard game={boomerScore} onTeamClick={goTeam} />;
             }
-            return <UpcomingCard away={g.away} home={g.home} time={g.time} date={g.date} field={g.field} isNext={false} onTeamClick={goTeam} onPreview={p=>setPreviewGame(p)} />;
+            return <UpcomingCard away={g.away} home={g.home} time={g.time} date={boomerWeek.label} field={g.field} isNext={false} onTeamClick={goTeam} onPreview={p=>setPreviewGame(p)} />;
           })()}
         </div>
       </>}
