@@ -4626,6 +4626,12 @@ function TournamentManagerPage({ onBack }) {
   );
 }
 
+const SCHEDULE_FIELDS = [
+  "Clark Field — Long Beach",
+  "Fromhold Field — San Pedro",
+  "St Pius X — Downey",
+];
+
 function ManageSchedulePage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
   const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers
@@ -4645,7 +4651,7 @@ function ManageSchedulePage({ onBack }) {
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
+  const [addForm, setAddForm] = useState({ date:"", time:"9:00 AM", field:SCHEDULE_FIELDS[0], away:TEAMS[0], home:TEAMS[1] });
 
   useEffect(() => {
     Promise.all([
@@ -4714,10 +4720,15 @@ function ManageSchedulePage({ onBack }) {
         <div style={{background:"#fff",border:"2px solid #002d6e",borderRadius:12,padding:"18px",marginBottom:16}}>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",marginBottom:12,color:"#002d6e"}}>New Game</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
-            {[["Date","date","Apr 19, 2026"],["Time","time","9:00 AM"],["Field","field","Clark Field"]].map(([l,k,ph])=>(
+            {[["Date","date","Apr 19, 2026"],["Time","time","9:00 AM"]].map(([l,k,ph])=>(
               <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
                 <input value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} placeholder={ph} style={inputStyle}/></div>
             ))}
+            <div><label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:3}}>Field</label>
+              <select value={addForm.field} onChange={e=>setAddForm(f=>({...f,field:e.target.value}))} style={selStyle}>
+                {SCHEDULE_FIELDS.map(f=><option key={f}>{f}</option>)}
+              </select>
+            </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
             {[["Away","away"],["Home","home"]].map(([l,k])=>(
@@ -4748,10 +4759,15 @@ function ManageSchedulePage({ onBack }) {
                 {editId === g.id ? (
                   <div style={{padding:"14px 18px",background:"#eff6ff",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
-                      {[["Date","date"],["Time","time"],["Field","field"]].map(([l,k])=>(
+                      {[["Date","date"],["Time","time"]].map(([l,k])=>(
                         <div key={k}><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>{l}</label>
                           <input value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/></div>
                       ))}
+                      <div><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Field</label>
+                        <select value={editForm.field||""} onChange={e=>setEditForm(f=>({...f,field:e.target.value}))} style={selStyle}>
+                          {SCHEDULE_FIELDS.map(f=><option key={f}>{f}</option>)}
+                        </select>
+                      </div>
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
                       {[["Away Team","away"],["Home Team","home"]].map(([l,k])=>(
