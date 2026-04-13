@@ -8019,8 +8019,8 @@ function StatsPage() {
     setShowAllGames(false);
 
     async function fetchSeasonStats() {
-      const enc = encodeURIComponent(playerName);
-      const lines = await sbFetch(`batting_lines?select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&player_name=eq.${enc}&limit=1000`);
+      const enc = encodeURIComponent(`*${playerName}*`);
+      const lines = await sbFetch(`batting_lines?select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&player_name=ilike.${enc}&limit=1000`);
       if (!Array.isArray(lines) || lines.length === 0) return { seasons: [], gameLog: [], curSatSid: null };
       const gameIds = [...new Set(lines.map(l => l.game_id))];
       const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc&limit=500`);
