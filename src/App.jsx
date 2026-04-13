@@ -642,7 +642,7 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
         const isBoomers = BOOMERS_TEAMS.has(away) || BOOMERS_TEAMS.has(home);
         const season = isBoomers
           ? allSeasons.find(x => x.name.toLowerCase().includes("boomers"))
-          : allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+          : (allSeasons.find(x => x.name.includes("Diamond Classics Saturdays")) || allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026")));
         if (!season) { setLoading(false); return; }
         const games = await sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${season.id}&status=eq.Final&limit=200`);
         const rec = {};
@@ -1039,7 +1039,7 @@ function HomePage({ setTab, setTeamDetail }) {
       });
     };
     sbFetch("seasons?select=id,name&limit=50").then(seasons => {
-      const satSeason = seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+      const satSeason = seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
       const bomSeason = seasons.find(x => x.name.toLowerCase().includes("boomers"));
       return Promise.all([
         satSeason ? sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${satSeason.id}&status=eq.Final&limit=200`) : [],
@@ -1958,7 +1958,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
   useEffect(() => {
     sbFetch("seasons?select=id,name&limit=50")
       .then(allSeasons => {
-        const s = allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+        const s = allSeasons.find(x => x.name.includes("Diamond Classics Saturdays")) || allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!s) return null;
         return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&status=eq.Final&limit=200`);
       })
@@ -4038,7 +4038,7 @@ function PlayerEligibilityPage({ onBack }) {
       setPayments(payData || []);
       // Count distinct game appearances per player — current season only
       const counts = {};
-      const curSeason = (seasons || []).find(s => s.name.includes("Spring") && s.name.includes("2026"));
+      const curSeason = (seasons || []).find(s => s.name.includes("Diamond Classics Saturdays")) || (seasons || []).find(s => s.name.includes("Spring") && s.name.includes("2026"));
       if (curSeason) {
         const gameRows = await sbFetch(`games?select=id&season_id=eq.${curSeason.id}&away_score=not.is.null&limit=500`);
         if (gameRows && gameRows.length > 0) {
@@ -4699,7 +4699,7 @@ function WeeklyEmailPage({ onBack }) {
     Promise.all([
       sbFetch("seasons?select=id,name&limit=50"),
     ]).then(([seasons]) => {
-      const s = seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
+      const s = seasons.find(x=>x.name.includes("Diamond Classics Saturdays")) || seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
       if(!s) { setLoading(false); return; }
       setSeason(s.name);
       return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&season_id=eq.${s.id}&away_score=not.is.null&order=game_date.desc&limit=50`);
@@ -5685,7 +5685,7 @@ function AdminPage({ onAlertChange }) {
       .then(seasons => {
         const s = leagueIdx === 1
           ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
-          : seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+          : (seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026")));
         if (!s) return [];
         return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&away_score=not.is.null&order=game_date.desc&limit=100`);
       })
@@ -6716,7 +6716,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     setSavedLoading(true);
     sbFetch("seasons?select=id,name&limit=50")
       .then(async seasons => {
-        const sat = seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
+        const sat = seasons.find(x=>x.name.includes("Diamond Classics Saturdays")) || seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
         const bom = seasons.find(x=>x.name.toLowerCase().includes("boomers"));
         const fetches = [];
         if (sat) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${sat.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
@@ -7707,6 +7707,7 @@ function StatsPage() {
       : sbFetch(`seasons?select=id,name&limit=100`)
           .then(allSeasons => {
             const found = allSeasons.find(s => s.name === season) ||
+              allSeasons.find(s => s.name.includes("Diamond Classics Saturdays")) ||
               allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
             if (!found) throw new Error(`Season not found: ${season}`);
             return sbFetch(`games?select=id&season_id=eq.${found.id}&limit=200`)
@@ -8747,8 +8748,8 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       setBsSaving(true);
       try {
         const seasons = await sbFetch("seasons?select=id,name&limit=100");
-        let season = seasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
-        if (!season) { const r = await sbPost("seasons",[{name:"Spring/Summer 2026"}]); season=r[0]; }
+        let season = seasons.find(s => s.name.includes("Diamond Classics Saturdays")) || seasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
+        if (!season) { const r = await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]); season=r[0]; }
         const existing = await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(g.away)}&home_team=eq.${encodeURIComponent(g.home)}&season_id=eq.${season.id}&limit=1`);
         const gameData = {away_team:g.away,home_team:g.home,season_id:season.id,status:"Final",away_score:parseInt(bsScore.away)||0,home_score:parseInt(bsScore.home)||0};
         let gameId;
