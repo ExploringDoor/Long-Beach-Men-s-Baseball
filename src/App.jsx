@@ -2596,11 +2596,47 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
 
 /* ─── TEAMS PAGE ─────────────────────────────────────────────────────────── */
 function TeamsPage({ setTab, setTeamDetail }) {
+  const [liveRecords, setLiveRecords] = useState({}); // keyed by team name
+
+  useEffect(() => {
+    const calcRows = (games, divTeams) => {
+      const tm = {};
+      divTeams.forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
+      games.forEach(g => {
+        if (!g.away_score && g.away_score !== 0) return;
+        const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
+        if(!tm[a]||!tm[h]) return;
+        tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
+        tm[h].rs+=hs; tm[h].ra+=as; tm[h].gp++;
+        if(as>hs){tm[a].w++;tm[h].l++;} else if(hs>as){tm[h].w++;tm[a].l++;} else{tm[a].t++;tm[h].t++;}
+      });
+      return tm;
+    };
+    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+      const satS = seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
+      const bomS = seasons.find(x => x.name.toLowerCase().includes("boomers"));
+      return Promise.all([
+        satS ? sbFetch(`games?select=away_team,home_team,away_score,home_score&season_id=eq.${satS.id}&status=eq.Final&limit=200`) : [],
+        bomS ? sbFetch(`games?select=away_team,home_team,away_score,home_score&season_id=eq.${bomS.id}&status=eq.Final&limit=200`) : [],
+      ]);
+    }).then(([satGames, bomGames]) => {
+      const recs = {};
+      const satRecs = calcRows(satGames, DIV.SAT.teams);
+      const bomRecs = calcRows(bomGames, DIV.BOM.teams);
+      Object.assign(recs, satRecs, bomRecs);
+      Object.entries(recs).forEach(([name, s]) => {
+        const pts=s.w*2+s.t, max=(s.gp||1)*2;
+        recs[name] = {...s, pct: s.gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"")};
+      });
+      setLiveRecords(recs);
+    }).catch(()=>{});
+  }, []);
+
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="2026 Season" title="Team Directory">
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:16,paddingBottom:2}}>
-          {ALL_TEAMS.sort((a,b)=>parseFloat(b.pct)-parseFloat(a.pct)).map(t => {
+          {[...ALL_TEAMS].sort((a,b)=>{const ar=liveRecords[a.name],br=liveRecords[b.name];const ap=ar?ar.w/(ar.gp||1):0,bp=br?br.w/(br.gp||1):0;return bp-ap;}).map(t => {
             const color = TEAM_COLORS[t.name]||"#002d6e";
             return (
               <button key={t.name} onClick={() => setTeamDetail(t.name)} style={{
@@ -2628,6 +2664,7 @@ function TeamsPage({ setTab, setTeamDetail }) {
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
               {div.teams.map((t,i) => {
                 const color = TEAM_COLORS[t.name]||div.accent;
+                const rec = liveRecords[t.name] || {w:t.w,l:t.l,t:t.t,pct:t.pct,rs:t.rs,ra:t.ra};
                 return (
                   <button key={t.name} onClick={() => setTeamDetail(t.name)} style={{
                     background:"#fff",border:"1px solid rgba(0,0,0,0.09)",
@@ -2647,17 +2684,17 @@ function TeamsPage({ setTab, setTeamDetail }) {
                         </div>
                       </div>
                       <div style={{textAlign:"right",flexShrink:0}}>
-                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:30,color,lineHeight:1}}>{t.w}-{t.l}</div>
-                        <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",fontFamily:"'Barlow Condensed',sans-serif"}}>{t.pct}</div>
+                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:30,color,lineHeight:1}}>{rec.w}-{rec.l}</div>
+                        <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",fontFamily:"'Barlow Condensed',sans-serif"}}>{rec.pct}</div>
                       </div>
                     </div>
                     <div style={{display:"flex",gap:16,paddingTop:10,borderTop:"1px solid rgba(0,0,0,0.05)"}}>
                       <div style={{textAlign:"center"}}>
-                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:18,color:"#111"}}>{t.rs}</div>
+                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:18,color:"#111"}}>{rec.rs}</div>
                         <div style={{fontSize:10,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:".08em"}}>Runs For</div>
                       </div>
                       <div style={{textAlign:"center"}}>
-                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:18,color:"#111"}}>{t.ra}</div>
+                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:18,color:"#111"}}>{rec.ra}</div>
                         <div style={{fontSize:10,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:".08em"}}>Runs Against</div>
                       </div>
                       <div style={{textAlign:"center"}}>
