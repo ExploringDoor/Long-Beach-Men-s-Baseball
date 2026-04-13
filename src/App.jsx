@@ -1766,7 +1766,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
   useEffect(() => {
     if (games.length === 0 || !satSeasonId) return;
     const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
-    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${satSeasonId}&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
+    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${satSeasonId}&game_date=eq.${toISODate(dateStr)}&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
       .then(rows => {
         const m = {};
         rows.forEach(r => {
@@ -1786,7 +1786,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
   useEffect(() => {
     const bg = BOOMERS_SCHED[boomerWk];
     if (!bg || !bomSeasonId) return;
-    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${bomSeasonId}&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
+    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${bomSeasonId}&game_date=eq.${toISODate(bg.date)}&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
       .then(rows => {
         let best = null;
         rows.forEach(r => {
