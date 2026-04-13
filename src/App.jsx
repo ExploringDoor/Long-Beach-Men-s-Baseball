@@ -7681,8 +7681,8 @@ function StatsPage() {
       setSeasonsWithData(namesWithData);
 
       // Default to current Saturday season
-      const curSat = allSeasons.find(s => s.name.includes("Diamond Classics Saturdays") || (s.name.includes("Spring") && s.name.includes("2026")));
-      if (curSat && namesWithData.has(curSat.name)) setSeason(curSat.name);
+      const curSat = allSeasons.find(s => s.name.includes("Diamond Classics Saturdays")) || allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
+      if (curSat) setSeason(curSat.name);
     }).catch(() => {});
   }, []);
 
