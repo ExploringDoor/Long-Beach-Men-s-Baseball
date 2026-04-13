@@ -2204,30 +2204,40 @@ function StandingsPage({ setTab, setTeamDetail }) {
 /* ─── TEAM DETAIL PAGE ────────────────────────────────────────────────────── */
 /* ─── PLAYER STATS MODAL ──────────────────────────────────────────────── */
 function PlayerStatsModal({ playerName, onClose }) {
-  const [seasons, setSeasons] = useState(null); // array of {seasonName, gp, ab, r, h, d, t, hr, rbi, bb, k, hbp, sf, sb}
-  const [pitSeasons, setPitSeasons] = useState(null); // array of pitching seasons
+  const [allSeasons, setAllSeasons] = useState(null);
+  const [gameLog, setGameLog] = useState([]);
+  const [curSeasonSid, setCurSeasonSid] = useState(null);
+  const [pitSeasons, setPitSeasons] = useState(null);
+  const [showAllSeasons, setShowAllSeasons] = useState(false);
+  const [showAllGames, setShowAllGames] = useState(false);
+
+  const SEASON_GAMES = 15;
 
   useEffect(() => {
     async function load() {
       try {
         const enc = encodeURIComponent(`*${playerName}*`);
-        const lines = await sbFetch(`batting_lines?player_name=ilike.${enc}&select=game_id,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&order=game_id.asc&limit=1000`);
-        if (!Array.isArray(lines) || lines.length === 0) { setSeasons([]); return; }
+        const lines = await sbFetch(`batting_lines?player_name=ilike.${enc}&select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&order=game_id.asc&limit=1000`);
+        if (!Array.isArray(lines) || lines.length === 0) { setAllSeasons([]); return; }
 
         const gameIds = [...new Set(lines.map(l => l.game_id))];
-        const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id&order=id.asc`);
+        const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc`);
         const seasonIds = [...new Set(games.map(g => g.season_id))];
         const seasonList = await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.asc`);
 
+        const curSat = seasonList.find(s => s.name.includes("Diamond Classics Saturdays")) || seasonList[seasonList.length - 1];
+        if (curSat) setCurSeasonSid(curSat.id);
+
         const seasonNameMap = Object.fromEntries(seasonList.map(s => [s.id, s.name]));
-        const gameSeasonMap = Object.fromEntries(games.map(g => [g.id, g.season_id]));
+        const gameMap = Object.fromEntries(games.map(g => [g.id, g]));
 
         // Group lines by season
         const bySeasonId = {};
         for (const l of lines) {
-          const sid = gameSeasonMap[l.game_id];
-          if (!sid) continue;
-          if (!bySeasonId[sid]) bySeasonId[sid] = { name: seasonNameMap[sid]||"?", games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
+          const g = gameMap[l.game_id];
+          if (!g) continue;
+          const sid = g.season_id;
+          if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name: seasonNameMap[sid]||"?", games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
           const s = bySeasonId[sid];
           s.games.add(l.game_id);
           s.ab+=(l.ab||0); s.r+=(l.r||0); s.h+=(l.h||0); s.d+=(l.doubles||0);
@@ -2239,10 +2249,37 @@ function PlayerStatsModal({ playerName, onClose }) {
           sid, name: s.name, gp: s.games.size,
           ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb,
         }));
+        setAllSeasons(result);
 
-        setSeasons(result);
+        // Build game log for current season
+        const linesByGameId = {};
+        for (const l of lines) {
+          if (!linesByGameId[l.game_id]) linesByGameId[l.game_id] = l;
+        }
+        const log = games
+          .filter(g => curSat && g.season_id === curSat.id && g.status === "Final")
+          .map(g => {
+            const l = linesByGameId[g.id];
+            if (!l) return null;
+            const isAway = l.team === g.away_team;
+            const myScore = isAway ? +g.away_score : +g.home_score;
+            const oppScore = isAway ? +g.home_score : +g.away_score;
+            const opp = isAway ? g.home_team : g.away_team;
+            return {
+              date: g.game_date,
+              opp,
+              isHome: !isAway,
+              myScore,
+              oppScore,
+              won: myScore > oppScore,
+              ab: l.ab||0, r: l.r||0, h: l.h||0, d: l.doubles||0,
+              t: l.triples||0, hr: l.hr||0, rbi: l.rbi||0, bb: l.bb||0, k: l.k||0,
+            };
+          })
+          .filter(Boolean);
+        setGameLog(log);
 
-        // Also fetch pitching lines
+        // Fetch pitching
         try {
           const pitEnc = encodeURIComponent(`*${playerName}*`);
           const pitLines = await sbFetch(`pitching_lines?player_name=ilike.${pitEnc}&select=game_id,ip,h,r,er,bb,k,hr,decision&order=game_id.asc&limit=500`);
@@ -2274,100 +2311,164 @@ function PlayerStatsModal({ playerName, onClose }) {
             setPitSeasons([]);
           }
         } catch(e) { setPitSeasons([]); }
-      } catch(e) { console.error(e); setSeasons([]); setPitSeasons([]); }
+      } catch(e) { console.error(e); setAllSeasons([]); setPitSeasons([]); }
     }
     load();
   }, [playerName]);
 
   const fmtAvg = (h,ab) => ab>0 ? (h/ab).toFixed(3).replace(/^0/,"") : ".---";
-  const fmtObp = (h,bb,hbp,ab,sf) => {
-    const d = ab+bb+hbp+sf;
-    return d>0 ? ((h+bb+hbp)/d).toFixed(3).replace(/^0/,"") : ".---";
-  };
-  const fmtSlg = (h,d,t,hr,ab) => ab>0 ? ((h + d + 2*t + 3*hr)/ab).toFixed(3).replace(/^0/,"") : ".---";
+  const fmtObp = (h,bb,hbp,ab,sf) => { const d=ab+bb+hbp+sf; return d>0?((h+bb+hbp)/d).toFixed(3).replace(/^0/,""):".---"; };
+  const fmtSlg = (h,d,t,hr,ab) => ab>0?((h+d+2*t+3*hr)/ab).toFixed(3).replace(/^0/,""):".---";
 
-  const careerTot = seasons && seasons.length > 0 ? seasons.reduce((a,s) => ({
+  const curSeason = allSeasons && allSeasons.find(s => s.sid === curSeasonSid);
+  const careerTot = allSeasons && allSeasons.length > 0 ? allSeasons.reduce((a,s) => ({
     gp:a.gp+s.gp, ab:a.ab+s.ab, r:a.r+s.r, h:a.h+s.h, d:a.d+s.d, t:a.t+s.t,
     hr:a.hr+s.hr, rbi:a.rbi+s.rbi, bb:a.bb+s.bb, k:a.k+s.k, hbp:a.hbp+s.hbp, sf:a.sf+s.sf, sb:a.sb+s.sb,
   }), {gp:0,ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0}) : null;
 
-  const cols = ["SEASON","TEAM","GP","AB","R","H","2B","3B","HR","RBI","BB","SO","SB","AVG","OBP","SLG"];
+  const proj = curSeason && curSeason.gp > 0 ? (() => {
+    const f = SEASON_GAMES / curSeason.gp;
+    const rnd = v => Math.round(v * f);
+    return { gp:SEASON_GAMES, ab:rnd(curSeason.ab), r:rnd(curSeason.r), h:rnd(curSeason.h),
+      d:rnd(curSeason.d), t:rnd(curSeason.t), hr:rnd(curSeason.hr), rbi:rnd(curSeason.rbi),
+      bb:rnd(curSeason.bb), k:rnd(curSeason.k), hbp:curSeason.hbp, sf:curSeason.sf, sb:rnd(curSeason.sb) };
+  })() : null;
+
+  // Extract year label from current season name
+  const yearLabel = curSeason ? (curSeason.name.match(/\d{4}/)||[""])[0] : (allSeasons && allSeasons.length ? (allSeasons[allSeasons.length-1].name.match(/\d{4}/)||[""])[0] : "");
+
+  const statCols = ["GP","AB","R","H","2B","3B","HR","RBI","BB","SO","AVG"];
+  const statVals = (s) => s ? [s.gp,s.ab,s.r,s.h,s.d,s.t,s.hr,s.rbi,s.bb,s.k,fmtAvg(s.h,s.ab)] : Array(11).fill("—");
+
+  const fmtDate = (d) => {
+    if (!d) return "";
+    const dt = new Date(d + "T12:00:00");
+    return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  };
+
+  const visibleGames = showAllGames ? gameLog : gameLog.slice(0, 5);
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:960,maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:720,maxHeight:"92vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{position:"sticky",top:0,background:"#002d6e",padding:"16px 24px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0",zIndex:1}}>
+        <div style={{position:"sticky",top:0,background:"#002d6e",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0",zIndex:1}}>
           <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,textTransform:"uppercase",color:"#fff",lineHeight:1}}>{playerName}</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginTop:3,letterSpacing:".1em",textTransform:"uppercase"}}>Career Batting Stats</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#fff",lineHeight:1}}>{playerName}</div>
           </div>
           <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontSize:22,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
         </div>
 
-        {seasons === null ? (
+        {allSeasons === null ? (
           <div style={{padding:60,textAlign:"center",color:"#999",fontSize:14}}>Loading stats…</div>
-        ) : seasons.length === 0 ? (
+        ) : allSeasons.length === 0 ? (
           <div style={{padding:60,textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>No recorded stats found for {playerName}.<br/><span style={{fontSize:12,marginTop:8,display:"block"}}>Stats may be listed under a slightly different name in the system.</span></div>
         ) : (
-          <div>
-            <div style={{padding:"16px 24px 4px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111",letterSpacing:".06em"}}>Career Batting</div>
-            <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:700}}>
+          <div style={{padding:"0 0 20px"}}>
+
+            {/* ── Batting Summary ── */}
+            <div style={{padding:"16px 20px 8px",display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+              <div style={{fontWeight:700,fontSize:17,color:"#111"}}>{yearLabel} Batting</div>
+              <button onClick={()=>setShowAllSeasons(v=>!v)} style={{background:"none",border:"none",color:"#2563eb",fontSize:13,fontWeight:600,cursor:"pointer",padding:0}}>
+                {showAllSeasons ? "Hide" : "See All"}
+              </button>
+            </div>
+            <div style={{overflowX:"auto",borderTop:"1px solid #e5e7eb",borderBottom:"1px solid #e5e7eb"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                 <thead>
-                  <tr style={{background:"#f5f7fa",borderBottom:"2px solid #e5e7eb"}}>
-                    {cols.map(c=>(
-                      <th key={c} style={{padding:"9px 12px",textAlign:c==="SEASON"||c==="TEAM"?"left":"center",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap"}}>{c}</th>
+                  <tr style={{background:"#f9fafb"}}>
+                    <th style={{padding:"8px 16px 8px 20px",textAlign:"left",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb"}}>STATS</th>
+                    {statCols.map(c=>(
+                      <th key={c} style={{padding:"8px 10px",textAlign:"center",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb"}}>{c}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {seasons.map((s,i)=>(
-                    <tr key={i} style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
-                      <td style={{padding:"10px 12px",fontWeight:600,color:"#111",whiteSpace:"nowrap"}}>{s.name}</td>
-                      <td style={{padding:"10px 12px",color:"#555",whiteSpace:"nowrap"}}>LBDC</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.gp}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.ab}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.r}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.h}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.d}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.t}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.hr}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.rbi}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.bb}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.k}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#333"}}>{s.sb}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",fontWeight:600,color:"#111"}}>{fmtAvg(s.h,s.ab)}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#555"}}>{fmtObp(s.h,s.bb,s.hbp,s.ab,s.sf)}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#555"}}>{fmtSlg(s.h,s.d,s.t,s.hr,s.ab)}</td>
-                    </tr>
-                  ))}
-
-                  {/* Career Totals */}
-                  {careerTot && (
-                    <tr style={{borderTop:"2px solid #002d6e",background:"#fff",fontWeight:700}}>
-                      <td style={{padding:"10px 12px",color:"#111"}}>Career</td>
-                      <td style={{padding:"10px 12px"}}></td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.gp}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.ab}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.r}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.h}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.d}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.t}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.hr}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.rbi}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.bb}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.k}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center"}}>{careerTot.sb}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtAvg(careerTot.h,careerTot.ab)}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtObp(careerTot.h,careerTot.bb,careerTot.hbp,careerTot.ab,careerTot.sf)}</td>
-                      <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtSlg(careerTot.h,careerTot.d,careerTot.t,careerTot.hr,careerTot.ab)}</td>
+                  {/* Regular Season */}
+                  <tr style={{borderBottom:"1px solid #f0f0f0"}}>
+                    <td style={{padding:"10px 16px 10px 20px",fontWeight:600,color:"#111",whiteSpace:"nowrap"}}>Regular Season</td>
+                    {statVals(curSeason).map((v,i)=>(
+                      <td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#111":"#333",fontWeight:i===10?700:400}}>{v}</td>
+                    ))}
+                  </tr>
+                  {/* Projected */}
+                  {proj && (
+                    <tr style={{borderBottom:"1px solid #f0f0f0",background:"#fafafa"}}>
+                      <td style={{padding:"10px 16px 10px 20px",fontWeight:600,color:"#555",whiteSpace:"nowrap",fontStyle:"italic"}}>Projected</td>
+                      {statVals(proj).map((v,i)=>(
+                        <td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#555":"#888",fontStyle:"italic"}}>{v}</td>
+                      ))}
                     </tr>
                   )}
+                  {/* Career */}
+                  <tr style={{borderTop:"2px solid #002d6e",background:"#fff"}}>
+                    <td style={{padding:"10px 16px 10px 20px",fontWeight:700,color:"#111",whiteSpace:"nowrap"}}>Career</td>
+                    {statVals(careerTot).map((v,i)=>(
+                      <td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#002d6e":"#333",fontWeight:700}}>{v}</td>
+                    ))}
+                  </tr>
+                  {/* Season-by-season breakdown (See All) */}
+                  {showAllSeasons && allSeasons.map((s,i)=>(
+                    <tr key={i} style={{borderTop:"1px solid #e5e7eb",background:i%2===0?"#f9fafb":"#fff"}}>
+                      <td style={{padding:"8px 16px 8px 20px",color:"#555",fontSize:12,whiteSpace:"nowrap"}}>{s.name}</td>
+                      {statVals(s).map((v,j)=>(
+                        <td key={j} style={{padding:"8px 10px",textAlign:"center",color:j===10?"#002d6e":"#666",fontSize:12,fontWeight:j===10?600:400}}>{v}</td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
+
+            {/* ── Recent Games ── */}
+            {gameLog.length > 0 && (
+              <>
+                <div style={{padding:"16px 20px 8px",display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                  <div style={{fontWeight:700,fontSize:17,color:"#111"}}>Recent Games</div>
+                  {gameLog.length > 5 && (
+                    <button onClick={()=>setShowAllGames(v=>!v)} style={{background:"none",border:"none",color:"#2563eb",fontSize:13,fontWeight:600,cursor:"pointer",padding:0}}>
+                      {showAllGames ? "Show Less" : "See All"}
+                    </button>
+                  )}
+                </div>
+                <div style={{overflowX:"auto",borderTop:"1px solid #e5e7eb",borderBottom:"1px solid #e5e7eb"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <thead>
+                      <tr style={{background:"#f9fafb"}}>
+                        {["DATE","OPP","RESULT","AB","R","H","2B","3B","HR","RBI","BB","SO"].map(c=>(
+                          <th key={c} style={{padding:"8px 8px",textAlign:c==="DATE"||c==="OPP"?"left":"center",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb",paddingLeft:c==="DATE"?"20px":"8px"}}>{c}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleGames.map((g,i)=>(
+                        <tr key={i} style={{borderBottom:"1px solid #f0f0f0",background:i%2===0?"#fff":"#fafafa"}}>
+                          <td style={{padding:"9px 8px 9px 20px",color:"#555",whiteSpace:"nowrap",fontSize:12}}>{fmtDate(g.date)}</td>
+                          <td style={{padding:"9px 8px",color:"#111",whiteSpace:"nowrap",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis"}}>
+                            <span style={{color:"#888",marginRight:3}}>{g.isHome?"vs":"@"}</span>{g.opp}
+                          </td>
+                          <td style={{padding:"9px 8px",textAlign:"center",fontWeight:700,whiteSpace:"nowrap",color:g.won?"#16a34a":"#dc2626"}}>
+                            {g.won?"W":"L"} {g.myScore}-{g.oppScore}
+                          </td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{g.ab}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{g.r}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",fontWeight:g.h>0?600:400,color:g.h>0?"#111":"#aaa"}}>{g.h}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{g.d||0}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{g.t||0}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",color:g.hr>0?"#c8102e":"inherit",fontWeight:g.hr>0?700:400}}>{g.hr||0}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{g.rbi||0}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{g.bb||0}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",color:g.k>2?"#dc2626":"inherit"}}>{g.k||0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* ── Career Pitching ── */}
             {pitSeasons && pitSeasons.length > 0 && (() => {
               const pitCareer = pitSeasons.reduce((a,s)=>({
                 app:a.app+s.app, ip:a.ip+s.ip, h:a.h+s.h, r:a.r+s.r, er:a.er+s.er,
@@ -2379,50 +2480,50 @@ function PlayerStatsModal({ playerName, onClose }) {
               const pitCols=["SEASON","APP","IP","W","L","SV","ERA","WHIP","H","R","ER","BB","K","HR"];
               return (
                 <div>
-                  <div style={{padding:"16px 24px 4px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111",letterSpacing:".06em",borderTop:"2px solid rgba(0,0,0,0.08)",marginTop:8}}>Career Pitching</div>
-                  <div style={{overflowX:"auto"}}>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
+                  <div style={{padding:"16px 20px 8px",fontWeight:700,fontSize:17,color:"#111"}}>Career Pitching</div>
+                  <div style={{overflowX:"auto",borderTop:"1px solid #e5e7eb",borderBottom:"1px solid #e5e7eb"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                       <thead>
-                        <tr style={{background:"#f5f7fa",borderBottom:"2px solid #e5e7eb"}}>
+                        <tr style={{background:"#f9fafb"}}>
                           {pitCols.map(c=>(
-                            <th key={c} style={{padding:"9px 12px",textAlign:c==="SEASON"?"left":"center",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap"}}>{c}</th>
+                            <th key={c} style={{padding:"8px 8px",textAlign:c==="SEASON"?"left":"center",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb",paddingLeft:c==="SEASON"?"20px":"8px"}}>{c}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {pitSeasons.map((s,i)=>(
                           <tr key={i} style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
-                            <td style={{padding:"10px 12px",fontWeight:600,whiteSpace:"nowrap"}}>{s.name}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.app}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.ipDisplay}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center",color:s.w>0?"#16a34a":"inherit",fontWeight:s.w>0?700:400}}>{s.w}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center",color:s.l>0?"#dc2626":"inherit"}}>{s.l}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.sv}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center",fontWeight:700,color:"#002d6e"}}>{s.era}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center",fontWeight:600}}>{s.whip}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.h}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.r}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.er}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>{s.bb}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center",fontWeight:s.k>0?600:400}}>{s.k}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center",color:s.hr>0?"#c8102e":"inherit"}}>{s.hr}</td>
+                            <td style={{padding:"9px 8px 9px 20px",fontWeight:600,whiteSpace:"nowrap",fontSize:12}}>{s.name}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{s.app}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{s.ipDisplay}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",color:s.w>0?"#16a34a":"inherit",fontWeight:s.w>0?700:400}}>{s.w}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",color:s.l>0?"#dc2626":"inherit"}}>{s.l}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{s.sv}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",fontWeight:700,color:"#002d6e"}}>{s.era}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",fontWeight:600}}>{s.whip}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{s.h}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{s.r}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{s.er}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{s.bb}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{s.k}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",color:s.hr>0?"#c8102e":"inherit"}}>{s.hr}</td>
                           </tr>
                         ))}
                         <tr style={{borderTop:"2px solid #002d6e",background:"#fff",fontWeight:700}}>
-                          <td style={{padding:"10px 12px",color:"#111"}}>Career</td>
-                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.app}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center"}}>{fmtIp(pitCareer.ip)}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center",color:"#16a34a",fontWeight:700}}>{pitCareer.w}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center",color:"#dc2626"}}>{pitCareer.l}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.sv}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtEra(pitCareer.er,pitCareer.ip)}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center",color:"#002d6e"}}>{fmtWhip(pitCareer.h,pitCareer.bb,pitCareer.ip)}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.h}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.r}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.er}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.bb}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center"}}>{pitCareer.k}</td>
-                          <td style={{padding:"10px 12px",textAlign:"center",color:"#c8102e"}}>{pitCareer.hr}</td>
+                          <td style={{padding:"9px 8px 9px 20px",color:"#111"}}>Career</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.app}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{fmtIp(pitCareer.ip)}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",color:"#16a34a"}}>{pitCareer.w}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",color:"#dc2626"}}>{pitCareer.l}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.sv}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",color:"#002d6e"}}>{fmtEra(pitCareer.er,pitCareer.ip)}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",color:"#002d6e"}}>{fmtWhip(pitCareer.h,pitCareer.bb,pitCareer.ip)}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.h}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.r}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.er}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.bb}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.k}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",color:"#c8102e"}}>{pitCareer.hr}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -2430,7 +2531,8 @@ function PlayerStatsModal({ playerName, onClose }) {
                 </div>
               );
             })()}
-            <div style={{padding:"10px 24px 20px",fontSize:11,color:"#9ca3af"}}>Stats sourced from recorded box scores only. Games without entered stats are not reflected.</div>
+
+            <div style={{padding:"10px 20px 4px",fontSize:11,color:"#9ca3af"}}>Stats sourced from recorded box scores only. Games without entered stats are not reflected.</div>
           </div>
         )}
       </div>
@@ -7758,7 +7860,11 @@ function StatsPage() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [playerGames, setPlayerGames] = useState([]);
+  const [playerGameLog, setPlayerGameLog] = useState([]);
+  const [playerCurSid, setPlayerCurSid] = useState(null);
   const [playerLoading, setPlayerLoading] = useState(false);
+  const [showAllSeasons, setShowAllSeasons] = useState(false);
+  const [showAllGames, setShowAllGames] = useState(false);
   const [batSort, setBatSort] = useState({ col: "gp", dir: "desc" });
   const [pitSort, setPitSort] = useState({ col: "era", dir: "asc" });
 
@@ -7905,42 +8011,69 @@ function StatsPage() {
     setPitSort(s => ({ col, dir: s.col===col && s.dir==="asc" ? "desc" : "asc" }));
   };
 
-  // Load player career stats grouped by season
+  // Load player career stats grouped by season + game log for current season
   const loadPlayer = (playerName, team) => {
     setSelectedPlayer({ playerName, team });
     setPlayerLoading(true);
+    setShowAllSeasons(false);
+    setShowAllGames(false);
 
     async function fetchSeasonStats() {
       const enc = encodeURIComponent(playerName);
-      const lines = await sbFetch(`batting_lines?select=game_id,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&player_name=eq.${enc}&limit=1000`);
-      if (!Array.isArray(lines) || lines.length === 0) return [];
+      const lines = await sbFetch(`batting_lines?select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&player_name=eq.${enc}&limit=1000`);
+      if (!Array.isArray(lines) || lines.length === 0) return { seasons: [], gameLog: [], curSatSid: null };
       const gameIds = [...new Set(lines.map(l => l.game_id))];
-      const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id&limit=500`);
+      const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc&limit=500`);
       const seasonIds = [...new Set(games.map(g => g.season_id).filter(Boolean))];
-      if (!seasonIds.length) return [];
+      if (!seasonIds.length) return { seasons: [], gameLog: [], curSatSid: null };
       const seasonList = await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.desc`);
       const seasonNameMap = Object.fromEntries(seasonList.map(s => [s.id, s.name||s.year]));
       const seasonYearMap = Object.fromEntries(seasonList.map(s => [s.id, s.year||0]));
-      const gameSeasonMap = Object.fromEntries(games.map(g => [g.id, g.season_id]));
+      const gameMap = Object.fromEntries(games.map(g => [g.id, g]));
+      const curSat = seasonList.find(s => s.name && s.name.includes("Diamond Classics Saturdays"));
       // Group lines by season
       const bySeasonId = {};
+      const linesByGameId = {};
       for (const l of lines) {
-        const sid = gameSeasonMap[l.game_id];
-        if (!sid) continue;
-        if (!bySeasonId[sid]) bySeasonId[sid] = { name: seasonNameMap[sid]||"?", year: seasonYearMap[sid]||0, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
+        linesByGameId[l.game_id] = l;
+        const g = gameMap[l.game_id];
+        if (!g) continue;
+        const sid = g.season_id;
+        if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name: seasonNameMap[sid]||"?", year: seasonYearMap[sid]||0, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
         const s = bySeasonId[sid];
         s.games.add(l.game_id);
         s.ab+=(l.ab||0); s.r+=(l.r||0); s.h+=(l.h||0); s.d+=(l.doubles||0);
         s.t+=(l.triples||0); s.hr+=(l.hr||0); s.rbi+=(l.rbi||0); s.bb+=(l.bb||0);
         s.k+=(l.k||0); s.hbp+=(l.hbp||0); s.sf+=(l.sf||0); s.sb+=(l.sb||0);
       }
-      return Object.entries(bySeasonId)
-        .map(([sid, s]) => ({ sid, name: s.name, year: s.year, gp: s.games.size, ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb }))
+      const seasons = Object.entries(bySeasonId)
+        .map(([, s]) => ({ sid: s.sid, name: s.name, year: s.year, gp: s.games.size, ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb }))
         .sort((a, b) => b.year - a.year);
+      // Build game log for current season (most recent first, already sorted by game_date desc)
+      const gameLog = games
+        .filter(g => curSat && g.season_id === curSat.id && g.status === "Final")
+        .map(g => {
+          const l = linesByGameId[g.id];
+          if (!l) return null;
+          const isAway = l.team === g.away_team;
+          const myScore = isAway ? +g.away_score : +g.home_score;
+          const oppScore = isAway ? +g.home_score : +g.away_score;
+          return { date: g.game_date, opp: isAway ? g.home_team : g.away_team,
+            isHome: !isAway, myScore, oppScore, won: myScore > oppScore,
+            ab: l.ab||0, r: l.r||0, h: l.h||0, d: l.doubles||0,
+            t: l.triples||0, hr: l.hr||0, rbi: l.rbi||0, bb: l.bb||0, k: l.k||0 };
+        })
+        .filter(Boolean);
+      return { seasons, gameLog, curSatSid: curSat?.id };
     }
 
     fetchSeasonStats()
-      .then(d => { setPlayerGames(d); setPlayerLoading(false); })
+      .then(({ seasons, gameLog, curSatSid }) => {
+        setPlayerGames(seasons);
+        setPlayerGameLog(gameLog || []);
+        setPlayerCurSid(curSatSid || null);
+        setPlayerLoading(false);
+      })
       .catch(() => setPlayerLoading(false));
   };
 
@@ -8042,87 +8175,134 @@ function StatsPage() {
           </div>
         )}
 
-        {/* Player career stats by season modal */}
-        {selectedPlayer && (
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={() => setSelectedPlayer(null)}>
-            <div style={{background:"#fff",borderRadius:14,maxWidth:760,width:"100%",maxHeight:"85vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={e => e.stopPropagation()}>
-              <div style={{background:"#002d6e",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-                <div>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#fff",textTransform:"uppercase"}}>{selectedPlayer.playerName}</div>
-                  <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2}}>{selectedPlayer.team} · Career Batting Stats</div>
+        {/* Player stats modal */}
+        {selectedPlayer && (() => {
+          const fmtAvg = (h,ab) => ab>0?(h/ab).toFixed(3).replace(/^0/,""):".---";
+          const fmtObp = (h,bb,hbp,ab,sf) => { const d=ab+bb+hbp+sf; return d>0?((h+bb+hbp)/d).toFixed(3).replace(/^0/,""):".---"; };
+          const fmtSlg = (h,d,t,hr,ab) => ab>0?((h+d+2*t+3*hr)/ab).toFixed(3).replace(/^0/,""):".---";
+          const fmtDate = (dt) => { if(!dt) return ""; const d=new Date(dt+"T12:00:00"); return d.toLocaleDateString("en-US",{month:"short",day:"numeric"}); };
+          const SEASON_GAMES = 15;
+          const curSeason = playerGames.find(s => s.sid === playerCurSid);
+          const careerTot = playerGames.reduce((a,s) => ({
+            gp:a.gp+s.gp, ab:a.ab+s.ab, r:a.r+s.r, h:a.h+s.h, d:a.d+s.d, t:a.t+s.t,
+            hr:a.hr+s.hr, rbi:a.rbi+s.rbi, bb:a.bb+s.bb, k:a.k+s.k, hbp:a.hbp+(s.hbp||0), sf:a.sf+(s.sf||0), sb:a.sb+s.sb,
+          }), {gp:0,ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0});
+          const proj = curSeason && curSeason.gp > 0 ? (() => {
+            const f = SEASON_GAMES / curSeason.gp;
+            const rnd = v => Math.round(v*f);
+            return { gp:SEASON_GAMES, ab:rnd(curSeason.ab), r:rnd(curSeason.r), h:rnd(curSeason.h),
+              d:rnd(curSeason.d), t:rnd(curSeason.t), hr:rnd(curSeason.hr), rbi:rnd(curSeason.rbi),
+              bb:rnd(curSeason.bb), k:rnd(curSeason.k), hbp:curSeason.hbp, sf:curSeason.sf, sb:rnd(curSeason.sb) };
+          })() : null;
+          const yearLabel = curSeason ? (curSeason.name.match(/\d{4}/)||[""])[0] : "";
+          const statCols = ["GP","AB","R","H","2B","3B","HR","RBI","BB","SO","AVG"];
+          const statVals = (s) => s ? [s.gp,s.ab,s.r,s.h,s.d,s.t,s.hr,s.rbi,s.bb,s.k,fmtAvg(s.h,s.ab)] : Array(11).fill("—");
+          const visibleGames = showAllGames ? playerGameLog : playerGameLog.slice(0,5);
+          return (
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={() => setSelectedPlayer(null)}>
+              <div style={{background:"#fff",borderRadius:14,maxWidth:720,width:"100%",maxHeight:"92vh",overflow:"auto"}} onClick={e => e.stopPropagation()}>
+                <div style={{position:"sticky",top:0,background:"#002d6e",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderRadius:"14px 14px 0 0",zIndex:1}}>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#fff",textTransform:"uppercase"}}>{selectedPlayer.playerName}</div>
+                  <button onClick={() => setSelectedPlayer(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16}}>✕</button>
                 </div>
-                <button onClick={() => setSelectedPlayer(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16}}>✕</button>
-              </div>
-              <div style={{overflowY:"auto",padding:"16px 18px"}}>
                 {playerLoading ? (
-                  <div style={{textAlign:"center",padding:40,color:"rgba(0,0,0,0.4)"}}>Loading stats…</div>
+                  <div style={{textAlign:"center",padding:60,color:"rgba(0,0,0,0.4)"}}>Loading stats…</div>
                 ) : playerGames.length === 0 ? (
-                  <div style={{textAlign:"center",padding:40,color:"rgba(0,0,0,0.4)"}}>No stats found.</div>
-                ) : (() => {
-                  const fmtAvg = (h,ab) => ab>0 ? (h/ab).toFixed(3).replace(/^0/,"") : ".---";
-                  const fmtObp = (h,bb,hbp,ab,sf) => { const d=ab+bb+hbp+sf; return d>0 ? ((h+bb+hbp)/d).toFixed(3).replace(/^0/,"") : ".---"; };
-                  const fmtSlg = (h,d,t,hr,ab) => ab>0 ? ((h+d+2*t+3*hr)/ab).toFixed(3).replace(/^0/,"") : ".---";
-                  const careerTot = playerGames.reduce((a,s) => ({
-                    gp:a.gp+s.gp, ab:a.ab+s.ab, r:a.r+s.r, h:a.h+s.h, d:a.d+s.d, t:a.t+s.t,
-                    hr:a.hr+s.hr, rbi:a.rbi+s.rbi, bb:a.bb+s.bb, k:a.k+s.k, hbp:a.hbp+(s.hbp||0), sf:a.sf+(s.sf||0), sb:a.sb+s.sb,
-                  }), {gp:0,ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0});
-                  const cols = ["Season","GP","AB","R","H","2B","3B","HR","RBI","BB","K","SB","AVG","OBP","SLG"];
-                  return (
-                    <div style={{overflowX:"auto"}}>
-                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
+                  <div style={{textAlign:"center",padding:60,color:"rgba(0,0,0,0.4)"}}>No stats found.</div>
+                ) : (
+                  <div style={{padding:"0 0 20px"}}>
+                    {/* ── Batting Summary ── */}
+                    <div style={{padding:"14px 20px 8px",display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                      <div style={{fontWeight:700,fontSize:17,color:"#111"}}>{yearLabel} Batting</div>
+                      <button onClick={()=>setShowAllSeasons(v=>!v)} style={{background:"none",border:"none",color:"#2563eb",fontSize:13,fontWeight:600,cursor:"pointer",padding:0}}>
+                        {showAllSeasons?"Hide":"See All"}
+                      </button>
+                    </div>
+                    <div style={{overflowX:"auto",borderTop:"1px solid #e5e7eb",borderBottom:"1px solid #e5e7eb"}}>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                         <thead>
-                          <tr style={{background:"#f5f7fa",borderBottom:"2px solid #e5e7eb"}}>
-                            {cols.map(c => (
-                              <th key={c} style={{padding:"8px 10px",textAlign:c==="Season"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",whiteSpace:"nowrap",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>{c}</th>
-                            ))}
+                          <tr style={{background:"#f9fafb"}}>
+                            <th style={{padding:"8px 16px 8px 20px",textAlign:"left",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb"}}>STATS</th>
+                            {statCols.map(c=><th key={c} style={{padding:"8px 10px",textAlign:"center",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb"}}>{c}</th>)}
                           </tr>
                         </thead>
                         <tbody>
-                          {playerGames.map((s, i) => (
-                            <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                              <td style={{padding:"8px 10px",fontWeight:600,whiteSpace:"nowrap",color:"#111"}}>{s.name}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.gp}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.ab}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.r}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.h}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.d}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.t}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center",color:s.hr>0?"#c8102e":"inherit",fontWeight:s.hr>0?700:400}}>{s.hr}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center",fontWeight:s.rbi>0?600:400}}>{s.rbi}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.bb}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.k}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center"}}>{s.sb}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center",fontWeight:700,color:"#002d6e"}}>{fmtAvg(s.h,s.ab)}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center",color:"#374151"}}>{fmtObp(s.h,s.bb,s.hbp||0,s.ab,s.sf||0)}</td>
-                              <td style={{padding:"8px 10px",textAlign:"center",color:"#374151"}}>{fmtSlg(s.h,s.d,s.t,s.hr,s.ab)}</td>
+                          <tr style={{borderBottom:"1px solid #f0f0f0"}}>
+                            <td style={{padding:"10px 16px 10px 20px",fontWeight:600,color:"#111",whiteSpace:"nowrap"}}>Regular Season</td>
+                            {statVals(curSeason).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#111":"#333",fontWeight:i===10?700:400}}>{v}</td>)}
+                          </tr>
+                          {proj && (
+                            <tr style={{borderBottom:"1px solid #f0f0f0",background:"#fafafa"}}>
+                              <td style={{padding:"10px 16px 10px 20px",fontWeight:600,color:"#555",whiteSpace:"nowrap",fontStyle:"italic"}}>Projected</td>
+                              {statVals(proj).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#555":"#888",fontStyle:"italic"}}>{v}</td>)}
+                            </tr>
+                          )}
+                          <tr style={{borderTop:"2px solid #002d6e"}}>
+                            <td style={{padding:"10px 16px 10px 20px",fontWeight:700,color:"#111",whiteSpace:"nowrap"}}>Career</td>
+                            {statVals(careerTot).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#002d6e":"#333",fontWeight:700}}>{v}</td>)}
+                          </tr>
+                          {showAllSeasons && playerGames.map((s,i)=>(
+                            <tr key={i} style={{borderTop:"1px solid #e5e7eb",background:i%2===0?"#f9fafb":"#fff"}}>
+                              <td style={{padding:"8px 16px 8px 20px",color:"#555",fontSize:12,whiteSpace:"nowrap"}}>{s.name}</td>
+                              {statVals(s).map((v,j)=><td key={j} style={{padding:"8px 10px",textAlign:"center",color:j===10?"#002d6e":"#666",fontSize:12,fontWeight:j===10?600:400}}>{v}</td>)}
                             </tr>
                           ))}
-                          <tr style={{borderTop:"2px solid #002d6e",background:"#f0f4ff",fontWeight:700}}>
-                            <td style={{padding:"8px 10px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:12,color:"#002d6e"}}>Career</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.gp}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.ab}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.r}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.h}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.d}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.t}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900,color:careerTot.hr>0?"#c8102e":"inherit"}}>{careerTot.hr}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.rbi}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.bb}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.k}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900}}>{careerTot.sb}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900,color:"#002d6e"}}>{fmtAvg(careerTot.h,careerTot.ab)}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900,color:"#002d6e"}}>{fmtObp(careerTot.h,careerTot.bb,careerTot.hbp,careerTot.ab,careerTot.sf)}</td>
-                            <td style={{padding:"8px 10px",textAlign:"center",fontWeight:900,color:"#002d6e"}}>{fmtSlg(careerTot.h,careerTot.d,careerTot.t,careerTot.hr,careerTot.ab)}</td>
-                          </tr>
                         </tbody>
                       </table>
                     </div>
-                  );
-                })()}
+                    {/* ── Recent Games ── */}
+                    {playerGameLog.length > 0 && (
+                      <>
+                        <div style={{padding:"14px 20px 8px",display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                          <div style={{fontWeight:700,fontSize:17,color:"#111"}}>Recent Games</div>
+                          {playerGameLog.length > 5 && (
+                            <button onClick={()=>setShowAllGames(v=>!v)} style={{background:"none",border:"none",color:"#2563eb",fontSize:13,fontWeight:600,cursor:"pointer",padding:0}}>
+                              {showAllGames?"Show Less":"See All"}
+                            </button>
+                          )}
+                        </div>
+                        <div style={{overflowX:"auto",borderTop:"1px solid #e5e7eb",borderBottom:"1px solid #e5e7eb"}}>
+                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                            <thead>
+                              <tr style={{background:"#f9fafb"}}>
+                                {["DATE","OPP","RESULT","AB","R","H","2B","3B","HR","RBI","BB","SO"].map(c=>(
+                                  <th key={c} style={{padding:"8px 8px",textAlign:c==="DATE"||c==="OPP"?"left":"center",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb",paddingLeft:c==="DATE"?"20px":"8px"}}>{c}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {visibleGames.map((g,i)=>(
+                                <tr key={i} style={{borderBottom:"1px solid #f0f0f0",background:i%2===0?"#fff":"#fafafa"}}>
+                                  <td style={{padding:"9px 8px 9px 20px",color:"#555",whiteSpace:"nowrap",fontSize:12}}>{fmtDate(g.date)}</td>
+                                  <td style={{padding:"9px 8px",color:"#111",whiteSpace:"nowrap",maxWidth:130,overflow:"hidden",textOverflow:"ellipsis"}}>
+                                    <span style={{color:"#888",marginRight:3}}>{g.isHome?"vs":"@"}</span>{g.opp}
+                                  </td>
+                                  <td style={{padding:"9px 8px",textAlign:"center",fontWeight:700,whiteSpace:"nowrap",color:g.won?"#16a34a":"#dc2626"}}>
+                                    {g.won?"W":"L"} {g.myScore}-{g.oppScore}
+                                  </td>
+                                  <td style={{padding:"9px 8px",textAlign:"center"}}>{g.ab}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center"}}>{g.r}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center",fontWeight:g.h>0?600:400,color:g.h>0?"#111":"#aaa"}}>{g.h}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center"}}>{g.d||0}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center"}}>{g.t||0}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center",color:g.hr>0?"#c8102e":"inherit",fontWeight:g.hr>0?700:400}}>{g.hr||0}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center"}}>{g.rbi||0}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center"}}>{g.bb||0}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center",color:g.k>2?"#dc2626":"inherit"}}>{g.k||0}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                    <div style={{padding:"10px 20px 4px",fontSize:11,color:"#9ca3af"}}>Stats sourced from recorded box scores only.</div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* BATTING TABLE */}
         {tab === 0 && !loading && (
