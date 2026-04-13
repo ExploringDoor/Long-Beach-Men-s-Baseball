@@ -366,7 +366,7 @@ const SCHED = [
 
 const BOOMERS_SCHED = [
   {date:"Apr 11",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
-  {date:"Apr 25",time:"2:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey"},
+  {date:"Apr 25",time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey"},
   {date:"May 9", time:"3:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
   {date:"Jun 6", time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey"},
   {date:"Jun 20",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
@@ -638,10 +638,10 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
   useEffect(() => {
     async function load() {
       try {
-        const allSeasons = await sbFetch("seasons?select=id,name&limit=20");
+        const allSeasons = await sbFetch("seasons?select=id,name&limit=50");
         const isBoomers = BOOMERS_TEAMS.has(away) || BOOMERS_TEAMS.has(home);
         const season = isBoomers
-          ? allSeasons.find(x => x.name.includes("Boomers"))
+          ? allSeasons.find(x => x.name.toLowerCase().includes("boomers"))
           : allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!season) { setLoading(false); return; }
         const games = await sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${season.id}&status=eq.Final&limit=200`);
@@ -1038,9 +1038,9 @@ function HomePage({ setTab, setTeamDetail }) {
         return (b.rs-b.ra)-(a.rs-a.ra);
       });
     };
-    sbFetch("seasons?select=id,name&limit=20").then(seasons => {
+    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
       const satSeason = seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
-      const bomSeason = seasons.find(x => x.name.includes("Boomers"));
+      const bomSeason = seasons.find(x => x.name.toLowerCase().includes("boomers"));
       return Promise.all([
         satSeason ? sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${satSeason.id}&status=eq.Final&limit=200`) : [],
         bomSeason ? sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${bomSeason.id}&status=eq.Final&limit=200`) : [],
@@ -1956,7 +1956,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
 
   // Load Saturday standings
   useEffect(() => {
-    sbFetch("seasons?select=id,name&limit=20")
+    sbFetch("seasons?select=id,name&limit=50")
       .then(allSeasons => {
         const s = allSeasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!s) return null;
@@ -1995,9 +1995,9 @@ function StandingsPage({ setTab, setTeamDetail }) {
 
   // Load Boomers standings
   useEffect(() => {
-    sbFetch("seasons?select=id,name&limit=20")
+    sbFetch("seasons?select=id,name&limit=50")
       .then(allSeasons => {
-        const s = allSeasons.find(x => x.name.includes("Boomers"));
+        const s = allSeasons.find(x => x.name.toLowerCase().includes("boomers"));
         if (!s) return null;
         return sbFetch(`games?select=away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&status=eq.Final&limit=200`);
       })
@@ -4033,7 +4033,7 @@ function PlayerEligibilityPage({ onBack }) {
     try {
       const [payData, seasons] = await Promise.all([
         sbFetch(`player_payments?select=id,player_name,team_name,paid,notes&season=eq.${encodeURIComponent(SEASON)}&order=team_name.asc,player_name.asc`),
-        sbFetch("seasons?select=id,name&limit=20"),
+        sbFetch("seasons?select=id,name&limit=50"),
       ]);
       setPayments(payData || []);
       // Count distinct game appearances per player — current season only
@@ -4697,7 +4697,7 @@ function WeeklyEmailPage({ onBack }) {
 
   useEffect(() => {
     Promise.all([
-      sbFetch("seasons?select=id,name&limit=20"),
+      sbFetch("seasons?select=id,name&limit=50"),
     ]).then(([seasons]) => {
       const s = seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
       if(!s) { setLoading(false); return; }
@@ -5684,7 +5684,7 @@ function AdminPage({ onAlertChange }) {
     sbFetch("seasons?select=id,name&limit=50")
       .then(seasons => {
         const s = leagueIdx === 1
-          ? seasons.find(x => x.name.includes("Boomers"))
+          ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
           : seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
         if (!s) return [];
         return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&away_score=not.is.null&order=game_date.desc&limit=100`);
@@ -6717,7 +6717,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     sbFetch("seasons?select=id,name&limit=50")
       .then(async seasons => {
         const sat = seasons.find(x=>x.name.includes("Spring")&&x.name.includes("2026"));
-        const bom = seasons.find(x=>x.name.includes("Boomers"));
+        const bom = seasons.find(x=>x.name.toLowerCase().includes("boomers"));
         const fetches = [];
         if (sat) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${sat.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
         if (bom) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${bom.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
@@ -6919,10 +6919,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         const isBoomerGame = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
         let season;
         if (isBoomerGame) {
-          season = allSeasons.find(s=>s.name.includes("Boomers"));
-          if(!season){const res=await sbPost("seasons",[{name:"Boomers 60/70 2026"}]);season=res[0];}
+          season = allSeasons.find(s=>s.name.toLowerCase().includes("boomers"));
+          if(!season){const res=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=res[0];}
         } else {
-          season = allSeasons.find(s=>s.name.includes("Spring")&&s.name.includes("2026"));
+          season = allSeasons.find(s=>s.name.includes("Diamond Classics Saturdays")||( s.name.includes("Spring")&&s.name.includes("2026")));
           if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
         }
         const [newGame] = await sbPost("games",[{
@@ -7224,12 +7224,12 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   // ── Pitching section — also called as a plain function ──
   const renderPit = (label,pit,setter) => (
-    <div style={{flex:1,minWidth:0}}>
+    <div style={{flex:1,minWidth:0,overflow:"hidden"}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
       {pit.map((p,i)=>(
         <div key={i} style={{background:"rgba(96,165,250,0.05)",border:"1px solid rgba(96,165,250,0.2)",
-          borderRadius:8,padding:"10px",marginBottom:6}}>
+          borderRadius:8,padding:"10px",marginBottom:6,overflow:"hidden"}}>
           <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:8}}>
             <input type="text" value={p.name} onChange={e=>updPit(setter,i,"name",e.target.value)}
               placeholder="Pitcher name"
@@ -7239,22 +7239,22 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               style={{padding:"4px 8px",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",
                 borderRadius:5,color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>✕</button>}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(8,1fr)",gap:4}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
             {[["IP","ip",true],["H","h"],["R","r"],["ER","er"],["BB","bb"],["SO","k"],["HR","hr"]].map(([lbl,f,isText])=>(
-              <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center"}}>
+              <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",minWidth:40}}>
                 <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>{lbl}</span>
                 {isText
                   ? <input type="text" value={p[f]} placeholder="6.0" onChange={e=>updPit(setter,i,f,e.target.value)}
-                      style={{width:38,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
+                      style={{width:44,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
                         borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
                   : N(p[f],v=>updPit(setter,i,f,v))
                 }
               </div>
             ))}
-            <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",minWidth:48}}>
               <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>Dec.</span>
               <select value={p.decision} onChange={e=>updPit(setter,i,"decision",e.target.value)}
-                style={{width:46,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
+                style={{width:52,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
                   borderRadius:4,fontSize:12,background:"#fff",fontFamily:"inherit"}}>
                 {["ND","W","L","S"].map(d=><option key={d}>{d}</option>)}
               </select>
@@ -7478,9 +7478,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             <thead>
               <tr style={{background:"#001a3e"}}>
                 <th style={{padding:"6px 10px",textAlign:"left",color:"rgba(255,255,255,0.5)",fontSize:11,minWidth:70}}></th>
-                {[1,2,3,4,5,6,7,8,9].map(n=>(
-                  <th key={n} style={{padding:"6px 5px",color:"rgba(255,255,255,0.6)",fontSize:11,
-                    fontWeight:700,textAlign:"center",width:36}}>{n}</th>
+                {awayInn.map((_,i)=>(
+                  <th key={i} style={{padding:"6px 5px",color:"rgba(255,255,255,0.6)",fontSize:11,
+                    fontWeight:700,textAlign:"center",width:36}}>{i+1}</th>
                 ))}
                 <th style={{padding:"6px 5px",color:"#FFD700",fontSize:11,fontWeight:700,textAlign:"center",width:36}}>R</th>
                 <th style={{padding:"6px 5px",color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:700,textAlign:"center",width:36}}>H</th>
@@ -7523,6 +7523,20 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             </tbody>
           </table>
         </div>
+        <div style={{marginTop:8,display:"flex",gap:8}}>
+          <button type="button" onClick={()=>{setAwayInn(p=>[...p,{r:""}]);setHomeInn(p=>[...p,{r:""}]);}}
+            style={{padding:"5px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",
+              borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+            + Extra Inning
+          </button>
+          {awayInn.length > 9 && (
+            <button type="button" onClick={()=>{setAwayInn(p=>p.slice(0,-1));setHomeInn(p=>p.slice(0,-1));}}
+              style={{padding:"5px 12px",background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.2)",
+                borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+              − Remove
+            </button>
+          )}
+        </div>
       </BSCrd>
 
       {/* Batting */}
@@ -7557,7 +7571,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             </div>
           );
           return (
-            <div className="bs-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+            <div style={{display:"flex",flexDirection:"column",gap:20}}>
               {(!captainTeam || isAwayTeam) ? renderPit(`${game.away} Pitching`,awayPit,setAwayPit) : lockedBox(game.away)}
               {(!captainTeam || isHomeTeam) ? renderPit(`${game.home} Pitching`,homePit,setHomePit) : lockedBox(game.home)}
             </div>
@@ -7665,6 +7679,10 @@ function StatsPage() {
       const seasonIdsWithData = new Set(allGames.filter(g => gameIdsWithData.has(g.id)).map(g => g.season_id));
       const namesWithData = new Set(allSeasons.filter(s => seasonIdsWithData.has(s.id)).map(s => s.name));
       setSeasonsWithData(namesWithData);
+
+      // Default to current Saturday season
+      const curSat = allSeasons.find(s => s.name.includes("Diamond Classics Saturdays") || (s.name.includes("Spring") && s.name.includes("2026")));
+      if (curSat && namesWithData.has(curSat.name)) setSeason(curSat.name);
     }).catch(() => {});
   }, []);
 
@@ -8495,7 +8513,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const endGame = async () => {
     setSaving(true);
     try {
-      const seasons=await sbFetch("seasons?select=id,name&limit=20");
+      const seasons=await sbFetch("seasons?select=id,name&limit=50");
       const isBoomerGame=BOOMERS_TEAMS.has(gs.away)&&BOOMERS_TEAMS.has(gs.home);
       let season;
       if(isBoomerGame){
