@@ -7666,7 +7666,7 @@ function seasonSortYear(name) {
 
 function StatsPage() {
   const [tab, setTab] = useState(0);
-  const [season, setSeason] = useState(ALL_SEASONS_KEY);
+  const [season, setSeason] = useState(null); // null = waiting for default to load
   const [seasons, setSeasons] = useState([]);
   const [seasonsWithData, setSeasonsWithData] = useState(new Set());
   const [batting, setBatting] = useState([]);
@@ -7716,12 +7716,13 @@ function StatsPage() {
 
       // Default to current Saturday season
       const curSat = allSeasons.find(s => s.name.includes("Diamond Classics Saturdays")) || allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
-      if (curSat) setSeason(curSat.name);
+      setSeason(curSat ? curSat.name : ALL_SEASONS_KEY);
     }).catch(() => {});
   }, []);
 
   // Load batting/pitching leaderboards when season changes
   useEffect(() => {
+    if (season === null) return; // still loading default season, don't fetch yet
     setLoading(true); setError(null);
 
     const isAll = season === ALL_SEASONS_KEY;
