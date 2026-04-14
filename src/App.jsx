@@ -5849,27 +5849,29 @@ function PlayerAvailabilityPage() {
     localStorage.setItem("avail_player", selectedPlayer);
     setLoading(true);
     const isBoomers = BOOMERS_TEAMS.has(selectedTeam);
-    // Get season id first
-    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
-      const s = isBoomers
-        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
-        : seasons.find(x => x.name.includes("Diamond Classics Saturdays"));
-      if (!s) { setGames([]); setLoading(false); return; }
-      const tEnc = encodeURIComponent(selectedTeam);
-      return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,field&season_id=eq.${s.id}&game_date=gte.${TODAY}&away_score=is.null&or=(away_team.eq.${tEnc},home_team.eq.${tEnc})&order=game_date.asc&limit=30`)
-        .then(upcomingGames => {
-          setGames(upcomingGames || []);
-          if (!upcomingGames || !upcomingGames.length) { setLoading(false); return; }
-          const ids = upcomingGames.map(g => g.id).join(",");
-          return sbFetch(`availability?select=game_id,status&player_name=eq.${encodeURIComponent(selectedPlayer)}&team=eq.${encodeURIComponent(selectedTeam)}&game_id=in.(${ids})`);
+    const schedKey = isBoomers ? "bom" : "sat";
+    sbFetch(`lbdc_schedules?id=eq.${schedKey}&select=data`).then(rows => {
+      const data = rows && rows[0] ? rows[0].data : [];
+      // Filter to this team's upcoming games
+      const upcoming = data
+        .filter(g => {
+          const iso = toISODate(g.date);
+          if (!iso || iso < TODAY) return false;
+          return g.away === selectedTeam || g.home === selectedTeam;
         })
-        .then(rows => {
-          if (!rows) { setLoading(false); return; }
-          const map = {};
-          rows.forEach(r => { map[r.game_id] = r.status; });
-          setAvailability(map);
-          setLoading(false);
-        });
+        .sort((a, b) => (toISODate(a.date) || "") < (toISODate(b.date) || "") ? -1 : 1)
+        .slice(0, 20);
+      setGames(upcoming);
+      if (!upcoming.length) { setLoading(false); return; }
+      // Load existing availability responses keyed by schedule game id
+      const ids = upcoming.map(g => g.id).join(",");
+      return sbFetch(`availability?select=game_id,status&player_name=eq.${encodeURIComponent(selectedPlayer)}&team=eq.${encodeURIComponent(selectedTeam)}&game_id=in.(${ids})`);
+    }).then(rows => {
+      if (!rows) { setLoading(false); return; }
+      const map = {};
+      rows.forEach(r => { map[r.game_id] = r.status; });
+      setAvailability(map);
+      setLoading(false);
     }).catch(() => setLoading(false));
   }, [selectedTeam, selectedPlayer]);
 
@@ -5949,17 +5951,17 @@ function PlayerAvailabilityPage() {
           ) : (
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               {games.map(g => {
-                const isHome = g.home_team === selectedTeam;
-                const opp = isHome ? g.away_team : g.home_team;
+                const isHome = g.home === selectedTeam;
+                const opp = isHome ? g.away : g.home;
                 const status = availability[g.id];
                 return (
                   <div key={g.id} style={{background:"#fff",borderRadius:12,padding:"16px 18px",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",borderLeft:`4px solid ${status==="yes"?"#16a34a":status==="no"?"#dc2626":"#e5e7eb"}`}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                       <div>
-                        <div style={{fontWeight:700,fontSize:16,color:"#111"}}>{fmtDate(g.game_date)}</div>
+                        <div style={{fontWeight:700,fontSize:16,color:"#111"}}>{g.date}</div>
                         <div style={{fontSize:13,color:"#555",marginTop:2}}>
                           {isHome ? "vs" : "@"} <strong>{opp}</strong>
-                          {g.game_time && <span style={{color:"#9ca3af"}}> · {g.game_time}</span>}
+                          {g.time && <span style={{color:"#9ca3af"}}> · {g.time}</span>}
                         </div>
                         {g.field && <div style={{fontSize:12,color:"#9ca3af",marginTop:2}}>{g.field}</div>}
                       </div>
@@ -6022,30 +6024,31 @@ function CaptainAvailabilityView({ teamName }) {
   useEffect(() => {
     if (!teamName) return;
     const isBoomers = BOOMERS_TEAMS.has(teamName);
+    const schedKey = isBoomers ? "bom" : "sat";
     Promise.all([
       sbFetch(`lbdc_rosters?select=name&team=eq.${encodeURIComponent(teamName)}&order=id.asc`),
-      sbFetch("seasons?select=id,name&limit=50"),
-    ]).then(([rosterRows, seasons]) => {
+      sbFetch(`lbdc_schedules?id=eq.${schedKey}&select=data`),
+    ]).then(([rosterRows, schedRows]) => {
       const players = rosterRows.map(r => r.name);
       setRoster(players);
-      const s = isBoomers
-        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
-        : seasons.find(x => x.name.includes("Diamond Classics Saturdays"));
-      if (!s) { setLoading(false); return; }
-      const tEnc2 = encodeURIComponent(teamName);
-      return sbFetch(`games?select=id,game_date,game_time,away_team,home_team&season_id=eq.${s.id}&game_date=gte.${TODAY}&away_score=is.null&or=(away_team.eq.${tEnc2},home_team.eq.${tEnc2})&order=game_date.asc&limit=20`)
-        .then(upcomingGames => {
-          setGames(upcomingGames || []);
-          if (!upcomingGames || !upcomingGames.length) { setLoading(false); return; }
-          const ids = upcomingGames.map(g => g.id).join(",");
-          return sbFetch(`availability?select=game_id,player_name,status&team=eq.${encodeURIComponent(teamName)}&game_id=in.(${ids})`);
+      const data = schedRows && schedRows[0] ? schedRows[0].data : [];
+      const upcoming = data
+        .filter(g => {
+          const iso = toISODate(g.date);
+          if (!iso || iso < TODAY) return false;
+          return g.away === teamName || g.home === teamName;
         })
-        .then(rows => {
-          const map = {};
-          (rows||[]).forEach(r => { map[`${r.game_id}_${r.player_name}`] = r.status; });
-          setAvailability(map);
-          setLoading(false);
-        });
+        .sort((a, b) => (toISODate(a.date)||"") < (toISODate(b.date)||"") ? -1 : 1)
+        .slice(0, 20);
+      setGames(upcoming);
+      if (!upcoming.length) { setLoading(false); return; }
+      const ids = upcoming.map(g => g.id).join(",");
+      return sbFetch(`availability?select=game_id,player_name,status&team=eq.${encodeURIComponent(teamName)}&game_id=in.(${ids})`);
+    }).then(rows => {
+      const map = {};
+      (rows||[]).forEach(r => { map[`${r.game_id}_${r.player_name}`] = r.status; });
+      setAvailability(map);
+      setLoading(false);
     }).catch(() => setLoading(false));
   }, [teamName]);
 
@@ -6093,9 +6096,9 @@ function CaptainAvailabilityView({ teamName }) {
               <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#6b7280",textTransform:"uppercase",letterSpacing:".06em",whiteSpace:"nowrap",borderBottom:"2px solid #e5e7eb",minWidth:130}}>Player</th>
               {games.map(g => (
                 <th key={g.id} style={{padding:"8px 8px",textAlign:"center",fontWeight:700,fontSize:11,color:"#6b7280",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap",borderBottom:"2px solid #e5e7eb",minWidth:80}}>
-                  <div>{fmtDate(g.game_date)}</div>
+                  <div>{g.date}</div>
                   <div style={{fontSize:10,fontWeight:500,color:"#9ca3af",textTransform:"none"}}>
-                    {g.away_team === teamName ? `@ ${g.home_team.split(" ")[0]}` : `vs ${g.away_team.split(" ")[0]}`}
+                    {g.away === teamName ? `@ ${g.home.split(" ")[0]}` : `vs ${g.away.split(" ")[0]}`}
                   </div>
                 </th>
               ))}
