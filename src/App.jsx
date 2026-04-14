@@ -5817,7 +5817,7 @@ function LocalStorageMigrationButton() {
 // ─────────────────────────────────────────────
 //  PLAYER AVAILABILITY PAGE
 // ─────────────────────────────────────────────
-function PlayerAvailabilityPage() {
+function PlayerAvailabilityPage({ setTab }) {
   const TODAY = new Date().toISOString().slice(0,10);
   const teamNames = ALL_TEAMS.map(t => t.name).sort();
 
@@ -6000,7 +6000,7 @@ function PlayerAvailabilityPage() {
           <div style={{fontSize:13,color:"#555",lineHeight:1.6}}>
             Register at <strong>lbdc.vercel.app → Sign Up</strong> and your name will automatically be added to your team's roster — it will then appear here, in box scores, and in live scoring.
           </div>
-          <button onClick={() => { window.location.hash = "#/signup"; window.scrollTo(0,0); }}
+          <button onClick={() => setTab && setTab("signup")}
             style={{marginTop:10,padding:"8px 16px",background:"#002d6e",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer"}}>
             Register Now →
           </button>
@@ -10255,7 +10255,7 @@ export default function App() {
       {tab==="photos"    && <PhotosPage />}
       {tab==="signup"    && <PlayerSignUpPage />}
       {tab==="graphics"   && <GraphicsPage />}
-      {tab==="availability" && <PlayerAvailabilityPage />}
+      {tab==="availability" && <PlayerAvailabilityPage setTab={handleSetTab} />}
       <Footer setTab={handleSetTab} />
     </div>
   );
