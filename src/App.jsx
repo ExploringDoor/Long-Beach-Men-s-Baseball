@@ -7251,6 +7251,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // ── Recap ──
   const [recap, setRecap] = useState("");
 
+  // ── Lineup order phase (captain portal only) ──
+  // "entry" = show full form immediately (admin / edit mode)
+  // "lineup" = show batting order setup first, then go to "entry"
+  const [bsePhase, setBsePhase] = useState("entry");
+  const [lineupOrder, setLineupOrder] = useState([]); // player names in tap order
+  const [lineupNameInput, setLineupNameInput] = useState("");
+  const [rosterFetched, setRosterFetched] = useState(false); // true once Supabase roster merge is done
+
   // ── Drag & drop batting order ──
   const dragRef = useRef({idx:null, side:null});
   const [dragVisual, setDragVisual] = useState({idx:null, side:null}); // for visual feedback only
@@ -7421,6 +7429,13 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setAwayStatMode("simple"); setHomeStatMode("simple");
     }
     setSaveMsg(null);
+    // Captain portal: go to lineup order step first (unless a draft already exists)
+    if (captainTeam) {
+      setLineupOrder([]);
+      setLineupNameInput("");
+      setRosterFetched(false);
+      setBsePhase(draft ? "entry" : "lineup");
+    }
   };
 
   // ── Merge Supabase roster players that aren't in the hardcoded list ──
@@ -7448,7 +7463,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           return [...prev, ...toAdd.map(blankBatter)];
         });
       });
-    });
+      setRosterFetched(true);
+    }).catch(() => setRosterFetched(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game]);
 
@@ -8027,6 +8043,149 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       )}
     </div>
   );
+
+  // ── LINEUP ORDER PHASE (captain portal only) ──
+  if (game && bsePhase === "lineup" && captainTeam) {
+    const isAway = game.away === captainTeam;
+    const teamBat   = isAway ? awayBat   : homeBat;
+    const setTeamBat = isAway ? setAwayBat : setHomeBat;
+    const setTeamMode = isAway ? setAwayStatMode : setHomeStatMode;
+
+    const addToOrder = (name) => {
+      if (!name.trim() || lineupOrder.includes(name.trim())) return;
+      setLineupOrder(prev => [...prev, name.trim()]);
+      setLineupNameInput("");
+    };
+    const removeFromOrder = (i) => setLineupOrder(prev => prev.filter((_,j) => j !== i));
+
+    const confirmLineup = () => {
+      if (!lineupOrder.length) { alert("Add at least 1 player to the lineup."); return; }
+      const ordered = lineupOrder.map(name => teamBat.find(p => p.name === name) || blankBatter(name));
+      const rest = teamBat.filter(p => !lineupOrder.includes(p.name)).map(p => ({...p, on:false}));
+      setTeamBat([...ordered, ...rest]);
+      setTeamMode("full");
+      setBsePhase("entry");
+    };
+
+    const available = teamBat.map(p => p.name).filter(n => n && !lineupOrder.includes(n));
+
+    return (
+      <div>
+        {/* Back to game select */}
+        <button onClick={()=>{ setGame(null); setBsePhase("entry"); setLineupOrder([]); }}
+          style={{marginBottom:14,padding:"6px 14px",background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}>
+          ← Change Game
+        </button>
+
+        {/* Game banner */}
+        <div style={{background:"#001a3e",borderRadius:10,padding:"12px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:12}}>
+          <div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase",letterSpacing:".04em"}}>
+              {game.away} <span style={{color:"rgba(255,255,255,0.3)"}}>@</span> {game.home}
+            </div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginTop:2}}>{game.date} · {game.time} · {game.field}</div>
+          </div>
+        </div>
+
+        {/* Step indicator */}
+        <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:16}}>
+          {[["1","Select Game","done"],["2","Set Batting Order","active"],["3","Enter Stats","upcoming"]].map(([n,lbl,st],idx)=>(
+            <div key={n} style={{display:"contents"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:26,height:26,borderRadius:"50%",
+                  background:st==="done"?"#22c55e":st==="active"?"#002d6e":"#e5e7eb",
+                  color:st==="upcoming"?"#9ca3af":"#fff",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,flexShrink:0}}>
+                  {st==="done"?"✓":n}
+                </div>
+                <span style={{fontSize:12,fontWeight:700,color:st==="active"?"#002d6e":st==="done"?"#22c55e":"#9ca3af",
+                  whiteSpace:"nowrap"}}>{lbl}</span>
+              </div>
+              {idx<2 && <div style={{flex:1,height:2,background:"#e5e7eb",margin:"0 8px",minWidth:16}}/>}
+            </div>
+          ))}
+        </div>
+
+        {/* Lineup card */}
+        <div style={{background:"#fff",borderRadius:12,border:"1px solid rgba(0,0,0,0.09)",padding:"20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#002d6e",marginBottom:4}}>
+            ⚾ {captainTeam} Batting Order
+          </div>
+          <div style={{fontSize:13,color:"#888",marginBottom:16,lineHeight:1.5}}>
+            Tap players in batting order — #1 first. Players not added will be marked as not playing.
+          </div>
+
+          {/* Already ordered list */}
+          {lineupOrder.length > 0 && (
+            <div style={{marginBottom:14}}>
+              {lineupOrder.map((name, i) => (
+                <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+                  <div style={{width:28,height:28,borderRadius:"50%",background:"#002d6e",color:"#FFD700",
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,flexShrink:0}}>{i+1}</div>
+                  <span style={{flex:1,fontSize:15,fontWeight:600}}>{name}</span>
+                  <button onClick={()=>removeFromOrder(i)}
+                    style={{padding:"3px 8px",background:"rgba(220,38,38,0.1)",border:"none",borderRadius:5,color:"#dc2626",fontWeight:700,cursor:"pointer",fontSize:13}}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Available players */}
+          {!rosterFetched && (
+            <div style={{textAlign:"center",padding:"18px",color:"#888",fontSize:13}}>⏳ Loading roster…</div>
+          )}
+          {rosterFetched && available.length > 0 && (
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#888",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>
+                {lineupOrder.length === 0 ? "Tap to add to lineup:" : `👆 Tap your #${lineupOrder.length+1} batter:`}
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {available.map(name => (
+                  <button key={name} onClick={()=>addToOrder(name)}
+                    style={{padding:"6px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",
+                      borderRadius:8,fontSize:13,fontWeight:600,color:"#002d6e",cursor:"pointer",
+                      fontFamily:"inherit",transition:"background .1s"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.14)"}
+                    onMouseLeave={e=>e.currentTarget.style.background="rgba(0,45,110,0.07)"}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom player input */}
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <input type="text" value={lineupNameInput} onChange={e=>setLineupNameInput(e.target.value)}
+              onKeyDown={e=>{if(e.key==="Enter") addToOrder(lineupNameInput);}}
+              placeholder="Add player not on roster…"
+              style={{flex:1,padding:"8px 12px",border:"1px solid #ddd",borderRadius:8,fontSize:13,fontFamily:"inherit"}}/>
+            <button onClick={()=>addToOrder(lineupNameInput)}
+              style={{padding:"8px 14px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Skip / Confirm buttons */}
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>{ setTeamMode("simple"); setBsePhase("entry"); }}
+            style={{padding:"12px 20px",background:"rgba(0,0,0,0.06)",border:"1px solid rgba(0,0,0,0.15)",borderRadius:10,fontWeight:700,fontSize:14,cursor:"pointer",color:"#555"}}>
+            Skip — Enter Score Only
+          </button>
+          <button onClick={confirmLineup} disabled={lineupOrder.length===0}
+            style={{flex:1,padding:"13px",background:lineupOrder.length?"#002d6e":"#e5e7eb",border:"none",borderRadius:10,
+              color:lineupOrder.length?"#FFD700":"#9ca3af",fontFamily:"'Barlow Condensed',sans-serif",
+              fontWeight:900,fontSize:18,textTransform:"uppercase",cursor:lineupOrder.length?"pointer":"default",
+              letterSpacing:".04em",transition:"background .15s"}}>
+            {lineupOrder.length ? `✅ Confirm ${lineupOrder.length}-Man Lineup → Enter Stats` : "Tap players above to set order"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ── FULL BOX SCORE FORM ──
   return (
