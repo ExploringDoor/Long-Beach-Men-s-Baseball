@@ -7764,66 +7764,86 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           </button>
         </div>
       )}
-      {statMode==="full" && batters.map((p,i)=>(
-        <div key={p._id||i}
-          onDragOver={e=>e.preventDefault()}
-          onDrop={e=>handleDrop(e,side,setter,i)}
-          style={{background:p.on?"#f8f9fb":"rgba(0,0,0,0.03)",
-            border:`1px solid ${(dragVisual.idx===i&&dragVisual.side===side)?"#002d6e":"rgba(0,0,0,0.09)"}`,
-            borderRadius:8,marginBottom:5,opacity:p.on?1:0.5,transition:"border-color .1s"}}>
-          <div style={{display:"flex",alignItems:"center",gap:5,padding:"7px 8px"}}>
-            {/* ⠿ handle — ONLY this element is draggable, so clicks elsewhere never scroll */}
-            <div
-              draggable
-              onDragStart={e=>handleDragStart(e,side,i)}
-              onDragEnd={handleDragEnd}
-              style={{fontSize:16,color:"#aaa",flexShrink:0,userSelect:"none",cursor:"grab",padding:"0 3px",touchAction:"none"}}>⠿</div>
-            {/* batting order: up/down buttons + number display */}
-            <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0,alignItems:"center"}}>
-              <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,-1);}}
-                className="bs-order-btn"
-                style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:4,cursor:"pointer",
-                  fontSize:10,lineHeight:1,color:"#002d6e",padding:"3px 6px",fontWeight:900}}>▲</button>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,
-                color:"#002d6e",textAlign:"center",lineHeight:1,padding:"1px 0"}}>{i+1}</div>
-              <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,1);}}
-                className="bs-order-btn"
-                style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:4,cursor:"pointer",
-                  fontSize:10,lineHeight:1,color:"#002d6e",padding:"3px 6px",fontWeight:900}}>▼</button>
-            </div>
-            {/* name */}
-            <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
-              onDragStart={e=>e.stopPropagation()}
-              className="bs-name-input"
-              style={{flex:1,padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:13,
-                fontFamily:"inherit",minWidth:0,cursor:"text"}}/>
-            {/* position */}
-            <select value={p.pos} onChange={e=>updBat(setter,i,"pos",e.target.value)}
-              style={{width:50,padding:"4px 2px",border:"1px solid #ddd",borderRadius:5,fontSize:12,
-                fontFamily:"inherit"}}>
-              {POSITIONS.map(pos=><option key={pos} value={pos}>{pos||"Pos"}</option>)}
-            </select>
-            {/* toggle */}
-            <button onClick={()=>updBat(setter,i,"on",!p.on)}
-              style={{width:34,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",
-                flexShrink:0,background:p.on?"#22c55e":"rgba(0,0,0,0.15)",transition:"background .15s"}}>
-              <span style={{position:"absolute",width:14,height:14,borderRadius:"50%",background:"#fff",
-                top:3,left:p.on?17:3,transition:"left .15s"}}/>
-            </button>
-          </div>
-          {p.on && (
-            <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:"0 10px 9px"}}>
-              {BAT_STATS.map((f,fi)=>(
-                <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",minWidth:38}}>
-                  <span className="bs-stat-label" style={{fontSize:9,fontWeight:700,color:"#999",letterSpacing:".05em",
-                    textTransform:"uppercase"}}>{BAT_LBLS[fi]}</span>
-                  {N(p[f],v=>updBat(setter,i,f,v),{className:"bs-stat-input"})}
-                </div>
+      {statMode==="full" && (
+        <div style={{overflowX:"auto",marginBottom:4}}>
+          <table style={{borderCollapse:"collapse",fontSize:13,minWidth:"100%"}}>
+            <thead>
+              <tr style={{background:"#001a3e"}}>
+                <th style={{padding:"6px 4px",width:22}}/>
+                <th style={{padding:"6px 4px",width:38,textAlign:"center",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700}}>#</th>
+                <th style={{padding:"6px 10px",textAlign:"left",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700,minWidth:140}}>PLAYER</th>
+                <th style={{padding:"6px 4px",width:52,textAlign:"center",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700}}>POS</th>
+                {BAT_LBLS.map(lbl=>(
+                  <th key={lbl} style={{padding:"6px 4px",width:44,textAlign:"center",color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:700}}>{lbl}</th>
+                ))}
+                <th style={{padding:"6px 4px",width:36}}/>
+              </tr>
+            </thead>
+            <tbody>
+              {batters.map((p,i)=>(
+                <tr key={p._id||i}
+                  onDragOver={e=>e.preventDefault()}
+                  onDrop={e=>handleDrop(e,side,setter,i)}
+                  style={{background:p.on?(i%2===0?"#fff":"#f8f9fb"):"rgba(0,0,0,0.03)",
+                    opacity:p.on?1:0.45,
+                    outline:(dragVisual.idx===i&&dragVisual.side===side)?"2px solid #002d6e":"none"}}>
+                  {/* drag handle */}
+                  <td style={{padding:"3px 2px",textAlign:"center"}}>
+                    <div draggable onDragStart={e=>handleDragStart(e,side,i)} onDragEnd={handleDragEnd}
+                      style={{fontSize:15,color:"#bbb",cursor:"grab",userSelect:"none",touchAction:"none",padding:"0 4px"}}>⠿</div>
+                  </td>
+                  {/* order ▲▼ + number */}
+                  <td style={{padding:"3px 2px",textAlign:"center",whiteSpace:"nowrap"}}>
+                    <div style={{display:"flex",flexDirection:"column",gap:1,alignItems:"center"}}>
+                      <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,-1);}}
+                        className="bs-order-btn"
+                        style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 5px",fontWeight:900}}>▲</button>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:12,color:"#002d6e",lineHeight:1,padding:"1px 0"}}>{i+1}</div>
+                      <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,1);}}
+                        className="bs-order-btn"
+                        style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 5px",fontWeight:900}}>▼</button>
+                    </div>
+                  </td>
+                  {/* name */}
+                  <td style={{padding:"3px 6px"}}>
+                    <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
+                      onDragStart={e=>e.stopPropagation()} className="bs-name-input"
+                      style={{width:"100%",minWidth:130,padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:13,fontFamily:"inherit"}}/>
+                  </td>
+                  {/* position */}
+                  <td style={{padding:"3px 2px",textAlign:"center"}}>
+                    <select value={p.pos} onChange={e=>updBat(setter,i,"pos",e.target.value)}
+                      style={{width:50,padding:"4px 2px",border:"1px solid #ddd",borderRadius:5,fontSize:12,fontFamily:"inherit"}}>
+                      {POSITIONS.map(pos=><option key={pos} value={pos}>{pos||"Pos"}</option>)}
+                    </select>
+                  </td>
+                  {/* stats */}
+                  {BAT_STATS.map((f)=>(
+                    <td key={f} style={{padding:"3px 2px",textAlign:"center"}}>
+                      {p.on
+                        ? <input type="number" min="0" inputMode="numeric" value={p[f]}
+                            onChange={e=>updBat(setter,i,f,Math.max(0,parseInt(e.target.value)||0))}
+                            onWheel={e=>e.target.blur()}
+                            style={{width:42,padding:"4px 2px",textAlign:"center",border:"1px solid #ddd",
+                              borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
+                        : <span style={{color:"#ccc",fontSize:12}}>—</span>}
+                    </td>
+                  ))}
+                  {/* toggle on/off */}
+                  <td style={{padding:"3px 6px",textAlign:"center"}}>
+                    <button type="button" onClick={()=>updBat(setter,i,"on",!p.on)}
+                      style={{width:34,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",
+                        flexShrink:0,background:p.on?"#22c55e":"rgba(0,0,0,0.15)",transition:"background .15s"}}>
+                      <span style={{position:"absolute",width:14,height:14,borderRadius:"50%",background:"#fff",
+                        top:3,left:p.on?17:3,transition:"left .15s"}}/>
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
-      ))}
+      )}
       <div style={{display:"flex",gap:6,marginTop:6}}>
         <input type="text" value={addName} onChange={e=>setAddName(e.target.value)}
           placeholder="Add player..." onKeyDown={e=>{if(e.key==="Enter"&&addName.trim()){setter(p=>[...p,blankBatter(addName.trim())]);setAddName("");}}}
@@ -7836,51 +7856,65 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     );
   };
 
-  // ── Pitching section — also called as a plain function ──
+  // ── Pitching section — table layout ──
   const renderPit = (label,pit,setter) => (
-    <div style={{flex:1,minWidth:0,overflow:"hidden"}}>
+    <div style={{minWidth:0}}>
       <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
-      {pit.map((p,i)=>(
-        <div key={i} style={{background:"rgba(96,165,250,0.05)",border:"1px solid rgba(96,165,250,0.2)",
-          borderRadius:8,padding:"10px",marginBottom:6}}>
-          <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:8}}>
-            <input type="text" value={p.name} onChange={e=>updPit(setter,i,"name",e.target.value)}
-              placeholder="Pitcher name"
-              style={{flex:1,padding:"6px 10px",border:"1px solid rgba(96,165,250,0.3)",borderRadius:6,
-                fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
-            {pit.length>1&&<button onClick={()=>setter(p=>p.filter((_,j)=>j!==i))}
-              style={{padding:"4px 8px",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",
-                borderRadius:5,color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>✕</button>}
-          </div>
-          <div style={{overflowX:"auto",paddingBottom:4}}>
-            <div style={{display:"flex",gap:6,minWidth:"max-content"}}>
-              {[["IP","ip",true],["H","h"],["R","r"],["ER","er"],["BB","bb"],["SO","k"],["HR","hr"]].map(([lbl,f,isText])=>(
-                <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",width:44}}>
-                  <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>{lbl}</span>
-                  {isText
-                    ? <input type="text" value={p[f]} placeholder="6.0" onChange={e=>updPit(setter,i,f,e.target.value)}
-                        style={{width:44,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
-                          borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
-                    : N(p[f],v=>updPit(setter,i,f,v))
-                  }
-                </div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{borderCollapse:"collapse",fontSize:13,minWidth:"100%"}}>
+          <thead>
+            <tr style={{background:"#001a3e"}}>
+              <th style={{padding:"6px 10px",textAlign:"left",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700,minWidth:140}}>PITCHER</th>
+              {[["IP","ip"],["H","h"],["R","r"],["ER","er"],["BB","bb"],["SO","k"],["HR","hr"],["DEC.","decision"]].map(([lbl])=>(
+                <th key={lbl} style={{padding:"6px 4px",width:50,textAlign:"center",color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:700}}>{lbl}</th>
               ))}
-              <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",width:52}}>
-                <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>Dec.</span>
-                <select value={p.decision} onChange={e=>updPit(setter,i,"decision",e.target.value)}
-                  style={{width:52,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
-                    borderRadius:4,fontSize:12,background:"#fff",fontFamily:"inherit"}}>
-                  {["ND","W","L","S"].map(d=><option key={d}>{d}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
+              <th style={{width:30}}/>
+            </tr>
+          </thead>
+          <tbody>
+            {pit.map((p,i)=>(
+              <tr key={i} style={{background:i%2===0?"#fff":"#f8f9fb"}}>
+                <td style={{padding:"4px 6px"}}>
+                  <input type="text" value={p.name} onChange={e=>updPit(setter,i,"name",e.target.value)}
+                    placeholder="Pitcher name"
+                    style={{width:"100%",minWidth:130,padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
+                </td>
+                <td style={{padding:"3px 2px",textAlign:"center"}}>
+                  <input type="text" value={p.ip} placeholder="6.0" onChange={e=>updPit(setter,i,"ip",e.target.value)}
+                    style={{width:46,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.4)",
+                      borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
+                </td>
+                {[["h"],["r"],["er"],["bb"],["k"],["hr"]].map(([f])=>(
+                  <td key={f} style={{padding:"3px 2px",textAlign:"center"}}>
+                    <input type="number" min="0" inputMode="numeric" value={p[f]}
+                      onChange={e=>updPit(setter,i,f,Math.max(0,parseInt(e.target.value)||0))}
+                      onWheel={e=>e.target.blur()}
+                      style={{width:42,padding:"4px 2px",textAlign:"center",border:"1px solid #ddd",
+                        borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
+                  </td>
+                ))}
+                <td style={{padding:"3px 2px",textAlign:"center"}}>
+                  <select value={p.decision} onChange={e=>updPit(setter,i,"decision",e.target.value)}
+                    style={{width:54,padding:"4px 2px",textAlign:"center",border:"1px solid #ddd",
+                      borderRadius:4,fontSize:12,background:"#fff",fontFamily:"inherit"}}>
+                    {["ND","W","L","S"].map(d=><option key={d}>{d}</option>)}
+                  </select>
+                </td>
+                <td style={{padding:"3px 4px",textAlign:"center"}}>
+                  {pit.length>1 && (
+                    <button type="button" onClick={()=>setter(p=>p.filter((_,j)=>j!==i))}
+                      style={{background:"none",border:"none",color:"#dc2626",fontSize:16,cursor:"pointer",padding:"2px 4px",lineHeight:1}}>×</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <button onClick={()=>setter(p=>[...p,blankPitcher()])}
         style={{padding:"6px 12px",background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",
-          borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer",marginTop:4}}>+ Add Pitcher</button>
+          borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer",marginTop:8}}>+ Add Pitcher</button>
     </div>
   );
 
@@ -8167,7 +8201,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             </div>
           );
           return (
-            <div className="bs-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+            <div style={{display:"flex",flexDirection:"column",gap:24}}>
               {(!captainTeam || isAwayTeam) ? renderBats(`${game.away} Batting`,"away",awayBat,setAwayBat,addAwayName,setAddAwayName,awayStatMode,setAwayStatMode) : lockedBox(game.away)}
               {(!captainTeam || isHomeTeam) ? renderBats(`${game.home} Batting`,"home",homeBat,setHomeBat,addHomeName,setAddHomeName,homeStatMode,setHomeStatMode) : lockedBox(game.home)}
             </div>
