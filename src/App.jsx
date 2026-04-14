@@ -2670,11 +2670,67 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       setLiveRecord({w,l,t,gp,rs,ra,pct});
     }).catch(()=>{});
   }, [teamName]);
-  if (!team) return null;
-  const color = TEAM_COLORS[teamName] || "#002d6e";
+  const isTournamentTeam = !team;
+  const color = TEAM_COLORS[teamName] || "#b45309";
+  const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); } };
+
+  // ── Tournament team page ──────────────────────────────────────────────────
+  if (isTournamentTeam) {
+    return (
+      <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+        {selectedPlayer && <PlayerStatsModal playerName={selectedPlayer} onClose={()=>setSelectedPlayer(null)} />}
+        <div style={{background:`linear-gradient(135deg, ${color}15 0%, #fff 60%)`,borderBottom:"3px solid #b45309",padding:"32px clamp(12px,3vw,40px) 24px"}}>
+          <div style={{maxWidth:1400,margin:"0 auto"}}>
+            <button onClick={onBack} style={{background:"rgba(0,0,0,0.07)",border:"1px solid rgba(0,0,0,0.12)",borderRadius:6,cursor:"pointer",color:"#333",fontSize:13,fontWeight:700,marginBottom:16,padding:"6px 14px",display:"inline-flex",alignItems:"center",gap:6}}>
+              ← {prevTab && prevTab !== "teams" ? `Back to ${prevTab.charAt(0).toUpperCase()+prevTab.slice(1)}` : "All Teams"}
+            </button>
+            <div style={{display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>
+              <div style={{width:80,height:80,borderRadius:"50%",background:"#b45309",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:36,fontWeight:900,flexShrink:0}}>
+                {teamName.charAt(0)}
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"#b45309",marginBottom:4}}>Tournament Team</div>
+                <h1 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(36px,5vw,60px)",textTransform:"uppercase",color:"#111",lineHeight:1}}>{teamName}</h1>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+          <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Roster</h2>
+          <Card>
+            {roster.length === 0 ? (
+              <div style={{padding:"32px 20px",textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>No players on roster yet. Add them in Admin → Manage Rosters.</div>
+            ) : (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))"}}>
+                {roster.map((player, i) => {
+                  const name = typeof player === "string" ? player : player.name;
+                  const num  = typeof player === "string" ? "" : player.number;
+                  return (
+                    <button key={i} onClick={() => setSelectedPlayer(name)}
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",width:"100%",transition:"background .12s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="rgba(180,83,9,0.05)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <div style={{width:30,height:30,borderRadius:"50%",background:"rgba(180,83,9,0.12)",border:"2px solid rgba(180,83,9,0.3)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,color:"#b45309"}}>{num||"—"}</span>
+                      </div>
+                      <div>
+                        <span style={{fontSize:14,fontWeight:600,color:"#111"}}>{name}</span>
+                        <div style={{fontSize:10,color:"#b45309",fontWeight:700,letterSpacing:".05em",marginTop:1}}>View Stats →</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Regular season team page ───────────────────────────────────────────────
   const rec = liveRecord || {w:team.w,l:team.l,t:team.t,pct:team.pct,rs:team.rs,ra:team.ra};
   const teamGames = SCORES.flatMap(s => s.weeks.flatMap(w => w.games)).filter(g => g.away===teamName||g.home===teamName).slice(0,5);
-  const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); } };
 
   // Build full season schedule for this team
   const fullSchedule = SCHED.flatMap(week =>
