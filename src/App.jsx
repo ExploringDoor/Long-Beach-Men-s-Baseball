@@ -5907,7 +5907,7 @@ function PlayerAvailabilityPage() {
     <div style={{minHeight:"100vh",background:"#f2f4f8",paddingBottom:60}}>
       <div style={{background:"#002d6e",padding:"clamp(20px,4vw,40px) clamp(16px,4vw,40px) 28px"}}>
         <div style={{maxWidth:600,margin:"0 auto"}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:clamp(28,4,36),textTransform:"uppercase",color:"#fff",letterSpacing:".04em",lineHeight:1}}>My Availability</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:32,textTransform:"uppercase",color:"#fff",letterSpacing:".04em",lineHeight:1}}>My Availability</div>
           <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:6}}>Let your team know if you can make the game</div>
         </div>
       </div>
