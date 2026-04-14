@@ -6427,7 +6427,7 @@ function AdminPage({ onAlertChange }) {
             <button type="button" onClick={()=>{setScreen("login");setCaptainTeam("");setCaptainView("menu");}} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.7)",fontSize:13,cursor:"pointer"}}>Log out</button>
           </div>
         </div>
-        <div style={{maxWidth:600,margin:"0 auto",padding:"32px clamp(12px,3vw,40px) 60px"}}>
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           {captainView === "menu" && (
             <div style={{display:"flex",flexDirection:"column",gap:16}}>
               <button onClick={()=>setCaptainView("live")}
@@ -7200,7 +7200,7 @@ function BSH2({n,title,sub}) {
 function BSCrd({children,style={}}) {
   return (
     <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,
-      padding:"18px 20px",marginBottom:14,...style}}>{children}</div>
+      padding:"16px",marginBottom:14,...style}}>{children}</div>
   );
 }
 
@@ -7769,14 +7769,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           <table style={{borderCollapse:"collapse",fontSize:13,minWidth:"100%"}}>
             <thead>
               <tr style={{background:"#001a3e"}}>
-                <th style={{padding:"6px 4px",width:22}}/>
-                <th style={{padding:"6px 4px",width:38,textAlign:"center",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700}}>#</th>
-                <th style={{padding:"6px 10px",textAlign:"left",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700,minWidth:140}}>PLAYER</th>
-                <th style={{padding:"6px 4px",width:52,textAlign:"center",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700}}>POS</th>
+                <th style={{padding:"4px 2px",width:16}}/>
+                <th style={{padding:"4px 2px",width:32,textAlign:"center",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700}}>#</th>
+                <th style={{padding:"4px 8px",textAlign:"left",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700,minWidth:120}}>PLAYER</th>
+                <th style={{padding:"4px 2px",width:46,textAlign:"center",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700}}>POS</th>
                 {BAT_LBLS.map(lbl=>(
-                  <th key={lbl} style={{padding:"6px 4px",width:44,textAlign:"center",color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:700}}>{lbl}</th>
+                  <th key={lbl} style={{padding:"4px 2px",width:38,textAlign:"center",color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:700}}>{lbl}</th>
                 ))}
-                <th style={{padding:"6px 4px",width:36}}/>
+                <th style={{padding:"4px 2px",width:30}}/>
               </tr>
             </thead>
             <tbody>
@@ -7788,43 +7788,43 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                     opacity:p.on?1:0.45,
                     outline:(dragVisual.idx===i&&dragVisual.side===side)?"2px solid #002d6e":"none"}}>
                   {/* drag handle */}
-                  <td style={{padding:"3px 2px",textAlign:"center"}}>
+                  <td style={{padding:"2px 1px",textAlign:"center"}}>
                     <div draggable onDragStart={e=>handleDragStart(e,side,i)} onDragEnd={handleDragEnd}
-                      style={{fontSize:15,color:"#bbb",cursor:"grab",userSelect:"none",touchAction:"none",padding:"0 4px"}}>⠿</div>
+                      style={{fontSize:13,color:"#ccc",cursor:"grab",userSelect:"none",touchAction:"none",padding:"0 2px"}}>⠿</div>
                   </td>
-                  {/* order ▲▼ + number */}
-                  <td style={{padding:"3px 2px",textAlign:"center",whiteSpace:"nowrap"}}>
-                    <div style={{display:"flex",flexDirection:"column",gap:1,alignItems:"center"}}>
+                  {/* order # inline with ▲▼ */}
+                  <td style={{padding:"2px 1px",textAlign:"center",whiteSpace:"nowrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:2,justifyContent:"center"}}>
                       <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,-1);}}
                         className="bs-order-btn"
-                        style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 5px",fontWeight:900}}>▲</button>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:12,color:"#002d6e",lineHeight:1,padding:"1px 0"}}>{i+1}</div>
+                        style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:8,color:"#002d6e",padding:"2px 4px",fontWeight:900,lineHeight:1}}>▲</button>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:12,color:"#002d6e",minWidth:14,textAlign:"center"}}>{i+1}</div>
                       <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,1);}}
                         className="bs-order-btn"
-                        style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:9,lineHeight:1,color:"#002d6e",padding:"2px 5px",fontWeight:900}}>▼</button>
+                        style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:8,color:"#002d6e",padding:"2px 4px",fontWeight:900,lineHeight:1}}>▼</button>
                     </div>
                   </td>
                   {/* name */}
-                  <td style={{padding:"3px 6px"}}>
+                  <td style={{padding:"2px 4px"}}>
                     <input type="text" value={p.name} onChange={e=>updBat(setter,i,"name",e.target.value)}
                       onDragStart={e=>e.stopPropagation()} className="bs-name-input"
-                      style={{width:"100%",minWidth:130,padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:13,fontFamily:"inherit"}}/>
+                      style={{width:"100%",minWidth:110,padding:"4px 6px",border:"1px solid #ddd",borderRadius:5,fontSize:13,fontFamily:"inherit"}}/>
                   </td>
                   {/* position */}
-                  <td style={{padding:"3px 2px",textAlign:"center"}}>
+                  <td style={{padding:"2px 1px",textAlign:"center"}}>
                     <select value={p.pos} onChange={e=>updBat(setter,i,"pos",e.target.value)}
-                      style={{width:50,padding:"4px 2px",border:"1px solid #ddd",borderRadius:5,fontSize:12,fontFamily:"inherit"}}>
+                      style={{width:46,padding:"4px 1px",border:"1px solid #ddd",borderRadius:5,fontSize:12,fontFamily:"inherit"}}>
                       {POSITIONS.map(pos=><option key={pos} value={pos}>{pos||"Pos"}</option>)}
                     </select>
                   </td>
                   {/* stats */}
                   {BAT_STATS.map((f)=>(
-                    <td key={f} style={{padding:"3px 2px",textAlign:"center"}}>
+                    <td key={f} style={{padding:"2px 1px",textAlign:"center"}}>
                       {p.on
                         ? <input type="number" min="0" inputMode="numeric" value={p[f]}
                             onChange={e=>updBat(setter,i,f,Math.max(0,parseInt(e.target.value)||0))}
                             onWheel={e=>e.target.blur()}
-                            style={{width:42,padding:"4px 2px",textAlign:"center",border:"1px solid #ddd",
+                            style={{width:36,padding:"4px 1px",textAlign:"center",border:"1px solid #ddd",
                               borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
                         : <span style={{color:"#ccc",fontSize:12}}>—</span>}
                     </td>
