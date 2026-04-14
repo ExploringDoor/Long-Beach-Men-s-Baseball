@@ -7843,7 +7843,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
       {pit.map((p,i)=>(
         <div key={i} style={{background:"rgba(96,165,250,0.05)",border:"1px solid rgba(96,165,250,0.2)",
-          borderRadius:8,padding:"10px",marginBottom:6,overflow:"hidden"}}>
+          borderRadius:8,padding:"10px",marginBottom:6}}>
           <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:8}}>
             <input type="text" value={p.name} onChange={e=>updPit(setter,i,"name",e.target.value)}
               placeholder="Pitcher name"
@@ -7853,25 +7853,27 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               style={{padding:"4px 8px",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",
                 borderRadius:5,color:"#dc2626",fontSize:11,fontWeight:700,cursor:"pointer"}}>✕</button>}
           </div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {[["IP","ip",true],["H","h"],["R","r"],["ER","er"],["BB","bb"],["SO","k"],["HR","hr"]].map(([lbl,f,isText])=>(
-              <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",minWidth:40}}>
-                <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>{lbl}</span>
-                {isText
-                  ? <input type="text" value={p[f]} placeholder="6.0" onChange={e=>updPit(setter,i,f,e.target.value)}
-                      style={{width:44,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
-                        borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
-                  : N(p[f],v=>updPit(setter,i,f,v))
-                }
+          <div style={{overflowX:"auto",paddingBottom:4}}>
+            <div style={{display:"flex",gap:6,minWidth:"max-content"}}>
+              {[["IP","ip",true],["H","h"],["R","r"],["ER","er"],["BB","bb"],["SO","k"],["HR","hr"]].map(([lbl,f,isText])=>(
+                <div key={f} style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",width:44}}>
+                  <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>{lbl}</span>
+                  {isText
+                    ? <input type="text" value={p[f]} placeholder="6.0" onChange={e=>updPit(setter,i,f,e.target.value)}
+                        style={{width:44,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
+                          borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
+                    : N(p[f],v=>updPit(setter,i,f,v))
+                  }
+                </div>
+              ))}
+              <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",width:52}}>
+                <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>Dec.</span>
+                <select value={p.decision} onChange={e=>updPit(setter,i,"decision",e.target.value)}
+                  style={{width:52,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
+                    borderRadius:4,fontSize:12,background:"#fff",fontFamily:"inherit"}}>
+                  {["ND","W","L","S"].map(d=><option key={d}>{d}</option>)}
+                </select>
               </div>
-            ))}
-            <div style={{display:"flex",flexDirection:"column",gap:2,alignItems:"center",minWidth:48}}>
-              <span style={{fontSize:9,fontWeight:700,color:"#999",textTransform:"uppercase"}}>Dec.</span>
-              <select value={p.decision} onChange={e=>updPit(setter,i,"decision",e.target.value)}
-                style={{width:52,padding:"4px 2px",textAlign:"center",border:"1px solid rgba(96,165,250,0.3)",
-                  borderRadius:4,fontSize:12,background:"#fff",fontFamily:"inherit"}}>
-                {["ND","W","L","S"].map(d=><option key={d}>{d}</option>)}
-              </select>
             </div>
           </div>
         </div>
@@ -8088,7 +8090,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       <BSCrd>
         <BSH2 n="2" title="Linescore" sub="Inning-by-inning runs · R = total · H = hits · E = errors"/>
         <div style={{overflowX:"auto"}}>
-          <table style={{borderCollapse:"collapse",fontSize:13,width:"100%"}}>
+          <table style={{borderCollapse:"collapse",fontSize:13,minWidth:"100%"}}>
             <thead>
               <tr style={{background:"#001a3e"}}>
                 <th style={{padding:"6px 10px",textAlign:"left",color:"rgba(255,255,255,0.5)",fontSize:11,minWidth:70}}></th>
