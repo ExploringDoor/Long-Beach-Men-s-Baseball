@@ -1972,13 +1972,20 @@ function TournamentsPage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
-    sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=tournament_name.asc,game_date.asc,game_time.asc")
+    sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=game_date.asc,game_time.asc")
       .then(data => { setTournGames(data || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
+  // Group by tournament name, preserving insertion order (games already sorted by date)
   const byTournament = {};
   tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
+  // Sort tournament groups by their earliest game_date (placeholders/no-date go last)
+  const sortedTournaments = Object.entries(byTournament).sort(([,aGames],[,bGames]) => {
+    const aDate = aGames.map(g=>g.game_date).filter(Boolean).sort()[0] || "9999";
+    const bDate = bGames.map(g=>g.game_date).filter(Boolean).sort()[0] || "9999";
+    return aDate.localeCompare(bDate);
+  });
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
@@ -1992,7 +1999,7 @@ function TournamentsPage({ setTab, setTeamDetail }) {
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",textTransform:"uppercase",marginBottom:10}}>Tournaments Coming Soon</div>
             <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>Tournament schedules and brackets will be posted here. Check back soon!</div>
           </div>
-        ) : Object.entries(byTournament).map(([tname, allTGames]) => {
+        ) : sortedTournaments.map(([tname, allTGames]) => {
           const visibleGames = allTGames.filter(g=>g.notes!=="__placeholder__");
           const isPlaceholder = visibleGames.length === 0;
           const locationField = allTGames.find(g=>g.field)?.field;
