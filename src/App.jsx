@@ -5198,9 +5198,17 @@ function AdminPhotosEditor({ onBack }) {
   const [videoCaption, setVideoCaption] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [captionDrafts, setCaptionDrafts] = useState({}); // id → current input value
   const fileInputRef = useRef();
 
-  const reload = () => sbLoadGallery().then(rows => { setItems(rows || []); setLoading(false); });
+  const reload = () => sbLoadGallery().then(rows => {
+    setItems(rows || []);
+    // Seed caption drafts from loaded data
+    const drafts = {};
+    (rows || []).forEach(r => { drafts[r.id] = r.caption || ""; });
+    setCaptionDrafts(drafts);
+    setLoading(false);
+  });
   useEffect(() => { reload(); }, []);
 
   const flash = () => { setSaved(true); setTimeout(()=>setSaved(false),2000); };
@@ -5324,13 +5332,13 @@ function AdminPhotosEditor({ onBack }) {
                 </div>
                 <div style={{padding:"8px 10px",display:"flex",gap:5}}>
                   <input
-                    id={`cap-${p.id}`}
-                    defaultValue={p.caption||""}
-                    onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();updateCaption(p,e.target.value);}}}
+                    value={captionDrafts[p.id] ?? (p.caption||"")}
+                    onChange={e => setCaptionDrafts(prev => ({...prev, [p.id]: e.target.value}))}
+                    onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();updateCaption(p, captionDrafts[p.id]??"");}}}
                     placeholder="Add caption…"
                     style={{...inp,fontSize:12,padding:"5px 8px",flex:1}} />
                   <button
-                    onClick={()=>{const el=document.getElementById(`cap-${p.id}`);if(el)updateCaption(p,el.value);}}
+                    onClick={()=>updateCaption(p, captionDrafts[p.id]??"")}
                     style={{padding:"5px 9px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
                     Save
                   </button>
