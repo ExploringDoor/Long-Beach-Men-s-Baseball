@@ -5254,11 +5254,14 @@ function AdminPhotosEditor({ onBack }) {
 
   const updateCaption = async (item, caption) => {
     try {
-      await sbPatch(`lbdc_gallery?id=eq.${item.id}`, { caption });
+      // Use upsert (INSERT + ON CONFLICT UPDATE) because the anon key has
+      // INSERT but not UPDATE permission on lbdc_gallery (RLS).
+      await sbUpsert("lbdc_gallery", { id: item.id, url: item.url, type: item.type, caption });
       setItems(prev => prev.map(x => x.id===item.id ? {...x,caption} : x));
+      setCaptionDrafts(prev => ({...prev, [item.id]: caption}));
       flash();
     }
-    catch(e) { setError("Caption update failed: " + e.message); }
+    catch(e) { setError("Caption save failed: " + e.message); }
   };
 
   const btn=(bg,color="#fff",extra={})=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",...extra});
