@@ -5995,15 +5995,12 @@ function PlayerAvailabilityPage({ setTab }) {
         )}
 
         {/* Don't see your name note */}
-        <div style={{marginTop:24,background:"#fff",borderRadius:12,padding:"16px 18px",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",borderLeft:"4px solid #002d6e"}}>
-          <div style={{fontWeight:700,fontSize:14,color:"#111",marginBottom:4}}>Don't see your name?</div>
-          <div style={{fontSize:13,color:"#555",lineHeight:1.6}}>
-            Register at <strong>lbdc.vercel.app → Sign Up</strong> and your name will automatically be added to your team's roster — it will then appear here, in box scores, and in live scoring.
-          </div>
-          <button onClick={() => setTab && setTab("signup")}
-            style={{marginTop:10,padding:"8px 16px",background:"#002d6e",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            Register Now →
-          </button>
+        <div style={{marginTop:24,textAlign:"center",fontSize:13,color:"#9ca3af"}}>
+          Don't see your name?{" "}
+          <span onClick={() => setTab && setTab("signup")}
+            style={{color:"#2563eb",fontWeight:700,cursor:"pointer",textDecoration:"underline"}}>
+            Register here
+          </span>
         </div>
       </div>
     </div>
