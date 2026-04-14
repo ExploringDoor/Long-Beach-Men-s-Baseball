@@ -3922,6 +3922,10 @@ function PlayerSignUpPage() {
         playoffs: prefs.playoffs,
         rainouts: prefs.rainouts,
       });
+      // Auto-add to roster so they appear in availability, box scores & live scoring
+      try {
+        await sbPost("lbdc_rosters", { name: form.name, team: form.team, number: "" });
+      } catch(e) { /* ignore if already exists */ }
       // Also email via formsubmit
       fetch("https://formsubmit.co/ajax/toddharris1222@gmail.com", {
         method: "POST",
@@ -5851,7 +5855,8 @@ function PlayerAvailabilityPage() {
         ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
         : seasons.find(x => x.name.includes("Diamond Classics Saturdays"));
       if (!s) { setGames([]); setLoading(false); return; }
-      return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,field&season_id=eq.${s.id}&game_date=gte.${TODAY}&status=not.in.(PPD,CAN)&or=(away_team.eq.${encodeURIComponent(selectedTeam)},home_team.eq.${encodeURIComponent(selectedTeam)})&order=game_date.asc&limit=30`)
+      const tEnc = encodeURIComponent(selectedTeam);
+      return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,field&season_id=eq.${s.id}&game_date=gte.${TODAY}&away_score=is.null&or=(away_team.eq.${tEnc},home_team.eq.${tEnc})&order=game_date.asc&limit=30`)
         .then(upcomingGames => {
           setGames(upcomingGames || []);
           if (!upcomingGames || !upcomingGames.length) { setLoading(false); return; }
@@ -5986,6 +5991,18 @@ function PlayerAvailabilityPage() {
             Select your team and name above to get started.
           </div>
         )}
+
+        {/* Don't see your name note */}
+        <div style={{marginTop:24,background:"#fff",borderRadius:12,padding:"16px 18px",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",borderLeft:"4px solid #002d6e"}}>
+          <div style={{fontWeight:700,fontSize:14,color:"#111",marginBottom:4}}>Don't see your name?</div>
+          <div style={{fontSize:13,color:"#555",lineHeight:1.6}}>
+            Register at <strong>lbdc.vercel.app → Sign Up</strong> and your name will automatically be added to your team's roster — it will then appear here, in box scores, and in live scoring.
+          </div>
+          <button onClick={() => { window.location.hash = "#/signup"; window.scrollTo(0,0); }}
+            style={{marginTop:10,padding:"8px 16px",background:"#002d6e",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            Register Now →
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -6015,7 +6032,8 @@ function CaptainAvailabilityView({ teamName }) {
         ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
         : seasons.find(x => x.name.includes("Diamond Classics Saturdays"));
       if (!s) { setLoading(false); return; }
-      return sbFetch(`games?select=id,game_date,game_time,away_team,home_team&season_id=eq.${s.id}&game_date=gte.${TODAY}&status=not.in.(PPD,CAN)&or=(away_team.eq.${encodeURIComponent(teamName)},home_team.eq.${encodeURIComponent(teamName)})&order=game_date.asc&limit=20`)
+      const tEnc2 = encodeURIComponent(teamName);
+      return sbFetch(`games?select=id,game_date,game_time,away_team,home_team&season_id=eq.${s.id}&game_date=gte.${TODAY}&away_score=is.null&or=(away_team.eq.${tEnc2},home_team.eq.${tEnc2})&order=game_date.asc&limit=20`)
         .then(upcomingGames => {
           setGames(upcomingGames || []);
           if (!upcomingGames || !upcomingGames.length) { setLoading(false); return; }
