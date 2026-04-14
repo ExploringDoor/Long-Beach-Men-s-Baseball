@@ -884,7 +884,7 @@ function Ticker({ setTab }) {
 function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
+  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","🏆 Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
   const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
@@ -1838,7 +1838,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {previewGame && <GamePreviewModal {...previewGame} onClose={()=>setPreviewGame(null)} />}
       <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second">
-        <TabBar items={["Saturday Division","Boomers 60/70",`Tournaments${tournGames.length>0?" ("+Object.keys(byTournament).length+")":""}`]} active={league} onChange={handleLeagueChange} />
+        <TabBar items={["Saturday Division","Boomers 60/70"]} active={league} onChange={handleLeagueChange} />
       </PageHero>
 
       {league === 0 && <>
@@ -1908,7 +1908,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
         </div>
       </>}
 
-      {league === 2 && (
+      {league === 99 && (
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           {Object.keys(byTournament).length === 0 ? (
             <div style={{textAlign:"center",padding:"60px 20px",color:"#aaa",fontSize:16}}>No tournaments scheduled yet.</div>
@@ -1961,6 +1961,84 @@ function SchedulePage({ setTab, setTeamDetail }) {
         </div>
       )}
 
+    </div>
+  );
+}
+
+/* ─── TOURNAMENTS PAGE ───────────────────────────────────────────────────── */
+function TournamentsPage({ setTab, setTeamDetail }) {
+  const [tournGames, setTournGames] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
+
+  useEffect(() => {
+    sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=tournament_name.asc,game_date.asc,game_time.asc")
+      .then(data => { setTournGames(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const byTournament = {};
+  tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      <PageHero label="Diamond Classics" title="Tournaments" subtitle="LBDC tournament schedules & brackets" />
+      <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        {loading ? (
+          <div style={{textAlign:"center",padding:"60px 20px",color:"#aaa",fontSize:16}}>Loading tournaments…</div>
+        ) : Object.keys(byTournament).length === 0 ? (
+          <div style={{background:"#fff",borderRadius:14,padding:"60px 24px",textAlign:"center",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
+            <div style={{fontSize:52,marginBottom:16}}>🏆</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#002d6e",textTransform:"uppercase",marginBottom:10}}>Tournaments Coming Soon</div>
+            <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",lineHeight:1.6,maxWidth:400,margin:"0 auto"}}>Tournament schedules and brackets will be posted here. Check back soon!</div>
+          </div>
+        ) : Object.entries(byTournament).map(([tname, allTGames]) => {
+          const visibleGames = allTGames.filter(g=>g.notes!=="__placeholder__");
+          const isPlaceholder = visibleGames.length === 0;
+          const locationField = allTGames.find(g=>g.field)?.field;
+          return (
+            <div key={tname} style={{marginBottom:32}}>
+              <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#b45309",marginBottom:4}}>Tournament</div>
+                  <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>🏆 {tname}</h2>
+                  {locationField && <div style={{fontSize:13,color:"#888",marginTop:4}}>📍 {locationField}</div>}
+                </div>
+                <span style={{fontSize:13,color:"#888"}}>{isPlaceholder ? "Schedule coming soon" : `${visibleGames.length} game${visibleGames.length!==1?"s":""}`}</span>
+              </div>
+              {isPlaceholder ? (
+                <div style={{background:"#fff8e1",border:"1px solid #f59e0b",borderRadius:12,padding:"20px 24px",display:"flex",alignItems:"center",gap:12}}>
+                  <span style={{fontSize:28}}>⏳</span>
+                  <div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#92400e"}}>Schedule Coming Soon</div>
+                    <div style={{fontSize:13,color:"#78350f",marginTop:2}}>Game schedule will be posted here when released. Check back soon!</div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {visibleGames.map((g) => (
+                    <div key={g.id} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"4px solid #b45309",borderRadius:12,padding:"14px 20px",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                      <div style={{flex:1,minWidth:180}}>
+                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>
+                          <span style={{cursor:"pointer",color:"#002d6e"}} onClick={()=>goTeam(g.away_team)}>{g.away_team}</span>
+                          <span style={{color:"#ccc",fontWeight:400,margin:"0 8px"}}>@</span>
+                          <span style={{cursor:"pointer",color:"#002d6e"}} onClick={()=>goTeam(g.home_team)}>{g.home_team}</span>
+                        </div>
+                        {g.notes && <div style={{fontSize:12,color:"#b45309",fontWeight:700,marginTop:2,textTransform:"uppercase",letterSpacing:".04em"}}>{g.notes}</div>}
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        {g.game_time && <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e",lineHeight:1}}>{g.game_time}</div>}
+                        {g.game_date && <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",fontWeight:600,marginTop:2}}>{new Date(g.game_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>}
+                        {g.field && <div style={{fontSize:12,color:"rgba(0,0,0,0.38)",marginTop:1}}>{g.field}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -5519,39 +5597,166 @@ function AdminFieldsEditor({ onBack }) {
   );
 }
 
+/* ─── MANAGE TEAMS PAGE ──────────────────────────────────────────────────── */
+function ManageTeamsPage({ onBack }) {
+  const builtIn = Object.keys(TEAM_ROSTERS);
+  const [extraTeams, setExtraTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [error, setError] = useState(null);
+
+  const loadExtra = async () => {
+    setLoading(true);
+    try {
+      const rows = await sbFetch("lbdc_schedules?id=eq.teams&select=data");
+      setExtraTeams(rows && rows[0] && Array.isArray(rows[0].data) ? rows[0].data : []);
+    } catch(e) { setExtraTeams([]); }
+    setLoading(false);
+  };
+
+  const saveExtra = async (list) => {
+    await sbUpsert("lbdc_schedules", { id: "teams", data: list });
+  };
+
+  useEffect(() => { loadExtra(); }, []);
+
+  const addTeam = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    if (builtIn.includes(name) || extraTeams.includes(name)) {
+      setError(`"${name}" already exists.`); return;
+    }
+    setSaving(true); setError(null); setMsg(null);
+    try {
+      const updated = [...extraTeams, name];
+      await saveExtra(updated);
+      setExtraTeams(updated);
+      setNewName("");
+      setMsg(`"${name}" added! You can now add players in Manage Rosters.`);
+    } catch(e) { setError("Save failed: " + e.message); }
+    setSaving(false);
+  };
+
+  const removeTeam = async (name) => {
+    if (!window.confirm(`Remove team "${name}"? This won't delete their players — just the team from dropdowns.`)) return;
+    setSaving(true); setMsg(null); setError(null);
+    try {
+      const updated = extraTeams.filter(t => t !== name);
+      await saveExtra(updated);
+      setExtraTeams(updated);
+    } catch(e) { setError("Save failed: " + e.message); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{background:"#f4f6fb",minHeight:"100vh"}}>
+      <div style={{background:"#002d6e",padding:"16px 24px",display:"flex",alignItems:"center",gap:14}}>
+        <button onClick={onBack} style={{padding:"6px 14px",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:6,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase",letterSpacing:".04em"}}>⚾ Manage Teams</div>
+      </div>
+      <div style={{maxWidth:700,margin:"0 auto",padding:"24px clamp(12px,3vw,32px)"}}>
+        {/* Add new team */}
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderRadius:12,padding:"20px",marginBottom:20}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",marginBottom:4}}>Add a New Team</div>
+          <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginBottom:14}}>Use this to add tournament teams or any team not in the built-in list. Once added, you can manage their roster and use them in box scores.</div>
+          {error && <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:8,padding:"10px 14px",marginBottom:12,color:"#dc2626",fontWeight:600,fontSize:13}}>{error}</div>}
+          {msg && <div style={{background:"#dcfce7",border:"1px solid #86efac",borderRadius:8,padding:"10px 14px",marginBottom:12,color:"#16a34a",fontWeight:600,fontSize:13}}>{msg}</div>}
+          <div style={{display:"flex",gap:8}}>
+            <input
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addTeam()}
+              placeholder="e.g. Tournament Team A"
+              style={{flex:1,padding:"10px 14px",border:"1px solid #ddd",borderRadius:8,fontSize:15,fontFamily:"inherit",outline:"none"}}
+            />
+            <button onClick={addTeam} disabled={saving || !newName.trim()}
+              style={{padding:"10px 22px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,cursor:"pointer",opacity:saving||!newName.trim()?0.5:1}}>
+              {saving ? "Saving…" : "+ Add Team"}
+            </button>
+          </div>
+        </div>
+
+        {/* Team list */}
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>
+            All Teams ({builtIn.length + extraTeams.length})
+          </div>
+          {loading ? (
+            <div style={{padding:"32px",textAlign:"center",color:"rgba(0,0,0,0.4)"}}>Loading…</div>
+          ) : (
+            <div>
+              {/* Built-in */}
+              {builtIn.map(t => (
+                <div key={t} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 20px",borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
+                  <TLogo name={t} size={28}/>
+                  <span style={{flex:1,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase"}}>{t}</span>
+                  <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.3)",background:"rgba(0,0,0,0.06)",padding:"2px 8px",borderRadius:10}}>Built-in</span>
+                </div>
+              ))}
+              {/* Extra / tournament teams */}
+              {extraTeams.map(t => (
+                <div key={t} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 20px",borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
+                  <div style={{width:28,height:28,borderRadius:"50%",background:"#002d6e",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:900,flexShrink:0}}>{t.charAt(0)}</div>
+                  <span style={{flex:1,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase"}}>{t}</span>
+                  <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"#b45309",background:"rgba(180,83,9,0.08)",padding:"2px 8px",borderRadius:10}}>Tournament</span>
+                  <button onClick={() => removeTeam(t)} disabled={saving}
+                    style={{padding:"5px 12px",background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+              {extraTeams.length === 0 && (
+                <div style={{padding:"20px",textAlign:"center",color:"rgba(0,0,0,0.35)",fontStyle:"italic",fontSize:13}}>No tournament teams yet. Use the form above to add one.</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── ADMIN ROSTERS EDITOR ───────────────────────────────────────────────── */
 function AdminRostersEditor({ onBack }) {
-  const teamKeys = Object.keys(TEAM_ROSTERS);
+  const builtInKeys = Object.keys(TEAM_ROSTERS);
+  const [allTeamKeys, setAllTeamKeys] = useState(builtInKeys);
   const [rosters, setRosters] = useState({});
   const [loading, setLoading] = useState(true);
-  const [editTeam, setEditTeam] = useState(teamKeys[0] || "");
+  const [editTeam, setEditTeam] = useState(builtInKeys[0] || "");
   const [editId, setEditId] = useState(null); // Supabase id of the player being edited, or -1 for new
   const [editForm, setEditForm] = useState({number:"",name:""});
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Load all players from Supabase on mount
+  // Load all players from Supabase on mount (also loads extra/tournament teams)
   useEffect(() => {
     setLoading(true);
-    sbFetch("lbdc_rosters?select=*&order=team.asc,id.asc")
-      .then(rows => {
-        // Build rosters object keyed by team; start from hardcoded keys so all teams show
-        const built = {};
-        teamKeys.forEach(t => { built[t] = []; });
-        (rows || []).forEach(r => {
-          if (!built[r.team]) built[r.team] = [];
-          built[r.team].push({id: r.id, number: r.number || "", name: r.name || ""});
-        });
-        setRosters(built);
-        setLoading(false);
-      })
-      .catch(() => {
-        // Fall back to hardcoded on error
-        setRosters(getEffectiveRosters());
-        setError("Could not load rosters from server. Showing local fallback.");
-        setLoading(false);
+    Promise.all([
+      sbFetch("lbdc_rosters?select=*&order=team.asc,id.asc"),
+      sbFetch("lbdc_schedules?id=eq.teams&select=data"),
+    ]).then(([rows, schedRows]) => {
+      // Merge extra tournament teams with built-in list
+      const extra = schedRows && schedRows[0] && Array.isArray(schedRows[0].data) ? schedRows[0].data : [];
+      const combinedKeys = [...builtInKeys, ...extra.filter(t => !builtInKeys.includes(t))];
+      setAllTeamKeys(combinedKeys);
+      // Build rosters object keyed by team
+      const built = {};
+      combinedKeys.forEach(t => { built[t] = []; });
+      (rows || []).forEach(r => {
+        if (!built[r.team]) built[r.team] = [];
+        built[r.team].push({id: r.id, number: r.number || "", name: r.name || ""});
       });
+      setRosters(built);
+      setLoading(false);
+    }).catch(() => {
+      // Fall back to hardcoded on error
+      setRosters(getEffectiveRosters());
+      setError("Could not load rosters from server. Showing local fallback.");
+      setLoading(false);
+    });
   }, []);
 
   const teamPlayers = rosters[editTeam] || [];
@@ -5629,7 +5834,7 @@ function AdminRostersEditor({ onBack }) {
           <>
             <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"12px 14px",marginBottom:20,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
               <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",marginRight:4}}>Team:</span>
-              {Object.keys(rosters).map(t => (
+              {allTeamKeys.map(t => (
                 <button key={t} onClick={()=>{setEditTeam(t);setEditId(null);}}
                   style={{padding:"6px 14px",borderRadius:20,border:`1.5px solid ${editTeam===t?"#002d6e":"rgba(0,0,0,0.15)"}`,background:editTeam===t?"#002d6e":"#fff",color:editTeam===t?"#fff":"#333",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",transition:"all .15s"}}>
                   {t}
@@ -6944,6 +7149,7 @@ function AdminPage({ onAlertChange }) {
          quickView==="eligibility"  ? <PlayerEligibilityPage onBack={()=>setQuickView(null)}/> :
          quickView==="email"        ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
          quickView==="live"         ? <LiveScorerPage onExit={()=>setQuickView(null)}/> :
+         quickView==="teams"        ? <ManageTeamsPage onBack={()=>setQuickView(null)}/> :
          quickView==="games"    ? (
           <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
             <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -7058,6 +7264,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"📅",title:"Manage Schedule",desc:"View season schedule",accent:"#002d6e",action:()=>setQuickView("schedule")},
                   {icon:"📜",title:"Edit Rules",desc:"Update Field Guide rules & sections",accent:"#002d6e",action:()=>setScreen("admin_rules")},
                   {icon:"📸",title:"Photos & Videos",desc:"Add or remove gallery items",accent:"#002d6e",action:()=>setScreen("admin_photos")},
+                  {icon:"⚾",title:"Manage Teams",desc:"Add tournament or custom teams",accent:"#b45309",action:()=>setQuickView("teams")},
                   {icon:"🤝",title:"Edit Sponsors",desc:"Add or remove sponsor cards",accent:"#002d6e",action:()=>setScreen("admin_sponsors")},
                   {icon:"🏟️",title:"Field Directions",desc:"Edit field notes and addresses",accent:"#002d6e",action:()=>setScreen("admin_fields")},
                   {icon:"📋",title:"Player Sign-Ups",desc:"View all sign-up submissions",accent:"#16a34a",action:()=>setScreen("admin_signups")},
@@ -7226,7 +7433,9 @@ function BSCrd({children,style={}}) {
 }
 
 function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
-  const TEAMS = Object.keys(TEAM_ROSTERS);
+  const BASE_TEAMS = Object.keys(TEAM_ROSTERS);
+  const [extraTeams, setExtraTeams] = useState([]);
+  const TEAMS = [...BASE_TEAMS, ...extraTeams];
   const POSITIONS = ["","P","C","1B","2B","3B","SS","LF","CF","RF","DH","PH","PR"];
   const BAT_STATS = ["ab","r","singles","doubles","triples","hr","rbi","bb","k","sb","e"];
   const BAT_LBLS  = ["AB","R","1B","2B","3B","HR","RBI","BB","K","SB","E"];
@@ -7289,6 +7498,18 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const [homeOrderMode, setHomeOrderMode] = useState(false);
   const [awayOrderQueue, setAwayOrderQueue] = useState([]); // _ids in tap order
   const [homeOrderQueue, setHomeOrderQueue] = useState([]);
+
+  // ── Load extra (tournament) teams from Supabase ──
+  useEffect(() => {
+    sbFetch("lbdc_schedules?id=eq.teams&select=data")
+      .then(rows => {
+        if (rows && rows[0] && Array.isArray(rows[0].data)) {
+          setExtraTeams(rows[0].data.filter(t => !BASE_TEAMS.includes(t)));
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Auto-load a game when opened from "Manage Games" → Edit ──
   useEffect(() => {
@@ -10496,7 +10717,8 @@ export default function App() {
       <div style={{position:"sticky",top:0,zIndex:300,width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="scores"    && <ScoresPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
-      {tab==="schedule"  && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
+      {tab==="schedule"     && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
+      {tab==="tournaments"  && <TournamentsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="standings" && <StandingsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && !teamDetail && <TeamsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="teams"     && teamDetail  && <TeamDetailPage teamName={teamDetail} prevTab={prevTab} onBack={handleBackFromTeam} setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
