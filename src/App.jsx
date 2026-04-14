@@ -885,7 +885,7 @@ function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
-  const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"]];
+  const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
   useEffect(() => {
@@ -5810,6 +5810,326 @@ function LocalStorageMigrationButton() {
   );
 }
 
+// ─────────────────────────────────────────────
+//  PLAYER AVAILABILITY PAGE
+// ─────────────────────────────────────────────
+function PlayerAvailabilityPage() {
+  const TODAY = new Date().toISOString().slice(0,10);
+  const teamNames = ALL_TEAMS.map(t => t.name).sort();
+
+  const [selectedTeam, setSelectedTeam] = useState(() => localStorage.getItem("avail_team") || "");
+  const [selectedPlayer, setSelectedPlayer] = useState(() => localStorage.getItem("avail_player") || "");
+  const [roster, setRoster] = useState([]);
+  const [games, setGames] = useState([]);
+  const [availability, setAvailability] = useState({}); // key: game_id → status
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState({});
+
+  // Load roster when team changes
+  useEffect(() => {
+    if (!selectedTeam) { setRoster([]); setSelectedPlayer(""); return; }
+    localStorage.setItem("avail_team", selectedTeam);
+    sbFetch(`lbdc_rosters?select=name&team=eq.${encodeURIComponent(selectedTeam)}&order=id.asc`)
+      .then(rows => setRoster(rows.map(r => r.name)))
+      .catch(() => setRoster([]));
+  }, [selectedTeam]);
+
+  // Validate saved player against new roster
+  useEffect(() => {
+    if (roster.length && !roster.includes(selectedPlayer)) setSelectedPlayer("");
+  }, [roster]);
+
+  // Load upcoming games + existing availability when player selected
+  useEffect(() => {
+    if (!selectedTeam || !selectedPlayer) { setGames([]); setAvailability({}); return; }
+    localStorage.setItem("avail_player", selectedPlayer);
+    setLoading(true);
+    const isBoomers = BOOMERS_TEAMS.has(selectedTeam);
+    // Get season id first
+    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+      const s = isBoomers
+        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
+        : seasons.find(x => x.name.includes("Diamond Classics Saturdays"));
+      if (!s) { setGames([]); setLoading(false); return; }
+      return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,field&season_id=eq.${s.id}&game_date=gte.${TODAY}&status=not.in.(PPD,CAN)&or=(away_team.eq.${encodeURIComponent(selectedTeam)},home_team.eq.${encodeURIComponent(selectedTeam)})&order=game_date.asc&limit=30`)
+        .then(upcomingGames => {
+          setGames(upcomingGames || []);
+          if (!upcomingGames || !upcomingGames.length) { setLoading(false); return; }
+          const ids = upcomingGames.map(g => g.id).join(",");
+          return sbFetch(`availability?select=game_id,status&player_name=eq.${encodeURIComponent(selectedPlayer)}&team=eq.${encodeURIComponent(selectedTeam)}&game_id=in.(${ids})`);
+        })
+        .then(rows => {
+          if (!rows) { setLoading(false); return; }
+          const map = {};
+          rows.forEach(r => { map[r.game_id] = r.status; });
+          setAvailability(map);
+          setLoading(false);
+        });
+    }).catch(() => setLoading(false));
+  }, [selectedTeam, selectedPlayer]);
+
+  const setStatus = async (gameId, status) => {
+    const current = availability[gameId];
+    const newStatus = current === status ? null : status; // toggle off if same
+    setSaving(s => ({...s, [gameId]: true}));
+    try {
+      if (!newStatus) {
+        await sbDelete(`availability?player_name=eq.${encodeURIComponent(selectedPlayer)}&team=eq.${encodeURIComponent(selectedTeam)}&game_id=eq.${gameId}`);
+        setAvailability(a => { const n = {...a}; delete n[gameId]; return n; });
+      } else {
+        await sbUpsert(`availability`, { game_id: gameId, player_name: selectedPlayer, team: selectedTeam, status: newStatus });
+        setAvailability(a => ({...a, [gameId]: newStatus}));
+      }
+    } catch(e) { console.error(e); }
+    setSaving(s => ({...s, [gameId]: false}));
+  };
+
+  const fmtDate = (d) => {
+    if (!d) return "";
+    const dt = new Date(d + "T12:00:00");
+    return dt.toLocaleDateString("en-US", {weekday:"short", month:"short", day:"numeric"});
+  };
+
+  const btnStyle = (gameId, type) => {
+    const active = availability[gameId] === type;
+    const colors = { yes: ["#16a34a","#dcfce7","#166534"], maybe: ["#d97706","#fef3c7","#92400e"], no: ["#dc2626","#fee2e2","#991b1b"] };
+    const [bg, lightBg, darkText] = colors[type];
+    return {
+      padding:"7px 14px", border:`2px solid ${active ? bg : "#e5e7eb"}`,
+      borderRadius:8, background: active ? lightBg : "#f9fafb",
+      color: active ? darkText : "#6b7280",
+      fontWeight: active ? 700 : 500, fontSize:13, cursor:"pointer",
+      transition:"all .15s",
+    };
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",paddingBottom:60}}>
+      <div style={{background:"#002d6e",padding:"clamp(20px,4vw,40px) clamp(16px,4vw,40px) 28px"}}>
+        <div style={{maxWidth:600,margin:"0 auto"}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:clamp(28,4,36),textTransform:"uppercase",color:"#fff",letterSpacing:".04em",lineHeight:1}}>My Availability</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:6}}>Let your team know if you can make the game</div>
+        </div>
+      </div>
+
+      <div style={{maxWidth:600,margin:"0 auto",padding:"24px clamp(12px,3vw,24px)"}}>
+        {/* Team + player selectors */}
+        <div style={{background:"#fff",borderRadius:12,padding:"20px",marginBottom:20,boxShadow:"0 1px 4px rgba(0,0,0,0.07)"}}>
+          <div style={{marginBottom:16}}>
+            <label style={{display:"block",fontWeight:700,fontSize:12,textTransform:"uppercase",letterSpacing:".07em",color:"#6b7280",marginBottom:6}}>Your Team</label>
+            <select value={selectedTeam} onChange={e=>{ setSelectedTeam(e.target.value); setSelectedPlayer(""); }}
+              style={{width:"100%",padding:"10px 12px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:15,background:"#fff"}}>
+              <option value="">— Select your team —</option>
+              {teamNames.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          {selectedTeam && (
+            <div>
+              <label style={{display:"block",fontWeight:700,fontSize:12,textTransform:"uppercase",letterSpacing:".07em",color:"#6b7280",marginBottom:6}}>Your Name</label>
+              <select value={selectedPlayer} onChange={e=>setSelectedPlayer(e.target.value)}
+                style={{width:"100%",padding:"10px 12px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:15,background:"#fff"}}>
+                <option value="">— Select your name —</option>
+                {roster.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Games list */}
+        {selectedTeam && selectedPlayer && (
+          loading ? (
+            <div style={{textAlign:"center",padding:40,color:"#9ca3af",fontSize:14}}>Loading games…</div>
+          ) : games.length === 0 ? (
+            <div style={{textAlign:"center",padding:40,color:"#9ca3af",fontSize:14}}>No upcoming games found.</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {games.map(g => {
+                const isHome = g.home_team === selectedTeam;
+                const opp = isHome ? g.away_team : g.home_team;
+                const status = availability[g.id];
+                return (
+                  <div key={g.id} style={{background:"#fff",borderRadius:12,padding:"16px 18px",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",borderLeft:`4px solid ${status==="yes"?"#16a34a":status==="maybe"?"#d97706":status==="no"?"#dc2626":"#e5e7eb"}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:16,color:"#111"}}>{fmtDate(g.game_date)}</div>
+                        <div style={{fontSize:13,color:"#555",marginTop:2}}>
+                          {isHome ? "vs" : "@"} <strong>{opp}</strong>
+                          {g.game_time && <span style={{color:"#9ca3af"}}> · {g.game_time}</span>}
+                        </div>
+                        {g.field && <div style={{fontSize:12,color:"#9ca3af",marginTop:2}}>{g.field}</div>}
+                      </div>
+                      {status && (
+                        <div style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:6,
+                          background:status==="yes"?"#dcfce7":status==="maybe"?"#fef3c7":"#fee2e2",
+                          color:status==="yes"?"#166534":status==="maybe"?"#92400e":"#991b1b",
+                          textTransform:"uppercase",letterSpacing:".06em"}}>
+                          {status==="yes"?"✓ In":status==="maybe"?"~ Maybe":"✗ Out"}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      {["yes","maybe","no"].map(s => (
+                        <button key={s} onClick={()=>setStatus(g.id, s)} disabled={!!saving[g.id]}
+                          style={btnStyle(g.id, s)}>
+                          {s==="yes"?"✓ Yes":s==="maybe"?"~ Maybe":"✗ No"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+        {(!selectedTeam || !selectedPlayer) && (
+          <div style={{textAlign:"center",padding:40,color:"#9ca3af",fontSize:14}}>
+            Select your team and name above to get started.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+//  CAPTAIN AVAILABILITY VIEW (inside captain dashboard)
+// ─────────────────────────────────────────────
+function CaptainAvailabilityView({ teamName }) {
+  const TODAY = new Date().toISOString().slice(0,10);
+  const [roster, setRoster] = useState([]);
+  const [games, setGames] = useState([]);
+  const [availability, setAvailability] = useState({}); // key: `${gameId}_${playerName}` → status
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState({});
+
+  useEffect(() => {
+    if (!teamName) return;
+    const isBoomers = BOOMERS_TEAMS.has(teamName);
+    Promise.all([
+      sbFetch(`lbdc_rosters?select=name&team=eq.${encodeURIComponent(teamName)}&order=id.asc`),
+      sbFetch("seasons?select=id,name&limit=50"),
+    ]).then(([rosterRows, seasons]) => {
+      const players = rosterRows.map(r => r.name);
+      setRoster(players);
+      const s = isBoomers
+        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
+        : seasons.find(x => x.name.includes("Diamond Classics Saturdays"));
+      if (!s) { setLoading(false); return; }
+      return sbFetch(`games?select=id,game_date,game_time,away_team,home_team&season_id=eq.${s.id}&game_date=gte.${TODAY}&status=not.in.(PPD,CAN)&or=(away_team.eq.${encodeURIComponent(teamName)},home_team.eq.${encodeURIComponent(teamName)})&order=game_date.asc&limit=20`)
+        .then(upcomingGames => {
+          setGames(upcomingGames || []);
+          if (!upcomingGames || !upcomingGames.length) { setLoading(false); return; }
+          const ids = upcomingGames.map(g => g.id).join(",");
+          return sbFetch(`availability?select=game_id,player_name,status&team=eq.${encodeURIComponent(teamName)}&game_id=in.(${ids})`);
+        })
+        .then(rows => {
+          const map = {};
+          (rows||[]).forEach(r => { map[`${r.game_id}_${r.player_name}`] = r.status; });
+          setAvailability(map);
+          setLoading(false);
+        });
+    }).catch(() => setLoading(false));
+  }, [teamName]);
+
+  const setStatus = async (gameId, playerName, status) => {
+    const key = `${gameId}_${playerName}`;
+    const current = availability[key];
+    const newStatus = current === status ? null : status;
+    setSaving(s => ({...s, [key]: true}));
+    try {
+      if (!newStatus) {
+        await sbDelete(`availability?player_name=eq.${encodeURIComponent(playerName)}&team=eq.${encodeURIComponent(teamName)}&game_id=eq.${gameId}`);
+        setAvailability(a => { const n = {...a}; delete n[key]; return n; });
+      } else {
+        await sbUpsert(`availability`, { game_id: gameId, player_name: playerName, team: teamName, status: newStatus });
+        setAvailability(a => ({...a, [key]: newStatus}));
+      }
+    } catch(e) { console.error(e); }
+    setSaving(s => ({...s, [key]: false}));
+  };
+
+  const fmtDate = (d) => {
+    if (!d) return "";
+    const dt = new Date(d + "T12:00:00");
+    return dt.toLocaleDateString("en-US", {month:"short", day:"numeric"});
+  };
+
+  const statusColor = { yes:"#16a34a", maybe:"#d97706", no:"#dc2626" };
+  const statusBg = { yes:"#dcfce7", maybe:"#fef3c7", no:"#fee2e2" };
+  const statusLabel = { yes:"✓", maybe:"~", no:"✗" };
+
+  if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>Loading…</div>;
+  if (games.length === 0) return <div style={{textAlign:"center",padding:40,color:"#9ca3af",fontSize:14}}>No upcoming games scheduled.</div>;
+  if (roster.length === 0) return <div style={{textAlign:"center",padding:40,color:"#9ca3af",fontSize:14}}>No roster found for this team.</div>;
+
+  // Count responses per game
+  const countFor = (gameId, s) => roster.filter(p => availability[`${gameId}_${p}`] === s).length;
+
+  return (
+    <div>
+      {/* Game columns header + summary row */}
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        <table style={{borderCollapse:"collapse",fontSize:13,minWidth:500,width:"100%"}}>
+          <thead>
+            <tr>
+              <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#6b7280",textTransform:"uppercase",letterSpacing:".06em",whiteSpace:"nowrap",borderBottom:"2px solid #e5e7eb",minWidth:130}}>Player</th>
+              {games.map(g => (
+                <th key={g.id} style={{padding:"8px 8px",textAlign:"center",fontWeight:700,fontSize:11,color:"#6b7280",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap",borderBottom:"2px solid #e5e7eb",minWidth:80}}>
+                  <div>{fmtDate(g.game_date)}</div>
+                  <div style={{fontSize:10,fontWeight:500,color:"#9ca3af",textTransform:"none"}}>
+                    {g.away_team === teamName ? `@ ${g.home_team.split(" ")[0]}` : `vs ${g.away_team.split(" ")[0]}`}
+                  </div>
+                </th>
+              ))}
+            </tr>
+            {/* Summary row */}
+            <tr style={{background:"#f0fdf4"}}>
+              <td style={{padding:"6px 12px",fontWeight:700,fontSize:12,color:"#166534"}}>✓ In</td>
+              {games.map(g => <td key={g.id} style={{padding:"6px 8px",textAlign:"center",fontWeight:700,fontSize:13,color:"#16a34a"}}>{countFor(g.id,"yes") || "—"}</td>)}
+            </tr>
+            <tr style={{background:"#fffbeb"}}>
+              <td style={{padding:"6px 12px",fontWeight:700,fontSize:12,color:"#92400e"}}>~ Maybe</td>
+              {games.map(g => <td key={g.id} style={{padding:"6px 8px",textAlign:"center",fontWeight:700,fontSize:13,color:"#d97706"}}>{countFor(g.id,"maybe") || "—"}</td>)}
+            </tr>
+            <tr style={{background:"#fef2f2",borderBottom:"2px solid #e5e7eb"}}>
+              <td style={{padding:"6px 12px",fontWeight:700,fontSize:12,color:"#991b1b"}}>✗ Out</td>
+              {games.map(g => <td key={g.id} style={{padding:"6px 8px",textAlign:"center",fontWeight:700,fontSize:13,color:"#dc2626"}}>{countFor(g.id,"no") || "—"}</td>)}
+            </tr>
+          </thead>
+          <tbody>
+            {roster.map((player, pi) => (
+              <tr key={player} style={{borderBottom:"1px solid #f3f4f6",background:pi%2===0?"#fff":"#fafafa"}}>
+                <td style={{padding:"8px 12px",fontWeight:500,color:"#111",whiteSpace:"nowrap"}}>{player}</td>
+                {games.map(g => {
+                  const key = `${g.id}_${player}`;
+                  const s = availability[key];
+                  const isSaving = saving[key];
+                  return (
+                    <td key={g.id} style={{padding:"6px 8px",textAlign:"center"}}>
+                      <div style={{display:"flex",gap:4,justifyContent:"center"}}>
+                        {["yes","maybe","no"].map(opt => (
+                          <button key={opt} onClick={()=>setStatus(g.id, player, opt)} disabled={!!isSaving}
+                            style={{width:26,height:26,border:`1.5px solid ${s===opt?statusColor[opt]:"#e5e7eb"}`,
+                              borderRadius:6,background:s===opt?statusBg[opt]:"#f9fafb",
+                              color:s===opt?statusColor[opt]:"#d1d5db",
+                              fontWeight:700,fontSize:12,cursor:"pointer",padding:0,lineHeight:1}}>
+                            {statusLabel[opt]}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{marginTop:12,fontSize:11,color:"#9ca3af"}}>Tap any button to set a player's availability. Tap again to clear.</div>
+    </div>
+  );
+}
+
 function AdminPage({ onAlertChange }) {
   const [screen, setScreen] = useState("login"); // "login" | "admin" | "captain"
   const [pw, setPw] = useState("");
@@ -6077,6 +6397,14 @@ function AdminPage({ onAlertChange }) {
                   <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Add, edit, or remove players from your team</div>
                 </div>
               </button>
+              <button onClick={()=>setCaptainView("availability")}
+                style={{background:"#065f46",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
+                <div style={{fontSize:40}}>📅</div>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase",marginBottom:4}}>Player Availability</div>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>See who's in for upcoming games</div>
+                </div>
+              </button>
               <button onClick={()=>setCaptainView("instructions")}
                 style={{background:"#7c3aed",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
                 <div style={{fontSize:40}}>📖</div>
@@ -6106,6 +6434,17 @@ function AdminPage({ onAlertChange }) {
               </div>
               <div style={{padding:"20px"}}>
                 <CaptainRosterEditor teamName={captainTeam} />
+              </div>
+            </div>
+          )}
+          {captainView === "availability" && (
+            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+                <button onClick={()=>setCaptainView("menu")} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>📅 Player Availability</div>
+              </div>
+              <div style={{padding:"20px"}}>
+                <CaptainAvailabilityView teamName={captainTeam} />
               </div>
             </div>
           )}
@@ -9898,7 +10237,8 @@ export default function App() {
       {tab==="sponsors"  && <SponsorsPage />}
       {tab==="photos"    && <PhotosPage />}
       {tab==="signup"    && <PlayerSignUpPage />}
-      {tab==="graphics"  && <GraphicsPage />}
+      {tab==="graphics"   && <GraphicsPage />}
+      {tab==="availability" && <PlayerAvailabilityPage />}
       <Footer setTab={handleSetTab} />
     </div>
   );
