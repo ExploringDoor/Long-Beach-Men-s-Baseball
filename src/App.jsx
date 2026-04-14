@@ -5653,12 +5653,23 @@ function AdminSignupsViewer({ onBack }) {
   const [signups, setSignups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTeam, setActiveTeam] = useState("All");
+  const [deleting, setDeleting] = useState(null);
 
   useEffect(() => {
     sbFetch("lbdc_signups?select=*&order=created_at.desc")
       .then(data => { setSignups(data || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  const deleteSignup = async (s) => {
+    if (!window.confirm(`Delete sign-up for ${s.name}?`)) return;
+    setDeleting(s.id);
+    try {
+      await sbDelete(`lbdc_signups?id=eq.${s.id}`);
+      setSignups(prev => prev.filter(x => x.id !== s.id));
+    } catch(e) { alert("Error deleting."); }
+    setDeleting(null);
+  };
 
   const teams = ["All", ...Array.from(new Set(signups.map(s=>s.team).filter(Boolean))).sort()];
   const filtered = activeTeam === "All" ? signups : signups.filter(s => s.team === activeTeam);
@@ -5706,8 +5717,14 @@ function AdminSignupsViewer({ onBack }) {
                     <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase"}}>{s.name}</div>
                     <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:1}}>{s.team}</div>
                   </div>
-                  <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>
-                    {s.created_at ? new Date(s.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}) : ""}
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>
+                      {s.created_at ? new Date(s.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}) : ""}
+                    </div>
+                    <button onClick={()=>deleteSignup(s)} disabled={deleting===s.id}
+                      style={{background:"#fee2e2",border:"none",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,padding:"4px 10px",cursor:"pointer",whiteSpace:"nowrap"}}>
+                      {deleting===s.id ? "…" : "✕ Remove"}
+                    </button>
                   </div>
                 </div>
                 <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:13,color:"rgba(0,0,0,0.6)",marginBottom:8}}>
