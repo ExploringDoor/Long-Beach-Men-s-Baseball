@@ -2615,27 +2615,19 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                 <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:4,fontFamily:"'Barlow Condensed',sans-serif"}}>{rec.pct} PCT</div>
                 <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:2}}>{rec.rs} RF · {rec.ra} RA</div>
               </div>
-              {TEAM_CAL_LINKS[teamName] && (
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.4)",textTransform:"uppercase",letterSpacing:".08em"}}>Add to Calendar</div>
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                    <a href={TEAM_CAL_LINKS[teamName]} target="_blank" rel="noopener noreferrer" style={{
-                      display:"flex",alignItems:"center",gap:7,background:"#4285F4",borderRadius:8,padding:"10px 16px",
-                      textDecoration:"none",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
-                      letterSpacing:".04em",textTransform:"uppercase",color:"#fff",whiteSpace:"nowrap",
-                    }}>
-                      <span style={{fontSize:16}}>📅</span> Google Calendar
-                    </a>
-                    <a href={TEAM_CAL_ICS[teamName]} style={{
-                      display:"flex",alignItems:"center",gap:7,background:"#1c1c1e",borderRadius:8,padding:"10px 16px",
-                      textDecoration:"none",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,
-                      letterSpacing:".04em",textTransform:"uppercase",color:"#fff",whiteSpace:"nowrap",
-                    }}>
-                      <span style={{fontSize:16}}>🍎</span> iPhone / Apple
-                    </a>
-                  </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.4)",textTransform:"uppercase",letterSpacing:".08em"}}>Subscribe to Schedule</div>
+                <a
+                  href={`webcal://${typeof window!=="undefined"?window.location.host:"lbdcbaseball.com"}/api/schedule.ics?team=${encodeURIComponent(teamName)}`}
+                  style={{display:"inline-flex",alignItems:"center",gap:8,background:"#002d6e",borderRadius:8,padding:"10px 18px",
+                    textDecoration:"none",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,
+                    letterSpacing:".04em",textTransform:"uppercase",color:"#FFD700",whiteSpace:"nowrap",alignSelf:"flex-start"}}>
+                  <span style={{fontSize:16}}>📅</span> Subscribe to Calendar
+                </a>
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",lineHeight:1.4}}>
+                  iPhone / Mac: tap to subscribe · Android: open Google Calendar → Other calendars → From URL
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
