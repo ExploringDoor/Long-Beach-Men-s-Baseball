@@ -1088,7 +1088,7 @@ function HomePage({ setTab, setTeamDetail }) {
         setRecentGames(combined.slice(0, 6));
       })
       .catch(() => {});
-    sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=10")
+    sbFetch("news?select=id,title,body,event_date,pinned,style,created_at&order=pinned.desc,created_at.desc&limit=10")
       .then(data => setNewsItems(data || []))
       .catch(() => {});
   }, []);
@@ -6597,7 +6597,7 @@ function AdminPage({ onAlertChange }) {
 
   const loadNews = () => {
     setNewsLoading(true);
-    sbFetch("news?select=id,title,body,event_date,pinned,created_at&order=pinned.desc,created_at.desc&limit=20")
+    sbFetch("news?select=id,title,body,event_date,pinned,style,created_at&order=pinned.desc,created_at.desc&limit=20")
       .then(data => { setNewsItems(data || []); setNewsLoading(false); })
       .catch(() => setNewsLoading(false));
   };
