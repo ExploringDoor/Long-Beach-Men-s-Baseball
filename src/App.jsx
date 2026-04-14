@@ -5684,10 +5684,14 @@ function AdminSignupsViewer({ onBack }) {
   }, []);
 
   const deleteSignup = async (s) => {
-    if (!window.confirm(`Delete sign-up for ${s.name}?`)) return;
+    if (!window.confirm(`Delete sign-up for ${s.name}? This will also remove them from the roster.`)) return;
     setDeleting(s.id);
     try {
       await sbDelete(`lbdc_signups?id=eq.${s.id}`);
+      // Also remove from roster (match by name + team)
+      const enc = encodeURIComponent(s.name);
+      const encTeam = encodeURIComponent(s.team);
+      await sbDelete(`lbdc_rosters?name=ilike.${enc}&team=eq.${encTeam}`);
       setSignups(prev => prev.filter(x => x.id !== s.id));
     } catch(e) { alert("Error deleting."); }
     setDeleting(null);
