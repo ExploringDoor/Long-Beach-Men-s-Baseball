@@ -2547,7 +2547,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const [liveRecord, setLiveRecord] = useState(null);
   useEffect(() => {
     sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
-      .then(rows => { if (rows && rows.length > 0) setRoster(rows.map(r => ({number: r.number||"", name: r.name||""}))); })
+      .then(rows => { if (rows && rows.length > 0) setRoster(rows.map(r => ({number: r.number||"", name: r.name||"", status: r.status||"Active"}))); })
       .catch(() => {});
   }, [teamName]);
   useEffect(() => {
@@ -2651,18 +2651,27 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               ) : (
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))"}}>
                   {roster.map((player,i) => {
-                    const name = typeof player === "string" ? player : player.name;
-                    const num  = typeof player === "string" ? "" : player.number;
+                    const name   = typeof player === "string" ? player : player.name;
+                    const num    = typeof player === "string" ? "" : player.number;
+                    const status = typeof player === "string" ? "Active" : (player.status || "Active");
+                    const statusBadge = status !== "Active" ? (
+                      <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8,
+                        background:status==="DL"?"#fef3c7":"#f3f4f6",
+                        color:status==="DL"?"#92400e":"#6b7280",marginLeft:4}}>
+                        {status}
+                      </span>
+                    ) : null;
                     return (
                       <button key={i} onClick={() => setSelectedPlayer(name)}
-                        style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",width:"100%",transition:"background .12s"}}
+                        style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",width:"100%",transition:"background .12s",opacity:status==="Released"?0.5:1}}
                         onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.04)"}
                         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                         <div style={{width:30,height:30,borderRadius:"50%",background:`${color}18`,border:`2px solid ${color}50`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                           <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,color}}>{num||"—"}</span>
                         </div>
                         <div>
-                          <span style={{fontSize:14,fontWeight:600,color:"#111"}}>{name}</span>
+                          <span style={{fontSize:14,fontWeight:600,color:status==="Released"?"#9ca3af":"#111"}}>{name}</span>
+                          {statusBadge}
                           <div style={{fontSize:10,color:color,fontWeight:700,letterSpacing:".05em",marginTop:1}}>View Stats →</div>
                         </div>
                       </button>
@@ -3069,7 +3078,7 @@ function CaptainRosterEditor({ teamName }) {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState(null); // Supabase id or -1 for new
-  const [editForm, setEditForm] = useState({number:"",name:""});
+  const [editForm, setEditForm] = useState({number:"",name:"",status:"Active"});
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -3079,12 +3088,11 @@ function CaptainRosterEditor({ teamName }) {
     setLoading(true);
     sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
       .then(rows => {
-        setPlayers((rows || []).map(r => ({id: r.id, number: r.number || "", name: r.name || ""})));
+        setPlayers((rows || []).map(r => ({id: r.id, number: r.number || "", name: r.name || "", status: r.status || "Active"})));
         setLoading(false);
       })
       .catch(() => {
-        // Fall back to hardcoded roster on error
-        setPlayers([...(TEAM_ROSTERS[teamName] || [])]);
+        setPlayers([...(TEAM_ROSTERS[teamName] || []).map(p=>({...p,status:"Active"}))]);
         setError("Could not load roster from server. Showing local fallback.");
         setLoading(false);
       });
@@ -3093,9 +3101,9 @@ function CaptainRosterEditor({ teamName }) {
   const startEdit = (idx) => {
     const p = players[idx];
     setEditId(p.id);
-    setEditForm({number: p.number || "", name: p.name || ""});
+    setEditForm({number: p.number || "", name: p.name || "", status: p.status || "Active"});
   };
-  const cancelEdit = () => { setEditId(null); setEditForm({number:"",name:""}); };
+  const cancelEdit = () => { setEditId(null); setEditForm({number:"",name:"",status:"Active"}); };
 
   const savePlayer = async () => {
     if (!editForm.name.trim()) return;
@@ -3103,11 +3111,11 @@ function CaptainRosterEditor({ teamName }) {
     setError("");
     try {
       if (editId === -1) {
-        const rows = await sbPost("lbdc_rosters", {team: teamName, number: editForm.number.trim(), name: editForm.name.trim()});
-        setPlayers(p => [...p, {id: rows[0].id, number: editForm.number.trim(), name: editForm.name.trim()}]);
+        const rows = await sbPost("lbdc_rosters", {team: teamName, number: editForm.number.trim(), name: editForm.name.trim(), status: editForm.status});
+        setPlayers(p => [...p, {id: rows[0].id, number: editForm.number.trim(), name: editForm.name.trim(), status: editForm.status}]);
       } else {
-        await sbPatch(`lbdc_rosters?id=eq.${editId}`, {number: editForm.number.trim(), name: editForm.name.trim()});
-        setPlayers(p => p.map(pl => pl.id === editId ? {...pl, number: editForm.number.trim(), name: editForm.name.trim()} : pl));
+        await sbPatch(`lbdc_rosters?id=eq.${editId}`, {number: editForm.number.trim(), name: editForm.name.trim(), status: editForm.status});
+        setPlayers(p => p.map(pl => pl.id === editId ? {...pl, number: editForm.number.trim(), name: editForm.name.trim(), status: editForm.status} : pl));
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -3150,6 +3158,12 @@ function CaptainRosterEditor({ teamName }) {
               placeholder="#" style={{width:60,padding:"8px 10px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontSize:15}} />
             <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))}
               placeholder="Player name" style={{flex:1,minWidth:160,padding:"8px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontSize:15}} />
+            <select value={editForm.status} onChange={e=>setEditForm(f=>({...f,status:e.target.value}))}
+              style={{padding:"8px 10px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,fontSize:14,background:"#fff"}}>
+              <option value="Active">Active</option>
+              <option value="DL">DL</option>
+              <option value="Released">Released</option>
+            </select>
             <button onClick={savePlayer} disabled={saving} style={{padding:"8px 16px",background:"#16a34a",border:"none",borderRadius:6,color:"#fff",fontWeight:700,cursor:"pointer",opacity:saving?.6:1}}>
               {saving?"Saving…":"Save"}
             </button>
@@ -3162,9 +3176,17 @@ function CaptainRosterEditor({ teamName }) {
         <div style={{textAlign:"center",padding:"24px",color:"rgba(0,0,0,0.4)",fontStyle:"italic"}}>No players yet — click "+ Add Player" to add your first.</div>
       ) : (
         players.map((p,i) => (
-          <div key={p.id ?? i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid rgba(0,0,0,0.06)",background:i%2===0?"#fff":"#fafafa"}}>
+          <div key={p.id ?? i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid rgba(0,0,0,0.06)",background:i%2===0?"#fff":"#fafafa",opacity:p.status==="Released"?0.5:1}}>
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,color:"rgba(0,0,0,0.3)",width:28,textAlign:"right",flexShrink:0}}>#{p.number||"—"}</span>
-            <span style={{flex:1,fontWeight:600}}>{p.name}</span>
+            <span style={{flex:1,fontWeight:600,color:p.status==="Released"?"#9ca3af":"#111"}}>{p.name}</span>
+            {p.status && p.status !== "Active" && (
+              <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,
+                background: p.status==="DL"?"#fef3c7":p.status==="Released"?"#f3f4f6":"#dcfce7",
+                color: p.status==="DL"?"#92400e":p.status==="Released"?"#6b7280":"#166534",
+                whiteSpace:"nowrap"}}>
+                {p.status}
+              </span>
+            )}
             <button onClick={()=>startEdit(i)} style={{padding:"3px 10px",background:"rgba(0,45,110,0.08)",border:"none",borderRadius:4,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>Edit</button>
             <button onClick={()=>deletePlayer(i)} disabled={saving} style={{padding:"3px 10px",background:"rgba(220,38,38,0.08)",border:"none",borderRadius:4,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕</button>
           </div>
