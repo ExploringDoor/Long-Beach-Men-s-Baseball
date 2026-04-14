@@ -1968,24 +1968,35 @@ function SchedulePage({ setTab, setTeamDetail }) {
 /* ─── TOURNAMENTS PAGE ───────────────────────────────────────────────────── */
 function TournamentsPage({ setTab, setTeamDetail }) {
   const [tournGames, setTournGames] = useState([]);
+  const [tournMeta, setTournMeta] = useState([]);
   const [loading, setLoading] = useState(true);
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
-    sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=game_date.asc,game_time.asc")
-      .then(data => { setTournGames(data || []); setLoading(false); })
-      .catch(() => setLoading(false));
+    Promise.all([
+      sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=game_date.asc,game_time.asc"),
+      sbFetch("lbdc_tournament_meta?id=eq.main&select=data"),
+    ]).then(([data, metaRows]) => {
+      setTournGames(data || []);
+      if (metaRows && metaRows[0] && Array.isArray(metaRows[0].data)) setTournMeta(metaRows[0].data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
-  // Group by tournament name, preserving insertion order (games already sorted by date)
+  // Group by tournament name (games already sorted by date within each group)
   const byTournament = {};
   tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
-  // Sort tournament groups by their earliest game_date (placeholders/no-date go last)
-  const sortedTournaments = Object.entries(byTournament).sort(([,aGames],[,bGames]) => {
-    const aDate = aGames.map(g=>g.game_date).filter(Boolean).sort()[0] || "9999";
-    const bDate = bGames.map(g=>g.game_date).filter(Boolean).sort()[0] || "9999";
-    return aDate.localeCompare(bDate);
-  });
+
+  // Use admin-defined order from tournMeta if available; fall back to earliest-game-date sort
+  const metaOrder = tournMeta.map(m => m.name);
+  const allNames = [...new Set([...metaOrder, ...Object.keys(byTournament)])];
+  const sortedTournaments = metaOrder.length > 0
+    ? allNames.map(name => [name, byTournament[name] || []]).filter(([,g]) => g.length > 0 || metaOrder.includes(name.toString()))
+    : Object.entries(byTournament).sort(([,aGames],[,bGames]) => {
+        const aDate = aGames.map(g=>g.game_date).filter(Boolean).sort()[0] || "9999";
+        const bDate = bGames.map(g=>g.game_date).filter(Boolean).sort()[0] || "9999";
+        return aDate.localeCompare(bDate);
+      });
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
@@ -4563,6 +4574,15 @@ function TournamentManagerPage({ onBack }) {
 
   const saveTournMeta = async (list) => { await sbUpsert("lbdc_tournament_meta", {id:"main", data:list}).catch(()=>{}); };
 
+  const moveTournament = async (idx, dir) => {
+    const next = idx + dir;
+    if (next < 0 || next >= tournMeta.length) return;
+    const updated = [...tournMeta];
+    [updated[idx], updated[next]] = [updated[next], updated[idx]];
+    setTournMeta(updated);
+    await saveTournMeta(updated);
+  };
+
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -4573,6 +4593,7 @@ function TournamentManagerPage({ onBack }) {
   const [newTournForm, setNewTournForm] = useState({name:"", location:""});
   const [showNewTourn, setShowNewTourn] = useState(false);
   const [tournMeta, setTournMeta] = useState([]);
+  const [reorderMode, setReorderMode] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -4695,6 +4716,10 @@ function TournamentManagerPage({ onBack }) {
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>🏆 Manage Tournaments</div>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
           <button type="button" onClick={load} style={{padding:"6px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
+          <button type="button" onClick={()=>{setReorderMode(s=>!s);setShowAdd(false);setShowNewTourn(false);}}
+            style={{padding:"7px 14px",background:reorderMode?"#16a34a":"rgba(0,0,0,0.07)",border:`1px solid ${reorderMode?"#16a34a":"rgba(0,0,0,0.15)"}`,borderRadius:7,color:reorderMode?"#fff":"#333",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+            ⇅ {reorderMode ? "Done" : "Reorder"}
+          </button>
           <button type="button" onClick={()=>{setShowNewTourn(s=>!s);setShowAdd(false);}}
             style={{padding:"7px 14px",background:"rgba(180,83,9,0.1)",border:"1px solid rgba(180,83,9,0.3)",borderRadius:7,color:"#b45309",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>
             + New Tournament
@@ -4782,6 +4807,29 @@ function TournamentManagerPage({ onBack }) {
         {loading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading…</div>}
         {!loading && games.length === 0 && tournMeta.length === 0 && (
           <div style={{textAlign:"center",padding:30,color:"#aaa",fontSize:13}}>No tournaments yet. Click <strong>+ New Tournament</strong> to get started.</div>
+        )}
+
+        {/* Reorder panel */}
+        {reorderMode && tournMeta.length > 0 && (
+          <div style={{background:"#f0fdf4",border:"2px solid #16a34a",borderRadius:10,padding:"16px 18px"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#16a34a",marginBottom:12}}>⇅ Drag to reorder — use arrows to move tournaments up or down</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {tournMeta.map((m, idx) => (
+                <div key={m.name} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"4px solid #16a34a",borderRadius:8,padding:"10px 14px"}}>
+                  <span style={{fontSize:13,color:"rgba(0,0,0,0.3)",fontWeight:700,width:20,textAlign:"center",flexShrink:0}}>{idx+1}</span>
+                  <span style={{flex:1,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase"}}>{m.name}</span>
+                  {m.location && <span style={{fontSize:12,color:"rgba(0,0,0,0.4)"}}>{m.location}</span>}
+                  <div style={{display:"flex",gap:4,flexShrink:0}}>
+                    <button type="button" onClick={()=>moveTournament(idx,-1)} disabled={idx===0}
+                      style={{width:30,height:30,border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,background:idx===0?"#f3f4f6":"#fff",cursor:idx===0?"not-allowed":"pointer",fontSize:16,opacity:idx===0?0.35:1,display:"flex",alignItems:"center",justifyContent:"center"}}>↑</button>
+                    <button type="button" onClick={()=>moveTournament(idx,1)} disabled={idx===tournMeta.length-1}
+                      style={{width:30,height:30,border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,background:idx===tournMeta.length-1?"#f3f4f6":"#fff",cursor:idx===tournMeta.length-1?"not-allowed":"pointer",fontSize:16,opacity:idx===tournMeta.length-1?0.35:1,display:"flex",alignItems:"center",justifyContent:"center"}}>↓</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:10}}>Order saves automatically. Click <strong>Done</strong> when finished.</div>
+          </div>
         )}
 
         {/* Games grouped by tournament — includes meta-only tournaments (no games yet) */}
