@@ -5322,12 +5322,18 @@ function AdminPhotosEditor({ onBack }) {
                     : <img src={p.url} alt={p.caption||""} style={{width:"100%",aspectRatio:"4/3",objectFit:"cover",display:"block"}} />}
                   <button onClick={()=>delItem(p)} style={{position:"absolute",top:6,right:6,background:"rgba(220,38,38,0.85)",border:"none",color:"#fff",borderRadius:6,width:28,height:28,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
                 </div>
-                <div style={{padding:"8px 10px"}}>
+                <div style={{padding:"8px 10px",display:"flex",gap:5}}>
                   <input
+                    id={`cap-${p.id}`}
                     defaultValue={p.caption||""}
-                    onBlur={e=>updateCaption(p, e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();updateCaption(p,e.target.value);}}}
                     placeholder="Add caption…"
-                    style={{...inp,fontSize:12,padding:"5px 8px"}} />
+                    style={{...inp,fontSize:12,padding:"5px 8px",flex:1}} />
+                  <button
+                    onClick={()=>{const el=document.getElementById(`cap-${p.id}`);if(el)updateCaption(p,el.value);}}
+                    style={{padding:"5px 9px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                    Save
+                  </button>
                 </div>
               </div>
             ))}
