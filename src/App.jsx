@@ -884,7 +884,7 @@ function Ticker({ setTab }) {
 function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","🏆 Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
+  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
   const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
@@ -2807,6 +2807,14 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
 /* ─── TEAMS PAGE ─────────────────────────────────────────────────────────── */
 function TeamsPage({ setTab, setTeamDetail }) {
   const [liveRecords, setLiveRecords] = useState({}); // keyed by team name
+  const [extraTeams, setExtraTeams] = useState([]); // tournament teams from Supabase
+
+  useEffect(() => {
+    sbFetch("lbdc_schedules?id=eq.teams&select=data")
+      .then(rows => {
+        if (rows && rows[0] && Array.isArray(rows[0].data)) setExtraTeams(rows[0].data);
+      }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const calcRows = (games, divTeams) => {
@@ -2920,6 +2928,37 @@ function TeamsPage({ setTab, setTeamDetail }) {
             </div>
           </div>
         ))}
+
+        {/* Tournament / extra teams */}
+        {extraTeams.length > 0 && (
+          <div style={{marginBottom:36}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+              <div style={{width:4,height:28,background:"#b45309",borderRadius:2}} />
+              <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,textTransform:"uppercase",color:"#111"}}>Tournament Teams</h2>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+              {extraTeams.map(name => (
+                <button key={name} onClick={() => setTeamDetail(name)} style={{
+                  background:"#fff",border:"1px solid rgba(0,0,0,0.09)",
+                  borderLeft:"3px solid #b45309",borderTop:"3px solid #b45309",
+                  borderRadius:12,padding:"18px 20px",cursor:"pointer",
+                  textAlign:"left",transition:"all .15s",
+                  boxShadow:"0 1px 4px rgba(0,0,0,0.05)",display:"block",width:"100%",
+                }}
+                onMouseEnter={e => e.currentTarget.style.boxShadow="0 4px 16px rgba(180,83,9,0.15)"}
+                onMouseLeave={e => e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.05)"}>
+                  <div style={{display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{width:44,height:44,borderRadius:"50%",background:"#b45309",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20,fontWeight:900,flexShrink:0}}>{name.charAt(0)}</div>
+                    <div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111",lineHeight:1}}>{name}</div>
+                      <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:3}}>Tournament Team</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
