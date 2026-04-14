@@ -2245,8 +2245,8 @@ function PlayerStatsModal({ playerName, onClose }) {
           s.k+=(l.k||0); s.hbp+=(l.hbp||0); s.sf+=(l.sf||0); s.sb+=(l.sb||0);
         }
 
-        const result = Object.entries(bySeasonId).map(([sid, s]) => ({
-          sid, name: s.name, gp: s.games.size,
+        const result = Object.values(bySeasonId).map(s => ({
+          sid: s.sid, name: s.name, gp: s.games.size,
           ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb,
         }));
         setAllSeasons(result);
