@@ -5892,13 +5892,13 @@ function PlayerAvailabilityPage() {
 
   const btnStyle = (gameId, type) => {
     const active = availability[gameId] === type;
-    const colors = { yes: ["#16a34a","#dcfce7","#166534"], maybe: ["#d97706","#fef3c7","#92400e"], no: ["#dc2626","#fee2e2","#991b1b"] };
+    const colors = { yes: ["#16a34a","#dcfce7","#166534"], no: ["#dc2626","#fee2e2","#991b1b"] };
     const [bg, lightBg, darkText] = colors[type];
     return {
-      padding:"7px 14px", border:`2px solid ${active ? bg : "#e5e7eb"}`,
+      padding:"7px 22px", border:`2px solid ${active ? bg : "#e5e7eb"}`,
       borderRadius:8, background: active ? lightBg : "#f9fafb",
       color: active ? darkText : "#6b7280",
-      fontWeight: active ? 700 : 500, fontSize:13, cursor:"pointer",
+      fontWeight: active ? 700 : 500, fontSize:14, cursor:"pointer",
       transition:"all .15s",
     };
   };
@@ -5948,8 +5948,8 @@ function PlayerAvailabilityPage() {
                 const opp = isHome ? g.away_team : g.home_team;
                 const status = availability[g.id];
                 return (
-                  <div key={g.id} style={{background:"#fff",borderRadius:12,padding:"16px 18px",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",borderLeft:`4px solid ${status==="yes"?"#16a34a":status==="maybe"?"#d97706":status==="no"?"#dc2626":"#e5e7eb"}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                  <div key={g.id} style={{background:"#fff",borderRadius:12,padding:"16px 18px",boxShadow:"0 1px 4px rgba(0,0,0,0.07)",borderLeft:`4px solid ${status==="yes"?"#16a34a":status==="no"?"#dc2626":"#e5e7eb"}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
                       <div>
                         <div style={{fontWeight:700,fontSize:16,color:"#111"}}>{fmtDate(g.game_date)}</div>
                         <div style={{fontSize:13,color:"#555",marginTop:2}}>
@@ -5960,18 +5960,18 @@ function PlayerAvailabilityPage() {
                       </div>
                       {status && (
                         <div style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:6,
-                          background:status==="yes"?"#dcfce7":status==="maybe"?"#fef3c7":"#fee2e2",
-                          color:status==="yes"?"#166534":status==="maybe"?"#92400e":"#991b1b",
+                          background:status==="yes"?"#dcfce7":"#fee2e2",
+                          color:status==="yes"?"#166534":"#991b1b",
                           textTransform:"uppercase",letterSpacing:".06em"}}>
-                          {status==="yes"?"✓ In":status==="maybe"?"~ Maybe":"✗ Out"}
+                          {status==="yes"?"✓ In":"✗ Out"}
                         </div>
                       )}
                     </div>
-                    <div style={{display:"flex",gap:8}}>
-                      {["yes","maybe","no"].map(s => (
+                    <div style={{display:"flex",gap:10}}>
+                      {["yes","no"].map(s => (
                         <button key={s} onClick={()=>setStatus(g.id, s)} disabled={!!saving[g.id]}
                           style={btnStyle(g.id, s)}>
-                          {s==="yes"?"✓ Yes":s==="maybe"?"~ Maybe":"✗ No"}
+                          {s==="yes"?"✓ Yes":"✗ No"}
                         </button>
                       ))}
                     </div>
@@ -6054,9 +6054,9 @@ function CaptainAvailabilityView({ teamName }) {
     return dt.toLocaleDateString("en-US", {month:"short", day:"numeric"});
   };
 
-  const statusColor = { yes:"#16a34a", maybe:"#d97706", no:"#dc2626" };
-  const statusBg = { yes:"#dcfce7", maybe:"#fef3c7", no:"#fee2e2" };
-  const statusLabel = { yes:"✓", maybe:"~", no:"✗" };
+  const statusColor = { yes:"#16a34a", no:"#dc2626" };
+  const statusBg = { yes:"#dcfce7", no:"#fee2e2" };
+  const statusLabel = { yes:"✓", no:"✗" };
 
   if (loading) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>Loading…</div>;
   if (games.length === 0) return <div style={{textAlign:"center",padding:40,color:"#9ca3af",fontSize:14}}>No upcoming games scheduled.</div>;
@@ -6087,10 +6087,6 @@ function CaptainAvailabilityView({ teamName }) {
               <td style={{padding:"6px 12px",fontWeight:700,fontSize:12,color:"#166534"}}>✓ In</td>
               {games.map(g => <td key={g.id} style={{padding:"6px 8px",textAlign:"center",fontWeight:700,fontSize:13,color:"#16a34a"}}>{countFor(g.id,"yes") || "—"}</td>)}
             </tr>
-            <tr style={{background:"#fffbeb"}}>
-              <td style={{padding:"6px 12px",fontWeight:700,fontSize:12,color:"#92400e"}}>~ Maybe</td>
-              {games.map(g => <td key={g.id} style={{padding:"6px 8px",textAlign:"center",fontWeight:700,fontSize:13,color:"#d97706"}}>{countFor(g.id,"maybe") || "—"}</td>)}
-            </tr>
             <tr style={{background:"#fef2f2",borderBottom:"2px solid #e5e7eb"}}>
               <td style={{padding:"6px 12px",fontWeight:700,fontSize:12,color:"#991b1b"}}>✗ Out</td>
               {games.map(g => <td key={g.id} style={{padding:"6px 8px",textAlign:"center",fontWeight:700,fontSize:13,color:"#dc2626"}}>{countFor(g.id,"no") || "—"}</td>)}
@@ -6107,7 +6103,7 @@ function CaptainAvailabilityView({ teamName }) {
                   return (
                     <td key={g.id} style={{padding:"6px 8px",textAlign:"center"}}>
                       <div style={{display:"flex",gap:4,justifyContent:"center"}}>
-                        {["yes","maybe","no"].map(opt => (
+                        {["yes","no"].map(opt => (
                           <button key={opt} onClick={()=>setStatus(g.id, player, opt)} disabled={!!isSaving}
                             style={{width:26,height:26,border:`1.5px solid ${s===opt?statusColor[opt]:"#e5e7eb"}`,
                               borderRadius:6,background:s===opt?statusBg[opt]:"#f9fafb",
