@@ -3049,10 +3049,11 @@ function PhotosPage() {
             {photos.map((p, i) => (
               p.type === "video" ? (
                 <div key={p.id||i} style={{background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
-                  <div style={{position:"relative",paddingBottom:"75%",background:"#111"}}>
+                  <div style={{position:"relative",paddingBottom:"56.25%",background:"#111"}}>
                     <iframe
-                      src={p.url.replace("youtu.be/","www.youtube.com/embed/").replace("watch?v=","embed/")}
+                      src={ytEmbedUrl(p.url)}
                       style={{position:"absolute",inset:0,width:"100%",height:"100%",border:"none"}}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen title={p.caption||"Video"} />
                   </div>
                   {p.caption && <div style={{padding:"10px 12px",fontSize:13,color:"rgba(0,0,0,0.6)"}}>{p.caption}</div>}
@@ -3216,6 +3217,13 @@ function compressImageToBlob(file, maxWidth = 1400, quality = 0.82) {
     reader.readAsDataURL(file);
   });
 }
+// Converts any YouTube URL format to a clean embed URL
+function ytEmbedUrl(url) {
+  if (!url) return "";
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+  return m ? `https://www.youtube.com/embed/${m[1]}` : url;
+}
+
 async function sbUploadPhotoFile(file, caption) {
   const blob = await compressImageToBlob(file);
   const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -5237,8 +5245,12 @@ function AdminPhotosEditor({ onBack }) {
   };
 
   const updateCaption = async (item, caption) => {
-    try { await sbUpdateGalleryCaption(item.id, caption); setItems(prev => prev.map(x => x.id===item.id ? {...x,caption} : x)); }
-    catch(e) { setError("Caption update failed."); }
+    try {
+      await sbPatch(`lbdc_gallery?id=eq.${item.id}`, { caption });
+      setItems(prev => prev.map(x => x.id===item.id ? {...x,caption} : x));
+      flash();
+    }
+    catch(e) { setError("Caption update failed: " + e.message); }
   };
 
   const btn=(bg,color="#fff",extra={})=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer",...extra});
