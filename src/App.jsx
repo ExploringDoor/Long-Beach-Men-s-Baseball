@@ -4439,8 +4439,8 @@ function SubBoardPage() {
 
 /* ─── PAYMENTS PAGE ──────────────────────────────────────────────────────── */
 const PAYMENT_CATEGORIES = [
-  { id: "seasonal_ins",  label: "Seasonal Insurance (50's)",  amount: null,  note: "Required for all 50's division players each season." },
-  { id: "annual_ins",    label: "Annual Insurance (Boomers)", amount: null,  note: "Required for all Boomers 60/70 division players annually." },
+  { id: "seasonal_ins",  label: "Seasonal Insurance (50's)",  amount: "$50", note: "Required for all 50's division players each season." },
+  { id: "annual_ins",    label: "Annual Insurance (Boomers)", amount: "$25", note: "Required for all Boomers 60/70 division players annually." },
   { id: "game_fee_bom",  label: "Game Fee — Boomers",         amount: "$20", note: "Per-game fee for Boomers 60/70 division players." },
   { id: "game_fee_co",   label: "Game Fee — Crossover",       amount: "$10", note: "Per-game fee when playing a crossover game." },
   { id: "tourn_regional",label: "Regional Tournament",        amount: "$125",note: "Entry fee per player for regional tournament participation." },
