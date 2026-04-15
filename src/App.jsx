@@ -885,7 +885,7 @@ function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["payments","💳 Payments"],["admin","⚙ Admin"]];
-  const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"]];
+  const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"],["contact","📞 Contact"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
   useEffect(() => {
@@ -4434,6 +4434,62 @@ function SubBoardPage() {
             </div>
           </Card>
         </>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── CONTACT PAGE ───────────────────────────────────────────────────────── */
+function ContactPage() {
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      <PageHero label="Diamond Classics" title="Contact Us" subtitle="Reach out to the league commissioner with questions or concerns" />
+      <div style={{maxWidth:560,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"4px solid #002d6e",borderRadius:14,overflow:"hidden",boxShadow:"0 2px 12px rgba(0,45,110,0.07)"}}>
+          <div style={{background:"#002d6e",padding:"20px 24px",display:"flex",alignItems:"center",gap:16}}>
+            <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>⚾</div>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".12em",color:"rgba(255,255,255,0.6)",marginBottom:2}}>League Commissioner</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,color:"#fff",textTransform:"uppercase",lineHeight:1}}>Daniel Gutierrez</div>
+            </div>
+          </div>
+          <div style={{padding:"8px 0"}}>
+            <a href="tel:+16267222938" style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)",textDecoration:"none",transition:"background .12s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.03)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>📞</div>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Phone / Cell</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e"}}>(626) 722-2938</div>
+                <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:1}}>Tap to call</div>
+              </div>
+            </a>
+            <a href="sms:+16267222938" style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)",textDecoration:"none",transition:"background .12s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.03)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>💬</div>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Text</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e"}}>(626) 722-2938</div>
+                <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:1}}>Tap to text</div>
+              </div>
+            </a>
+            <div style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+              <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>💸</div>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Zelle</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111"}}>Send to cell number above</div>
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px"}}>
+              <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>📱</div>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Venmo</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111"}}>@Titans-baseball</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -10998,6 +11054,7 @@ export default function App() {
       {tab==="stats"     && <StatsPage />}
       {tab==="live"      && <LiveScorerPage />}
       {tab==="subs"      && <SubBoardPage />}
+      {tab==="contact"   && <ContactPage />}
       {tab==="payments"  && <PaymentsPage />}
       {tab==="admin"     && <AdminPage onAlertChange={(txt, style) => { setActiveAlert(txt); setActiveAlertStyle(style || {}); }} />}
       {tab==="history"   && <HistoryPage />}
