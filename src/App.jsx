@@ -4562,7 +4562,7 @@ function PaymentsPage() {
               </div>
               <div>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Zelle</div>
-                <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>Send to Daniel Gutierrez's cell number</div>
+                <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>Send to Daniel Gutierrez · <a href="tel:+16267222938" style={{color:"#002d6e",textDecoration:"none",fontWeight:700}}>(626) 722-2938</a></div>
               </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px"}}>
@@ -4578,7 +4578,7 @@ function PaymentsPage() {
         </div>
 
         <div style={{marginTop:16,padding:"12px 16px",background:"rgba(0,45,110,0.04)",border:"1px solid rgba(0,45,110,0.1)",borderRadius:8,fontSize:13,color:"rgba(0,0,0,0.5)",lineHeight:1.6}}>
-          ⚾ Questions about fees or payments? Contact your team captain or the league commissioner.
+          ⚾ Questions about fees or payments? Contact Daniel Gutierrez at <a href="tel:+16267222938" style={{color:"#002d6e",fontWeight:700,textDecoration:"none"}}>(626) 722-2938</a> or your team captain.
         </div>
       </div>
     </div>
