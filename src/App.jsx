@@ -4490,6 +4490,39 @@ function ContactPage() {
             </div>
           </div>
         </div>
+
+        {/* Built by Mainline Web Design */}
+        <div style={{marginTop:28,background:"linear-gradient(135deg,#001a4d 0%,#002d6e 60%,#003d99 100%)",borderRadius:14,padding:"24px 24px 20px",boxShadow:"0 4px 20px rgba(0,45,110,0.18)",position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",right:-18,top:-18,fontSize:80,opacity:0.06,lineHeight:1}}>💻</div>
+          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".14em",color:"rgba(255,255,255,0.5)",marginBottom:6}}>Love This Site?</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#FFD700",textTransform:"uppercase",lineHeight:1.1,marginBottom:8}}>Get a Custom Website Built for Your League</div>
+          <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",lineHeight:1.6,marginBottom:18}}>
+            This site was built specifically for Long Beach Diamond Classics — every feature, every page, exactly how the league needs it. If your organization wants a fully custom website tailored to your team, league, or club, reach out to the developer.
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <a href="https://mainline-webdesign.com/" target="_blank" rel="noopener noreferrer"
+              style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"12px 16px",textDecoration:"none",transition:"background .15s",border:"1px solid rgba(255,255,255,0.12)"}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.18)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}>
+              <span style={{fontSize:20}}>🌐</span>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(255,255,255,0.5)",marginBottom:1}}>Website</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700"}}>mainline-webdesign.com</div>
+              </div>
+            </a>
+            <a href="mailto:adam.mainlinewebdesign@gmail.com"
+              style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"12px 16px",textDecoration:"none",transition:"background .15s",border:"1px solid rgba(255,255,255,0.12)"}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.18)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}>
+              <span style={{fontSize:20}}>✉️</span>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(255,255,255,0.5)",marginBottom:1}}>Email</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700"}}>adam.mainlinewebdesign@gmail.com</div>
+              </div>
+            </a>
+          </div>
+        </div>
+
       </div>
     </div>
   );
