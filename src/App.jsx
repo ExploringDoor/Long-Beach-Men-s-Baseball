@@ -4464,16 +4464,6 @@ function ContactPage() {
                 <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:1}}>Tap to call</div>
               </div>
             </a>
-            <a href="sms:+16267222938" style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)",textDecoration:"none",transition:"background .12s"}}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.03)"}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>💬</div>
-              <div>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Text</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e"}}>(626) 722-2938</div>
-                <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:1}}>Tap to text</div>
-              </div>
-            </a>
             <div style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
               <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>💸</div>
               <div>
