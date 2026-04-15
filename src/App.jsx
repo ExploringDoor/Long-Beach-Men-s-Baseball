@@ -4497,7 +4497,7 @@ function ContactPage() {
           <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".14em",color:"rgba(255,255,255,0.5)",marginBottom:6}}>Love This Site?</div>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#FFD700",textTransform:"uppercase",lineHeight:1.1,marginBottom:8}}>Get a Custom Website Built for Your League</div>
           <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",lineHeight:1.6,marginBottom:18}}>
-            This site was built specifically for Long Beach Diamond Classics — every feature, every page, exactly how the league needs it. If your organization wants a fully custom website tailored to your team, league, or club, reach out to the developer.
+            This site was built specifically for Long Beach Diamond Classics — every feature, every page, exactly how the league needs it. If your organization wants a fully custom website tailored to your team, league, or club, reach out to Adam!
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             <a href="https://mainline-webdesign.com/" target="_blank" rel="noopener noreferrer"
@@ -4507,7 +4507,7 @@ function ContactPage() {
               <span style={{fontSize:20}}>🌐</span>
               <div>
                 <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(255,255,255,0.5)",marginBottom:1}}>Website</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700"}}>mainline-webdesign.com</div>
+                <div style={{fontFamily:"Arial,sans-serif",fontWeight:700,fontSize:15,color:"#FFD700",letterSpacing:".01em"}}>mainline-webdesign.com</div>
               </div>
             </a>
             <a href="mailto:adam.mainlinewebdesign@gmail.com"
@@ -4517,7 +4517,7 @@ function ContactPage() {
               <span style={{fontSize:20}}>✉️</span>
               <div>
                 <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(255,255,255,0.5)",marginBottom:1}}>Email</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700"}}>adam.mainlinewebdesign@gmail.com</div>
+                <div style={{fontFamily:"Arial,sans-serif",fontWeight:700,fontSize:15,color:"#FFD700",letterSpacing:".01em"}}>adam.mainlinewebdesign@gmail.com</div>
               </div>
             </a>
           </div>
