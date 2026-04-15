@@ -4598,13 +4598,19 @@ function PaymentsPage() {
                 <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>Send to Daniel Gutierrez · <a href="tel:+16267222938" style={{color:"#002d6e",textDecoration:"none",fontWeight:700}}>(626) 722-2938</a></div>
               </div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px"}}>
-              <div style={{width:44,height:44,borderRadius:10,background:"#008aff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                <span style={{fontSize:22}}>📱</span>
+            <div style={{padding:"16px 20px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+                <div style={{width:44,height:44,borderRadius:10,background:"#008aff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontSize:22}}>📱</span>
+                </div>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Venmo</div>
+                  <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>@Titans-baseball · Daniel Gutierrez</div>
+                </div>
               </div>
-              <div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Venmo</div>
-                <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>@Titans-baseball · Daniel Gutierrez</div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",background:"rgba(0,138,255,0.05)",border:"1px solid rgba(0,138,255,0.15)",borderRadius:10,padding:"14px 12px",gap:8}}>
+                <img src="/QR%20code.png" alt="Venmo QR Code" style={{width:180,height:180,borderRadius:8,objectFit:"contain",display:"block"}} />
+                <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",textAlign:"center"}}>Scan with your camera or Venmo app to pay instantly</div>
               </div>
             </div>
           </div>
