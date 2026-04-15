@@ -811,27 +811,10 @@ function Ticker({ setTab }) {
   }, [week.label]);
 
   const openFinalBox = async (sc) => {
-    const enc = s => encodeURIComponent(s);
     const [bat, pit] = await Promise.all([
       sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${sc.id}&order=id.asc&limit=100`),
       sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${sc.id}&order=id.asc&limit=50`),
     ]).catch(()=>[[], []]);
-    // Sibling fallback if a team's rows are missing
-    const hasAway = bat.some(b=>b.team===sc.away_team), hasHome = bat.some(b=>b.team===sc.home_team);
-    if (!hasAway || !hasHome) {
-      const sibs = await sbFetch(`games?select=id&away_team=eq.${enc(sc.away_team)}&home_team=eq.${enc(sc.home_team)}&id=neq.${sc.id}&away_score=not.is.null&limit=5`).catch(()=>[]);
-      if (sibs.length) {
-        const ids = sibs.map(s=>s.id).join(',');
-        const [mb, mp] = await Promise.all([
-          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&order=id.asc&limit=200`),
-          sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&order=id.asc&limit=100`),
-        ]).catch(()=>[[], []]);
-        const batFull = [...bat, ...(!hasAway?mb.filter(b=>b.team===sc.away_team):[]), ...(!hasHome?mb.filter(b=>b.team===sc.home_team):[])];
-        const pitFull = [...pit, ...(!pit.some(p=>p.team===sc.away_team)?mp.filter(p=>p.team===sc.away_team):[]), ...(!pit.some(p=>p.team===sc.home_team)?mp.filter(p=>p.team===sc.home_team):[])];
-        setBoxModal({game:sc, batting:batFull, pitching:pitFull});
-        return;
-      }
-    }
     setBoxModal({game:sc, batting:bat, pitching:pit});
   };
 
@@ -1212,7 +1195,7 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
     if (rows.length === 0) return (
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:6,padding:"6px 10px",background:"#f0f4ff",borderRadius:6}}>{team} — Batting</div>
-        <div style={{padding:"12px 10px",color:"#aaa",fontSize:12,fontStyle:"italic"}}>No stats recorded</div>
+        <div style={{padding:"12px 10px",color:"#aaa",fontSize:12,fontStyle:"italic"}}>No stats entered for this game.</div>
       </div>
     );
     const note2B = rows.filter(r=>r.doubles>0).map(r=>`${r.player_name}${r.doubles>1?` (${r.doubles})`:""}`).join(", ");
@@ -1346,13 +1329,11 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
           })}
         </div>
         <div style={{padding:"14px 18px"}}>
-          {awayBat.length > 0 ? <>
-            <POTGBadge batting={batting} pitching={pitching} awayTeam={game.away_team} homeTeam={game.home_team} />
-            <BatTable rows={awayBat} team={game.away_team} />
-            <BatTable rows={homeBat} team={game.home_team} />
-            <PitTable rows={awayPit} team={game.away_team} />
-            <PitTable rows={homePit} team={game.home_team} />
-          </> : <div style={{textAlign:"center",padding:"24px",color:"rgba(0,0,0,0.4)"}}>Box score not available for this game.</div>}
+          {batting.length > 0 && <POTGBadge batting={batting} pitching={pitching} awayTeam={game.away_team} homeTeam={game.home_team} />}
+          <BatTable rows={awayBat} team={game.away_team} />
+          <BatTable rows={homeBat} team={game.home_team} />
+          <PitTable rows={awayPit} team={game.away_team} />
+          <PitTable rows={homePit} team={game.home_team} />
         </div>
       </div>
     </div>
