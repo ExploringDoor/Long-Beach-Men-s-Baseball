@@ -884,7 +884,7 @@ function Ticker({ setTab }) {
 function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["admin","⚙ Admin"]];
+  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["payments","💳 Payments"],["admin","⚙ Admin"]];
   const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
@@ -4432,6 +4432,96 @@ function SubBoardPage() {
             </div>
           </Card>
         </>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── PAYMENTS PAGE ──────────────────────────────────────────────────────── */
+const PAYMENT_CATEGORIES = [
+  { id: "seasonal_ins",  label: "Seasonal Insurance (50's)",  amount: null,  note: "Required for all 50's division players each season." },
+  { id: "annual_ins",    label: "Annual Insurance (Boomers)", amount: null,  note: "Required for all Boomers 60/70 division players annually." },
+  { id: "game_fee_bom",  label: "Game Fee — Boomers",         amount: "$20", note: "Per-game fee for Boomers 60/70 division players." },
+  { id: "game_fee_co",   label: "Game Fee — Crossover",       amount: "$10", note: "Per-game fee when playing a crossover game." },
+  { id: "tourn_regional",label: "Regional Tournament",        amount: "$125",note: "Entry fee per player for regional tournament participation." },
+  { id: "tourn_national",label: "National Tournament",        amount: "$175",note: "Entry fee per player for national tournament participation." },
+];
+
+function PaymentsPage() {
+  const [selected, setSelected] = useState(null);
+  const cat = PAYMENT_CATEGORIES.find(c => c.id === selected);
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      <PageHero label="Diamond Classics" title="Payment Info" subtitle="Select a fee type to see the amount and how to pay" />
+      <div style={{maxWidth:640,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+
+        {/* Category selector */}
+        <div style={{marginBottom:24}}>
+          <label style={{display:"block",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",color:"rgba(0,0,0,0.45)",marginBottom:8}}>Select a Fee Type</label>
+          <div style={{position:"relative"}}>
+            <select
+              value={selected||""}
+              onChange={e => setSelected(e.target.value || null)}
+              style={{width:"100%",padding:"14px 44px 14px 16px",border:"2px solid #002d6e",borderRadius:10,fontSize:16,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,textTransform:"uppercase",color:selected?"#002d6e":"rgba(0,0,0,0.4)",background:"#fff",appearance:"none",cursor:"pointer",outline:"none",boxSizing:"border-box"}}>
+              <option value="">— Choose a fee category —</option>
+              {PAYMENT_CATEGORIES.map(c => (
+                <option key={c.id} value={c.id}>{c.label}{c.amount ? `  ·  ${c.amount}` : ""}</option>
+              ))}
+            </select>
+            <div style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",fontSize:18,color:"#002d6e"}}>▾</div>
+          </div>
+        </div>
+
+        {/* Selected fee detail card */}
+        {cat && (
+          <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"4px solid #002d6e",borderRadius:12,padding:"22px 24px",marginBottom:24,boxShadow:"0 2px 12px rgba(0,45,110,0.07)"}}>
+            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:12}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".1em",color:"rgba(0,0,0,0.4)",marginBottom:4}}>Selected Fee</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",lineHeight:1}}>{cat.label}</div>
+              </div>
+              {cat.amount && (
+                <div style={{background:"#002d6e",color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:36,padding:"8px 22px",borderRadius:10,lineHeight:1,flexShrink:0}}>
+                  {cat.amount}
+                </div>
+              )}
+            </div>
+            <div style={{fontSize:14,color:"rgba(0,0,0,0.55)",lineHeight:1.6}}>{cat.note}</div>
+          </div>
+        )}
+
+        {/* Payment methods — always visible */}
+        <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+          <div style={{background:"#002d6e",padding:"14px 20px"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#fff",letterSpacing:".04em"}}>💰 How to Pay</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.65)",marginTop:2}}>Send payment to Daniel Gutierrez using either method below</div>
+          </div>
+          <div style={{padding:"6px 0"}}>
+            <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+              <div style={{width:44,height:44,borderRadius:10,background:"#6c3de0",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <span style={{fontSize:22}}>💸</span>
+              </div>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Zelle</div>
+                <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>Send to Daniel Gutierrez's cell number</div>
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px"}}>
+              <div style={{width:44,height:44,borderRadius:10,background:"#008aff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <span style={{fontSize:22}}>📱</span>
+              </div>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Venmo</div>
+                <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>@Titans-baseball · Daniel Gutierrez</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{marginTop:16,padding:"12px 16px",background:"rgba(0,45,110,0.04)",border:"1px solid rgba(0,45,110,0.1)",borderRadius:8,fontSize:13,color:"rgba(0,0,0,0.5)",lineHeight:1.6}}>
+          ⚾ Questions about fees or payments? Contact your team captain or the league commissioner.
+        </div>
       </div>
     </div>
   );
@@ -10906,6 +10996,7 @@ export default function App() {
       {tab==="stats"     && <StatsPage />}
       {tab==="live"      && <LiveScorerPage />}
       {tab==="subs"      && <SubBoardPage />}
+      {tab==="payments"  && <PaymentsPage />}
       {tab==="admin"     && <AdminPage onAlertChange={(txt, style) => { setActiveAlert(txt); setActiveAlertStyle(style || {}); }} />}
       {tab==="history"   && <HistoryPage />}
       {tab==="rules"     && <RulesPage />}
