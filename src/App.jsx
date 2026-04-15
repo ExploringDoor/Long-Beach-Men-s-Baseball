@@ -7942,18 +7942,20 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         let season;
         if (isBoomerGame) {
           season = allSeasons.find(s=>s.name.toLowerCase().includes("boomers"));
-          if(!season){const res=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=res[0];}
+          if(!season){const res=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=res?.[0];}
         } else {
           season = allSeasons.find(s=>s.name.includes("Diamond Classics Saturdays")||( s.name.includes("Spring")&&s.name.includes("2026")));
-          if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res[0];}
+          if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res?.[0];}
         }
-        const [newGame] = await sbPost("games",[{
+        if(!season) throw new Error("Could not find or create a season record — please try again.");
+        const gameRes = await sbPost("games",[{
           season_id:season.id, game_date:toISODate(game.date), game_time:game.time, field:game.field,
           away_team:game.away, home_team:game.home,
           away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
           headline:headlineVal, status:gameStatus,
         }]);
-        gid = newGame.id;
+        if(!gameRes?.[0]?.id) throw new Error("Game record was not created — please try again.");
+        gid = gameRes[0].id;
       }
       const batRows = [
         ...(awayStatMode==="full" ? awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
@@ -7965,17 +7967,22 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         doubles:+doubles||0,triples:+triples||0,
         hr:+hr||0,rbi:+rbi||0,bb:+bb||0,k:+k||0,sb:+sb||0,hbp:0,sf:0,
       }));
-      if(batRows.length) await sbPost("batting_lines",batRows);
-      const pitRows = [
-        ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
-        ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
-      ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
-        game_id:gid,player_name:name,team:_t,
-        ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
-        decision:decision==="ND"?null:decision,
-      }));
-      if(pitRows.length) await sbPost("pitching_lines",pitRows);
-      setSaveMsg({ok:true,text:`✅ Box score ${editGameId?"updated":"saved"} for ${game.away} vs ${game.home}!`});
+      let statsWarning = "";
+      try {
+        if(batRows.length) await sbPost("batting_lines",batRows);
+        const pitRows = [
+          ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
+          ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
+        ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
+          game_id:gid,player_name:name,team:_t,
+          ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
+          decision:decision==="ND"?null:decision,
+        }));
+        if(pitRows.length) await sbPost("pitching_lines",pitRows);
+      } catch(statsErr) {
+        statsWarning = " (game saved but player stats failed — re-open and save again to retry)";
+      }
+      setSaveMsg({ok:true,text:`✅ Box score ${editGameId?"updated":"saved"} for ${game.away} vs ${game.home}!${statsWarning}`});
       // Clear localStorage draft after successful submit
       const draftKey = bseDraftKey(game);
       if (draftKey) { try { localStorage.removeItem(draftKey); } catch(e) {} }
@@ -9480,7 +9487,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     const {_hist,...save} = s;
     const key = lsKey(s.away,s.home,s.date);
     setLiveStates(prev => ({...prev,[key]:save}));
-    sbUpsert("lbdc_live_state", {id:key, data:save}).catch(()=>{});
+    sbUpsert("lbdc_live_state", {id:key, data:save}).catch(e => console.warn("Live state sync failed:", e.message));
     setGs(s);
   };
   const loadSaved = (a,h,d) => liveStates[lsKey(a,h,d)] || null;
@@ -9799,13 +9806,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       let season;
       if(isBoomerGame){
         season=seasons.find(s=>s.name==="2026 BOOMERS 60/70 Division")||seasons.find(s=>s.name.toLowerCase().includes("boomers"));
-        if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.2026%20BOOMERS%2060%2F70%20Division&limit=1`);season=byName[0];}
-        if(!season){const r=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=r[0];}
+        if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.2026%20BOOMERS%2060%2F70%20Division&limit=1`);season=byName?.[0];}
+        if(!season){const r=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=r?.[0];}
       }else{
         season=seasons.find(s=>s.name==="Spring/Summer 2026 Diamond Classics Saturdays")||seasons.find(s=>s.name.includes("Diamond Classics"));
-        if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`);season=byName[0];}
-        if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r[0];}
+        if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`);season=byName?.[0];}
+        if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r?.[0];}
       }
+      if(!season) throw new Error("Could not find or create season — please try again.");
       const existing=await sbFetch(`games?select=id,headline&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
       const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:gs.score.away,home_score:gs.score.home,game_date:toISODate(gs.date)||null,game_time:gs.time||null,field:gs.field||null};
       let gameId;
@@ -9816,7 +9824,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         // (manually entered games have a headline set)
         if(!existing[0].headline){await sbDelete(`batting_lines?game_id=eq.${gameId}`);}
       }
-      else{const r=await sbPost("games",[gameData]);gameId=r[0].id;}
+      else{const r=await sbPost("games",[gameData]);if(!r?.[0]?.id) throw new Error("Game record was not created — please try again.");gameId=r[0].id;}
       const batRows=[];
       Object.entries(gs.stats).forEach(([name,st])=>{
         const awayIdx=gs.lineup.away.indexOf(name);
@@ -10029,7 +10037,8 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       try {
         const seasons = await sbFetch("seasons?select=id,name&limit=100");
         let season = seasons.find(s => s.name.includes("Diamond Classics Saturdays")) || seasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
-        if (!season) { const r = await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]); season=r[0]; }
+        if (!season) { const r = await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]); season=r?.[0]; }
+        if (!season) throw new Error("Could not find or create season — please try again.");
         const existing = await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(g.away)}&home_team=eq.${encodeURIComponent(g.home)}&season_id=eq.${season.id}&limit=1`);
         const gameData = {away_team:g.away,home_team:g.home,season_id:season.id,status:"Final",away_score:parseInt(bsScore.away)||0,home_score:parseInt(bsScore.home)||0};
         let gameId;
@@ -10039,7 +10048,9 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
           await sbDelete(`batting_lines?game_id=eq.${gameId}`);
           await sbDelete(`pitching_lines?game_id=eq.${gameId}`);
         } else {
-          const r = await sbPost("games",[gameData]); gameId = r[0].id;
+          const r = await sbPost("games",[gameData]);
+          if(!r?.[0]?.id) throw new Error("Game record was not created — please try again.");
+          gameId = r[0].id;
         }
         const batRows = [];
         [...awayPlayers.map(n=>({n,team:g.away})),...homePlayers.map(n=>({n,team:g.home}))].forEach(({n,team},i) => {
