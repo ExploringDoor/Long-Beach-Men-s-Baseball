@@ -7449,6 +7449,18 @@ function AdminPage({ onAlertChange }) {
 const SB_URL = "https://vhovzpajuyphjatjlodo.supabase.co";
 const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
 
+// Translate raw Supabase / network errors into plain-English messages for end users
+function friendlyError(e) {
+  const msg = (e?.message || "").toLowerCase();
+  if (/409|duplicate|unique.constraint/.test(msg))   return "This game has already been saved — use Edit to update it.";
+  if (/42501|row.level.security|permission denied/.test(msg)) return "Permission denied — please contact your admin.";
+  if (/23503|foreign key/.test(msg))                 return "A referenced record wasn't found — refresh and try again.";
+  if (/failed to fetch|networkerror|load failed/.test(msg))  return "Connection error — check your internet and try again.";
+  // Pass through our own clear messages unchanged
+  if (/could not (find|create)|was not created|select a game/i.test(e?.message || "")) return e.message;
+  return "Something went wrong — please try again.";
+}
+
 async function sbFetch(path) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
     headers: {
@@ -7714,6 +7726,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   // ── Edit mode (loading a previously saved game) ──
   const [editGameId, setEditGameId] = useState(null);
+  const [editSubmittedTag, setEditSubmittedTag] = useState(""); // preserves "[submitted: X]" through re-saves
   const [savedGames, setSavedGames] = useState([]);
   const [savedLoading, setSavedLoading] = useState(false);
   const [editMode, setEditMode] = useState(false); // true = showing saved games list
@@ -7773,7 +7786,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setEditGameId(g.id);
       setGame({date:g.game_date, time:g.game_time||"", field:g.field||"", away:g.away_team, home:g.home_team});
       setAwayScore(String(g.away_score??"")); setHomeScore(String(g.home_score??""));
-      setHeadline((g.headline||"").replace(/\s*\[submitted:.*?\]\s*$/,""));
+      // Strip "[submitted: X]" from the displayed headline but save it so re-saving doesn't wipe it
+      const submittedMatch = (g.headline||"").match(/\s*\[submitted:[^\]]*\]/);
+      setEditSubmittedTag(submittedMatch ? submittedMatch[0] : "");
+      setHeadline((g.headline||"").replace(/\s*\[submitted:[^\]]*\]/,"").trim());
       setGameStatus(g.status||"Final");
       setAwayBat(awayB.length?awayB.map(toB):initBatters(g.away_team));
       setHomeBat(homeB.length?homeB.map(toB):initBatters(g.home_team));
@@ -7784,7 +7800,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
       setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
       setSaveMsg(null); setEditMode(false);
-    } catch(err){ setSaveMsg({ok:false,text:`❌ ${err.message}`}); }
+    } catch(err){ setSaveMsg({ok:false,text:`❌ ${friendlyError(err)}`}); }
     setSavedLoading(false);
   };
 
@@ -7912,8 +7928,12 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     if(!game){setSaveMsg({ok:false,text:"Select a game first."});return;}
     setSaving(true); setSaveMsg(null);
     try {
-      const submitterTag = captainTeam ? ` [submitted: ${captainTeam}]` : "";
-      const headlineVal = (headline||"")+submitterTag || null;
+      // For captains submitting fresh: tag with team name.
+      // For admin editing a previously-captain-submitted game: preserve the original tag.
+      // For admin creating new: no tag.
+      const submitterTag = captainTeam ? ` [submitted: ${captainTeam}]` : (editGameId ? editSubmittedTag : "");
+      const displayHeadline = (headline||"").trim();
+      const headlineVal = displayHeadline + submitterTag || null;
       let gid;
       if(editGameId) {
         // UPDATE existing game — also stamp season_id so it's visible to season-filtered queries
@@ -7986,7 +8006,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       // Clear localStorage draft after successful submit
       const draftKey = bseDraftKey(game);
       if (draftKey) { try { localStorage.removeItem(draftKey); } catch(e) {} }
-    } catch(err){setSaveMsg({ok:false,text:`❌ ${err.message}`});}
+    } catch(err){setSaveMsg({ok:false,text:`❌ ${friendlyError(err)}`});}
     setSaving(false);
   };
 
@@ -8593,7 +8613,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       {editGameId && (
         <div style={{background:"#1b4332",borderRadius:8,padding:"8px 16px",marginBottom:10,fontSize:13,color:"#d1fae5",display:"flex",alignItems:"center",gap:8}}>
           ✏️ <strong>Edit Mode</strong> — changes will overwrite the saved box score for this game.
-          <button type="button" onClick={()=>{setEditGameId(null);setGame(null);}} style={{marginLeft:"auto",padding:"3px 10px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:5,color:"#fff",fontSize:12,cursor:"pointer"}}>Cancel Edit</button>
+          <button type="button" onClick={()=>{setEditGameId(null);setEditSubmittedTag("");setGame(null);}} style={{marginLeft:"auto",padding:"3px 10px",background:"rgba(255,255,255,0.15)",border:"none",borderRadius:5,color:"#fff",fontSize:12,cursor:"pointer"}}>Cancel Edit</button>
         </div>
       )}
       {/* Game banner */}
@@ -9837,7 +9857,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       const pitRows=bsPit.filter(p=>p.name&&p.ip).map(p=>({game_id:gameId,player_name:p.name,team:p.team,ip:toIP(p.ip),h:+p.h||0,r:+p.r||0,er:+p.er||0,bb:+p.bb||0,k:+p.k||0,decision:p.decision||"ND"}));
       if(pitRows.length){await sbDelete(`pitching_lines?game_id=eq.${gameId}`);await sbPost("pitching_lines",pitRows);}
       clearSaved(gs.away,gs.home,gs.date);setModal(null);setView("pick");
-    } catch(e){alert("Save failed: "+e.message);}
+    } catch(e){alert(friendlyError(e));}
     setSaving(false);
   };
 
@@ -10070,7 +10090,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         clearLineupDraft(g.away,g.home,g.date);
         alert("Box score saved!");
         setView("pick"); setBsMode(false);
-      } catch(e) { alert("Save failed: "+e.message); }
+      } catch(e) { alert(friendlyError(e)); }
       setBsSaving(false);
     };
 
