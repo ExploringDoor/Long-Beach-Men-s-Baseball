@@ -4215,6 +4215,8 @@ function PlayerSignUpPage() {
               <select value={form.team} onChange={e=>set("team",e.target.value)} style={inputStyle}>
                 <option value="">— Select your team —</option>
                 {Object.keys(TEAM_ROSTERS).map(t=><option key={t} value={t}>{t}</option>)}
+                <option disabled style={{color:"#ccc"}}>──────────────</option>
+                <option value="Free Agent">Free Agent</option>
               </select>
             </div>
             <div style={{marginBottom:18}}>
