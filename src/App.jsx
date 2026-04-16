@@ -8439,10 +8439,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           textTransform:"uppercase",color:"#002d6e",marginBottom:8,borderBottom:"2px solid #002d6e",paddingBottom:4}}>{label}</div>
         <div style={{background:"#002d6e",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
           <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,marginBottom:4}}>
-            Set Batting Order
+            Edit Lineup &amp; Batting Order
           </div>
           <div style={{color:"rgba(255,255,255,0.85)",fontSize:12,marginBottom:6,lineHeight:1.5}}>
-            Tap each player in the order they bat — #1 first, then #2, and so on. Tap a player again to remove them.
+            Tap each player in batting order — #1 first, then #2, and so on. Skip anyone who didn't play. Use "Add to lineup" below to add players not yet listed.
           </div>
           <div style={{color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,marginBottom:10}}>
             {orderQueue.length < activeBatters.length
@@ -8597,7 +8597,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               borderRadius:6,color:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,
               fontSize:11,cursor:"pointer",textTransform:"uppercase",letterSpacing:".04em",
               whiteSpace:"nowrap"}}>
-            🔄 Change Order
+            ✏️ Edit Lineup
           </button>
         </div>
       )}
@@ -8617,12 +8617,13 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               </tr>
             </thead>
             <tbody>
-              {batters.map((p,i)=>(
+              {batters.map((p,i)=>{
+                if(!p.on) return null; // only show players in the lineup
+                return (
                 <tr key={p._id||i}
                   onDragOver={e=>e.preventDefault()}
                   onDrop={e=>handleDrop(e,side,setter,i)}
-                  style={{background:p.on?(i%2===0?"#fff":"#f8f9fb"):"rgba(0,0,0,0.03)",
-                    opacity:p.on?1:0.45,
+                  style={{background:i%2===0?"#fff":"#f8f9fb",
                     outline:(dragVisual.idx===i&&dragVisual.side===side)?"2px solid #002d6e":"none"}}>
                   {/* drag handle */}
                   <td style={{padding:"2px 1px",textAlign:"center"}}>
@@ -8657,26 +8658,22 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                   {/* stats */}
                   {BAT_STATS.map((f)=>(
                     <td key={f} style={{padding:"2px 1px",textAlign:"center"}}>
-                      {p.on
-                        ? <input type="number" min="0" inputMode="numeric" value={p[f]}
-                            onChange={e=>updBat(setter,i,f,Math.max(0,parseInt(e.target.value)||0))}
-                            onWheel={e=>e.target.blur()}
-                            style={{width:36,padding:"4px 1px",textAlign:"center",border:"1px solid #ddd",
-                              borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
-                        : <span style={{color:"#ccc",fontSize:12}}>—</span>}
+                      <input type="number" min="0" inputMode="numeric" value={p[f]}
+                        onChange={e=>updBat(setter,i,f,Math.max(0,parseInt(e.target.value)||0))}
+                        onWheel={e=>e.target.blur()}
+                        style={{width:36,padding:"4px 1px",textAlign:"center",border:"1px solid #ddd",
+                          borderRadius:4,fontSize:13,background:"#fff",fontFamily:"inherit"}}/>
                     </td>
                   ))}
-                  {/* toggle on/off */}
+                  {/* remove from lineup */}
                   <td style={{padding:"3px 6px",textAlign:"center"}}>
-                    <button type="button" onClick={()=>updBat(setter,i,"on",!p.on)}
-                      style={{width:34,height:20,borderRadius:10,border:"none",cursor:"pointer",position:"relative",
-                        flexShrink:0,background:p.on?"#22c55e":"rgba(0,0,0,0.15)",transition:"background .15s"}}>
-                      <span style={{position:"absolute",width:14,height:14,borderRadius:"50%",background:"#fff",
-                        top:3,left:p.on?17:3,transition:"left .15s"}}/>
-                    </button>
+                    <button type="button" onClick={()=>setter(prev=>prev.map(b=>b._id===p._id?{...b,on:false}:b))}
+                      title="Remove from lineup"
+                      style={{background:"none",border:"none",color:"#dc2626",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px",fontWeight:700}}>✕</button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
