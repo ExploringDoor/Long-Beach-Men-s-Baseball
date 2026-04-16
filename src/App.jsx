@@ -2625,7 +2625,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const [liveRecord, setLiveRecord] = useState(null);
   const [teamStats, setTeamStats] = useState({});   // player_name → aggregated batting stats
   const [recentGames, setRecentGames] = useState([]); // last 5 final games from Supabase
-  const [rosterSort, setRosterSort] = useState({col:"avg", dir:"desc"});
+  const [rosterSort, setRosterSort] = useState({col:"avgN", dir:"desc"});
   useEffect(() => {
     sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
       .then(rows => { if (rows && rows.length > 0) setRoster(rows.map(r => ({number: r.number||"", name: r.name||"", status: r.status||"Active"}))); })
@@ -2839,9 +2839,10 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                   const sorted = [...roster].sort((a,b) => {
                     const na = typeof a==="string"?a:a.name;
                     const nb = typeof b==="string"?b:b.name;
+                    if (rosterSort.col==="name") return rosterSort.dir==="asc" ? na.localeCompare(nb) : nb.localeCompare(na);
                     const sa = teamStats[na], sb2 = teamStats[nb];
-                    const av = sa ? (sa[rosterSort.col]??-1) : -1;
-                    const bv = sb2 ? (sb2[rosterSort.col]??-1) : -1;
+                    const av = (sa && sa[rosterSort.col] != null) ? sa[rosterSort.col] : -1;
+                    const bv = (sb2 && sb2[rosterSort.col] != null) ? sb2[rosterSort.col] : -1;
                     return rosterSort.dir==="desc" ? bv-av : av-bv;
                   });
                   return (
