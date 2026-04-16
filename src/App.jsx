@@ -2622,10 +2622,50 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const [roster, setRoster] = useState(TEAM_ROSTERS[teamName] || []);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [liveRecord, setLiveRecord] = useState(null);
+  const [teamStats, setTeamStats] = useState({});   // player_name → aggregated batting stats
+  const [recentGames, setRecentGames] = useState([]); // last 5 final games from Supabase
   useEffect(() => {
     sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
       .then(rows => { if (rows && rows.length > 0) setRoster(rows.map(r => ({number: r.number||"", name: r.name||"", status: r.status||"Active"}))); })
       .catch(() => {});
+  }, [teamName]);
+  // Fetch inline batting stats + recent results for this team
+  useEffect(() => {
+    const isBoomers = BOOMERS_TEAMS.has(teamName);
+    const enc = encodeURIComponent;
+    sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
+      const s = isBoomers
+        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
+        : (seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026")));
+      if (!s) return;
+      const [games, recent] = await Promise.all([
+        sbFetch(`games?select=id&season_id=eq.${s.id}&limit=200`),
+        sbFetch(`games?select=id,away_team,home_team,away_score,home_score,game_date,status&season_id=eq.${s.id}&or=(away_team.eq.${enc(teamName)},home_team.eq.${enc(teamName)})&status=eq.Final&order=game_date.desc&limit=5`),
+      ]);
+      setRecentGames(recent || []);
+      if (!games.length) return;
+      const ids = games.map(g => g.id).join(",");
+      const lines = await sbFetch(`batting_lines?select=player_name,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&team=eq.${enc(teamName)}&game_id=in.(${ids})&limit=1000`);
+      const map = {};
+      (lines||[]).forEach(l => {
+        if (!map[l.player_name]) map[l.player_name] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
+        const p = map[l.player_name];
+        p.gp++; p.ab+=l.ab||0; p.r+=l.r||0; p.h+=l.h||0;
+        p.doubles+=l.doubles||0; p.triples+=l.triples||0; p.hr+=l.hr||0;
+        p.rbi+=l.rbi||0; p.bb+=l.bb||0; p.k+=l.k||0;
+        p.hbp+=l.hbp||0; p.sf+=l.sf||0; p.sb+=l.sb||0;
+      });
+      Object.values(map).forEach(p => {
+        p.avg = p.ab > 0 ? (p.h/p.ab).toFixed(3).replace(/^0/,"") : "—";
+        const obpN = (p.ab+p.bb+p.hbp) > 0 ? (p.h+p.bb+p.hbp)/(p.ab+p.bb+p.hbp+p.sf) : 0;
+        const tb = (p.h-p.doubles-p.triples-p.hr)+p.doubles*2+p.triples*3+p.hr*4;
+        const slgN = p.ab > 0 ? tb/p.ab : 0;
+        p.obp = obpN > 0 ? obpN.toFixed(3).replace(/^0/,"") : "—";
+        p.slg = slgN > 0 ? slgN.toFixed(3).replace(/^0/,"") : "—";
+        p.ops = (obpN+slgN) > 0 ? (obpN+slgN).toFixed(3).replace(/^0/,"") : "—";
+      });
+      setTeamStats(map);
+    }).catch(() => {});
   }, [teamName]);
   useEffect(() => {
     const isBoomers = BOOMERS_TEAMS.has(teamName);
@@ -2711,22 +2751,19 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
 
   // ── Regular season team page ───────────────────────────────────────────────
   const rec = liveRecord || {w:team.w,l:team.l,t:team.t,pct:team.pct,rs:team.rs,ra:team.ra};
-  const teamGames = SCORES.flatMap(s => s.weeks.flatMap(w => w.games)).filter(g => g.away===teamName||g.home===teamName).slice(0,5);
 
   // Build full season schedule for this team
-  const fullSchedule = SCHED.flatMap(week =>
-    week.fields.flatMap(f =>
-      f.games
+  const fullSchedule = BOOMERS_TEAMS.has(teamName)
+    ? BOOMERS_SCHED
         .filter(g => g.away===teamName || g.home===teamName)
-        .map(g => ({
-          date: week.label,
-          time: g.time,
-          isHome: g.home===teamName,
-          opponent: g.home===teamName ? g.away : g.home,
-          field: f.name,
-        }))
-    )
-  );
+        .map(g => ({date:g.date, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:g.field}))
+    : SCHED.flatMap(week =>
+        week.fields.flatMap(f =>
+          f.games
+            .filter(g => g.away===teamName || g.home===teamName)
+            .map(g => ({date:week.label, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:f.name}))
+        )
+      );
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {selectedPlayer && <PlayerStatsModal playerName={selectedPlayer} onClose={()=>setSelectedPlayer(null)} />}
@@ -2770,50 +2807,74 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         <div>
           <div style={{marginBottom:28}}>
             <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Roster</h2>
-            <Card>
+            <Card style={{padding:0}}>
               {roster.length === 0 ? (
                 <div style={{padding:"24px 20px",textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>Roster not yet submitted — check back soon.</div>
               ) : (
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))"}}>
-                  {roster.map((player,i) => {
-                    const name   = typeof player === "string" ? player : player.name;
-                    const num    = typeof player === "string" ? "" : player.number;
-                    const status = typeof player === "string" ? "Active" : (player.status || "Active");
-                    const statusBadge = status !== "Active" ? (
-                      <span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8,
-                        background:status==="DL"?"#fef3c7":"#f3f4f6",
-                        color:status==="DL"?"#92400e":"#6b7280",marginLeft:4}}>
-                        {status}
-                      </span>
-                    ) : null;
-                    return (
-                      <button key={i} onClick={() => setSelectedPlayer(name)}
-                        style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",width:"100%",transition:"background .12s",opacity:status==="Released"?0.5:1}}
-                        onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.04)"}
-                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        <div style={{width:30,height:30,borderRadius:"50%",background:`${color}18`,border:`2px solid ${color}50`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,color}}>{num||"—"}</span>
-                        </div>
-                        <div>
-                          <span style={{fontSize:14,fontWeight:600,color:status==="Released"?"#9ca3af":"#111"}}>{name}</span>
-                          {statusBadge}
-                          <div style={{fontSize:10,color:color,fontWeight:700,letterSpacing:".05em",marginTop:1}}>View Stats →</div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <thead>
+                      <tr style={{background:"#f8f9fb",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>
+                        <th style={{padding:"9px 10px 9px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",width:36}}>#</th>
+                        <th style={{padding:"9px 10px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Player</th>
+                        {["GP","AB","R","H","2B","3B","HR","RBI","BB","K","AVG","OBP","SLG","OPS"].map(c=>(
+                          <th key={c} style={{padding:"9px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:["AVG","OBP","SLG","OPS"].includes(c)?color:"rgba(0,0,0,0.4)",whiteSpace:"nowrap"}}>{c}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roster.map((player,i) => {
+                        const name   = typeof player === "string" ? player : player.name;
+                        const num    = typeof player === "string" ? "" : player.number;
+                        const status = typeof player === "string" ? "Active" : (player.status || "Active");
+                        const st = teamStats[name];
+                        const dash = "—";
+                        return (
+                          <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa",opacity:status==="Released"?0.45:1,cursor:"pointer",transition:"background .1s"}}
+                            onClick={()=>setSelectedPlayer(name)}
+                            onMouseEnter={e=>e.currentTarget.style.background=`${color}0d`}
+                            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}>
+                            <td style={{padding:"9px 10px 9px 16px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"rgba(0,0,0,0.35)",textAlign:"center"}}>{num||"—"}</td>
+                            <td style={{padding:"9px 10px",fontWeight:600,whiteSpace:"nowrap"}}>
+                              <span style={{color:color,textDecoration:"underline",textDecorationStyle:"dotted"}}>{name}</span>
+                              {status!=="Active"&&<span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8,background:status==="DL"?"#fef3c7":"#f3f4f6",color:status==="DL"?"#92400e":"#6b7280",marginLeft:6}}>{status}</span>}
+                            </td>
+                            {st ? [st.gp,st.ab,st.r,st.h,st.doubles,st.triples,st.hr,st.rbi,st.bb,st.k,st.avg,st.obp,st.slg,st.ops].map((v,j)=>(
+                              <td key={j} style={{padding:"9px 8px",textAlign:"center",fontWeight:["AVG","OBP","SLG","OPS"][j-10]?700:400,color:j>=10?color:"inherit"}}>{v}</td>
+                            )) : Array(14).fill(null).map((_,j)=>(
+                              <td key={j} style={{padding:"9px 8px",textAlign:"center",color:"rgba(0,0,0,0.2)",fontSize:12}}>{dash}</td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </Card>
           </div>
-          {teamGames.length > 0 && (
+          {recentGames.length > 0 && (
             <div>
-              <div style={{marginBottom:14}}>
-                <div style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"rgba(0,0,0,0.35)",marginBottom:3}}>Previous Season</div>
-                <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",lineHeight:1}}>Fall/Winter 2026 Results</h2>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
-                {teamGames.map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)}
+              <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Recent Results</h2>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {recentGames.map((g,i) => {
+                  const isAway = g.away_team===teamName;
+                  const myScore = isAway ? g.away_score : g.home_score;
+                  const oppScore = isAway ? g.home_score : g.away_score;
+                  const won = myScore > oppScore;
+                  const opp = isAway ? g.home_team : g.away_team;
+                  const dateStr = g.game_date ? new Date(g.game_date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+                  return (
+                    <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.08)",borderLeft:`4px solid ${won?"#16a34a":"#dc2626"}`,borderRadius:8,padding:"12px 16px",display:"flex",alignItems:"center",gap:14}}>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:won?"#16a34a":"#dc2626",width:22,textAlign:"center"}}>{won?"W":"L"}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,textTransform:"uppercase",color:"#111"}}>{isAway?"@":""} {opp}</div>
+                        <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:1}}>{dateStr} · {isAway?"Away":"Home"}</div>
+                      </div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,color:"#111",whiteSpace:"nowrap"}}>{myScore} – {oppScore}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
