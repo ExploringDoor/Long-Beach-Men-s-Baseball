@@ -995,7 +995,7 @@ function HomePage({ setTab, setTeamDetail }) {
   const [newsItems, setNewsItems] = useState([]);
   const [standingsDiv, setStandingsDiv] = useState("SAT");
   const [previewGame, setPreviewGame] = useState(null);
-  const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
+  const goTeam = (name) => { setTeamDetail(name); };
 
   // Live standings fetch
   useEffect(() => {
@@ -1163,7 +1163,7 @@ function HomePage({ setTab, setTeamDetail }) {
                 ))}
               </div>
               {(standingsDiv==="SAT" ? topTeams : boomersTeams).map((t,i) => (
-                <div key={t.name+t.divKey} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",transition:"background .15s",cursor:"pointer"}}
+                <div key={t.name+t.divKey} onClick={() => goTeam(t.name)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",transition:"background .15s",cursor:"pointer"}}
                   onMouseEnter={e => e.currentTarget.style.background="rgba(0,45,110,0.03)"}
                   onMouseLeave={e => e.currentTarget.style.background="transparent"}>
                   <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color: standingsDiv==="BOM"?"#7c3aed":"#002d6e",width:22,textAlign:"center",flexShrink:0}}>{i+1}</span>
@@ -2065,7 +2065,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
   const [liveTeams, setLiveTeams] = useState(null);
   const [boomersTeams, setBoomersTeams] = useState(null);
   const div = DIV["SAT"];
-  const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); } };
+  const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); } };
   const hist = STANDINGS_HISTORY[histIdx];
 
   // Load Saturday standings
