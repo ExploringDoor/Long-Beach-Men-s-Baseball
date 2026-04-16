@@ -8507,6 +8507,66 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             );
           })}
         </div>
+
+        {/* Add players not yet in the lineup */}
+        {(() => {
+          const teamName = side==="away" ? game?.away : game?.home;
+          const fullRoster = rosterCache[teamName] || [];
+          const inactivePlayers = batters.filter(p=>!p.on);
+          const missingFromRoster = fullRoster.filter(r => !batters.some(b=>b.name.toLowerCase()===r.name.toLowerCase()));
+          const addable = [
+            ...inactivePlayers.map(p=>({name:p.name,_id:p._id,type:"inactive"})),
+            ...missingFromRoster.map(r=>({name:r.name,_id:null,type:"new"})),
+          ];
+          if (addable.length === 0) return null;
+          return (
+            <div style={{marginTop:18}}>
+              <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.35)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>Add to lineup</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:8}}>
+                {addable.map(item => (
+                  <button key={item._id||item.name} type="button"
+                    onClick={()=>{
+                      if(item.type==="inactive"){
+                        setter(prev=>prev.map(b=>b._id===item._id?{...b,on:true}:b));
+                        setOrderQueue(q=>[...q,item._id]);
+                      } else {
+                        const nb = blankBatter(item.name);
+                        setter(prev=>[...prev,nb]);
+                        setOrderQueue(q=>[...q,nb._id]);
+                      }
+                    }}
+                    style={{padding:"14px 10px",borderRadius:10,cursor:"pointer",textAlign:"left",
+                      background:"#fffbeb",border:"2px dashed #f59e0b",transition:"all .1s"}}>
+                    <div style={{fontWeight:700,fontSize:14,color:"#92400e",lineHeight:1.2}}>{item.name}</div>
+                    <div style={{fontSize:11,color:"#b45309",marginTop:3}}>+ Add to order</div>
+                  </button>
+                ))}
+              </div>
+              {/* Manual entry for players not on roster */}
+              {(() => {
+                const addOrderName = side==="away" ? addAwayName : addHomeName;
+                const setAddOrderName = side==="away" ? setAddAwayName : setAddHomeName;
+                const doAdd = () => {
+                  if(!addOrderName.trim()) return;
+                  const nb = blankBatter(addOrderName.trim());
+                  setter(prev=>[...prev,nb]);
+                  setOrderQueue(q=>[...q,nb._id]);
+                  setAddOrderName("");
+                };
+                return (
+                  <div style={{display:"flex",gap:6,marginTop:8}}>
+                    <input type="text" value={addOrderName} onChange={e=>setAddOrderName(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&doAdd()}
+                      placeholder="Type name to add..."
+                      style={{flex:1,padding:"7px 10px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+                    <button type="button" onClick={doAdd}
+                      style={{padding:"7px 12px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add</button>
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })()}
       </div>
     );
 
