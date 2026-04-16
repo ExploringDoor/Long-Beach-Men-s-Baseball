@@ -9886,6 +9886,8 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [setupInfo, setSetupInfo] = useState(null);
   const [lineupStep, setLineupStep] = useState("away"); // will be set to captain's side on game select
   const [lineupDraft, setLineupDraft] = useState({away:[],home:[]});
+  const [lineupPitcher, setLineupPitcher] = useState({away:"",home:""});
+  const [lineupPositions, setLineupPositions] = useState({away:{},home:{}});
   const [nameInput, setNameInput] = useState("");
   const [modal, setModal] = useState(null);
   const [pendingOutcome, setPO] = useState(null);
@@ -10362,7 +10364,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
                 ):inProg?(
                   <button onClick={()=>{setGs({...saved,_hist:[]});setView("game");}} style={{padding:"8px 16px",background:"#b45309",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>▶ Resume</button>
                 ):(
-                  <button onClick={()=>{setBsMode(false);setSetupInfo(g);const saved=loadLineupDraft(g.away,g.home,g.date);setLineupDraft(saved||{away:[],home:[]});setLineupStep("away");setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
+                  <button onClick={()=>{setBsMode(false);setSetupInfo(g);const saved=loadLineupDraft(g.away,g.home,g.date);setLineupDraft(saved||{away:[],home:[]});setLineupPitcher({away:"",home:""});setLineupPositions({away:{},home:{}});setLineupStep("away");setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
                 )}
               </div>
             </div>
@@ -10381,6 +10383,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     const addPlayer=(name)=>{if(!name.trim()||cur.includes(name.trim()))return;setLineupDraft(p=>({...p,[lineupStep]:[...p[lineupStep],name.trim()]}));setNameInput("");};
     const doneTeam=()=>{
       if(!cur.length){alert("Add at least 1 player.");return;}
+      if(!lineupPitcher[lineupStep]){alert(`Select a starting pitcher for ${teamName} before continuing.`);return;}
       // Always require both lineups before starting
       if(lineupStep==="away"){setLineupStep("home");return;}
       if(bsMode){
@@ -10395,7 +10398,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         return;
       }
       const si={};[...lineupDraft.away,...lineupDraft.home].forEach(n=>{si[n]={ab:0,h:0,r:0,rbi:0,bb:0,k:0,hbp:0,e:0,doubles:0,triples:0,hr:0,sb:0};});
-      const state={away:g.away,home:g.home,date:g.date,field:g.field,time:g.time,inning:1,topBottom:"top",outs:0,bases:[false,false,false],baseRunners:{0:null,1:null,2:null},score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,lineup:lineupDraft,batterIdx:{away:0,home:0},stats:si,plays:[],status:"in_progress"};
+      const state={away:g.away,home:g.home,date:g.date,field:g.field,time:g.time,inning:1,topBottom:"top",outs:0,bases:[false,false,false],baseRunners:{0:null,1:null,2:null},score:{away:0,home:0},lineScore:{away:[],home:[]},runsThisHalf:0,balls:0,strikes:0,lineup:lineupDraft,batterIdx:{away:0,home:0},stats:si,plays:[],status:"in_progress",pitcher:lineupPitcher,positions:lineupPositions};
       clearLineupDraft(g.away,g.home,g.date);
       persist({...state,_hist:[]});setView("game");
     };
@@ -10410,13 +10413,28 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         <div style={{maxWidth:500,margin:"0 auto",padding:"20px 16px 60px"}}>
           <div style={{background:"#fff",borderRadius:12,padding:"20px",marginBottom:14,boxShadow:"0 2px 8px rgba(0,0,0,0.08)"}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:12}}>{teamName} — {cur.length} players</div>
-            {cur.map((name,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
-                <div style={{width:26,height:26,borderRadius:"50%",background:"#002d6e",color:"#FFD700",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,flexShrink:0}}>{i+1}</div>
-                <span style={{flex:1,fontSize:15,fontWeight:600}}>{name}</span>
-                <button onClick={()=>setLineupDraft(p=>({...p,[lineupStep]:p[lineupStep].filter((_,j)=>j!==i)}))} style={{padding:"3px 8px",background:"rgba(220,38,38,0.1)",border:"none",borderRadius:5,color:"#dc2626",fontWeight:700,cursor:"pointer"}}>✕</button>
+            {cur.map((name,i)=>{
+              const pos = lineupPositions[lineupStep][name]||"";
+              const isPitcher = lineupPitcher[lineupStep]===name;
+              return (
+              <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+                <div style={{width:24,height:24,borderRadius:"50%",background:isPitcher?"#c8102e":"#002d6e",color:"#FFD700",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,flexShrink:0}}>{i+1}</div>
+                <span style={{flex:1,fontSize:14,fontWeight:600,color:isPitcher?"#c8102e":"#111"}}>{name}{isPitcher&&<span style={{fontSize:10,marginLeft:5,background:"#c8102e",color:"#fff",borderRadius:3,padding:"1px 4px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>SP</span>}</span>
+                <select value={pos}
+                  onChange={e=>{
+                    const newPos=e.target.value;
+                    setLineupPositions(p=>({...p,[lineupStep]:{...p[lineupStep],[name]:newPos}}));
+                    if(newPos==="P") setLineupPitcher(p=>({...p,[lineupStep]:name}));
+                    else if(lineupPitcher[lineupStep]===name && newPos!=="P") setLineupPitcher(p=>({...p,[lineupStep]:""}));
+                  }}
+                  style={{padding:"3px 4px",borderRadius:4,border:"1px solid #ddd",fontSize:12,background:"#f8f9fb",width:52,flexShrink:0}}>
+                  <option value="">Pos</option>
+                  {["P","C","1B","2B","3B","SS","LF","CF","RF","DH","EH"].map(p=><option key={p} value={p}>{p}</option>)}
+                </select>
+                <button onClick={()=>{setLineupDraft(p=>({...p,[lineupStep]:p[lineupStep].filter((_,j)=>j!==i)}));if(lineupPitcher[lineupStep]===name)setLineupPitcher(p=>({...p,[lineupStep]:""}));setLineupPositions(p=>({...p,[lineupStep]:Object.fromEntries(Object.entries(p[lineupStep]).filter(([k])=>k!==name))}));}} style={{padding:"3px 8px",background:"rgba(220,38,38,0.1)",border:"none",borderRadius:5,color:"#dc2626",fontWeight:700,cursor:"pointer",flexShrink:0}}>✕</button>
               </div>
-            ))}
+              );
+            })}
             {roster.length>0&&(
               <div style={{marginTop:12}}>
                 <div style={{fontSize:11,color:"#888",fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Tap to add from roster:</div>
@@ -10432,7 +10450,34 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
               <button onClick={()=>addPlayer(nameInput)} style={{padding:"8px 14px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontWeight:700,cursor:"pointer"}}>Add</button>
             </div>
           </div>
-          <button onClick={doneTeam} style={{width:"100%",padding:"14px",background:"#002d6e",border:"none",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",cursor:"pointer"}}>
+
+          {/* ── Required: Starting Pitcher ── */}
+          {cur.length > 0 && (
+            <div style={{background:lineupPitcher[lineupStep]?"#f0fdf4":"#fff7ed",border:`2px solid ${lineupPitcher[lineupStep]?"#16a34a":"#f97316"}`,borderRadius:12,padding:"16px 18px",marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <span style={{fontSize:20}}>⚾</span>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:lineupPitcher[lineupStep]?"#15803d":"#c2410c"}}>
+                    Starting Pitcher <span style={{color:"#dc2626",fontSize:12}}>required</span>
+                  </div>
+                  <div style={{fontSize:11,color:"rgba(0,0,0,0.45)",marginTop:1}}>Must be selected to continue</div>
+                </div>
+                {lineupPitcher[lineupStep] && <span style={{marginLeft:"auto",fontSize:18}}>✅</span>}
+              </div>
+              <select value={lineupPitcher[lineupStep]}
+                onChange={e=>{
+                  const name=e.target.value;
+                  setLineupPitcher(p=>({...p,[lineupStep]:name}));
+                  if(name) setLineupPositions(p=>({...p,[lineupStep]:{...p[lineupStep],[name]:"P"}}));
+                }}
+                style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${lineupPitcher[lineupStep]?"#16a34a":"#f97316"}`,fontSize:15,fontFamily:"inherit",background:"#fff",fontWeight:lineupPitcher[lineupStep]?700:400}}>
+                <option value="">— Select starting pitcher —</option>
+                {cur.map(name=><option key={name} value={name}>{name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <button onClick={doneTeam} style={{width:"100%",padding:"14px",background:lineupPitcher[lineupStep]?"#002d6e":"#9ca3af",border:"none",borderRadius:10,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",cursor:lineupPitcher[lineupStep]?"pointer":"not-allowed"}}>
             {lineupStep==="away"?`Next: ${g.home} Order →`:"▶ Start Game!"}
           </button>
         </div>
