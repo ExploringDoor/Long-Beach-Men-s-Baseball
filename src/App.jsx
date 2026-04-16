@@ -869,7 +869,7 @@ function Ticker({ setTab }) {
 function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["live","⚡ Live"],["payments","💳 Payments"],["admin","⚙ Admin"]];
+  const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["payments","💳 Payments"],["admin","⚙ Admin"]];
   const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"],["contact","📞 Contact"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
@@ -2629,6 +2629,67 @@ function PlayerStatsModal({ playerName, onClose }) {
   );
 }
 
+/* ─── STAT LEGEND ─────────────────────────────────────────────────────────── */
+function StatLegend() {
+  const BATTING = [
+    ["GP","Games played"],["PA","Plate appearances"],["AB","At bats"],
+    ["H","Hits"],["1B","Singles"],["2B","Doubles"],["3B","Triples"],["HR","Home runs"],
+    ["R","Runs scored"],["RBI","Runs batted in"],["BB","Walks (base on balls)"],
+    ["SO","Strikeouts (swinging)"],["K-L","Strikeouts looking"],["HBP","Hit by pitch"],
+    ["SAC","Sacrifice hits & bunts"],["SF","Sacrifice flies"],
+    ["FC","Hit into fielder's choice"],["ROE","Reached on error"],
+    ["SB","Stolen bases"],["CS","Caught stealing"],["SB%","Stolen base percentage"],
+    ["AVG","Batting average"],["OBP","On-base percentage"],
+    ["SLG","Slugging percentage"],["OPS","OBP + SLG"],
+  ];
+  const PITCHING = [
+    ["IP","Innings pitched"],["W","Win"],["L","Loss"],["S","Save"],
+    ["H","Hits allowed"],["R","Runs allowed"],["ER","Earned runs"],
+    ["BB","Walks allowed"],["SO","Strikeouts"],["HR","Home runs allowed"],
+    ["ERA","Earned run average"],["WHIP","Walks + hits per inning"],
+  ];
+  const half = Math.ceil(BATTING.length / 2);
+  const col1 = BATTING.slice(0, half);
+  const col2 = BATTING.slice(half);
+  return (
+    <div style={{marginTop:32,borderTop:"1px solid rgba(0,0,0,0.07)",paddingTop:24}}>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"0 4px"}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"rgba(0,0,0,0.35)",letterSpacing:".1em",marginBottom:16}}>📖 Stat Glossary</div>
+        <div style={{marginBottom:20}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,textTransform:"uppercase",color:"#002d6e",letterSpacing:".08em",marginBottom:10}}>Batting</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px"}}>
+            {[col1,col2].map((col,ci) => (
+              <div key={ci} style={{display:"flex",flexDirection:"column",gap:6}}>
+                {col.map(([abbr,desc]) => (
+                  <div key={abbr} style={{display:"flex",gap:8,alignItems:"baseline"}}>
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#111",minWidth:36,flexShrink:0}}>{abbr}</span>
+                    <span style={{fontSize:12,color:"rgba(0,0,0,0.55)",lineHeight:1.3}}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,textTransform:"uppercase",color:"#374151",letterSpacing:".08em",marginBottom:10}}>Pitching</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px"}}>
+            {[PITCHING.slice(0,6),PITCHING.slice(6)].map((col,ci) => (
+              <div key={ci} style={{display:"flex",flexDirection:"column",gap:6}}>
+                {col.map(([abbr,desc]) => (
+                  <div key={abbr} style={{display:"flex",gap:8,alignItems:"baseline"}}>
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,color:"#111",minWidth:36,flexShrink:0}}>{abbr}</span>
+                    <span style={{fontSize:12,color:"rgba(0,0,0,0.55)",lineHeight:1.3}}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const team = ALL_TEAMS.find(t => t.name === teamName);
   const [roster, setRoster] = useState(TEAM_ROSTERS[teamName] || []);
@@ -2966,6 +3027,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
           </Card>
         </div>
       </div>
+      <StatLegend />
     </div>
   );
 }
@@ -7878,11 +7940,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const [extraTeams, setExtraTeams] = useState([]);
   const TEAMS = [...BASE_TEAMS, ...extraTeams];
   const POSITIONS = ["","P","C","1B","2B","3B","SS","LF","CF","RF","DH","PH","PR"];
-  const BAT_STATS = ["ab","r","singles","doubles","triples","hr","rbi","bb","k","sb","e"];
-  const BAT_LBLS  = ["AB","R","1B","2B","3B","HR","RBI","BB","K","SB","E"];
+  const BAT_STATS = ["ab","r","singles","doubles","triples","hr","rbi","bb","k","sb","sf","sac","fc","roe","cs","e"];
+  const BAT_LBLS  = ["AB","R","1B","2B","3B","HR","RBI","BB","K","SB","SF","SAC","FC","ROE","CS","E"];
 
   let _bid = 0;
-  const blankBatter = (name="") => ({ _id:++_bid, name, on:true, ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,e:0, pos:"" });
+  const blankBatter = (name="") => ({ _id:++_bid, name, on:true, ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,sf:0,sac:0,fc:0,roe:0,cs:0,e:0, pos:"" });
   const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0,hr:0, decision:"ND" });
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).map(p => typeof p === "string" ? p : p.name).filter(p=>p!=="TBD").map(blankBatter);
 
@@ -8259,12 +8321,13 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const batRows = [
         ...(awayStatMode==="full" ? awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
         ...(homeStatMode==="full" ? homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})) : []),
-      ].map(({name,_t,ab,r,singles,doubles,triples,hr,rbi,bb,k,sb,e})=>({
+      ].map(({name,_t,ab,r,singles,doubles,triples,hr,rbi,bb,k,sb,sf,sac,fc,roe,cs,e})=>({
         game_id:gid,player_name:name,team:_t,
         ab:+ab||0,r:+r||0,
         h:(+singles||0)+(+doubles||0)+(+triples||0)+(+hr||0),
         doubles:+doubles||0,triples:+triples||0,
-        hr:+hr||0,rbi:+rbi||0,bb:+bb||0,k:+k||0,sb:+sb||0,hbp:0,sf:0,
+        hr:+hr||0,rbi:+rbi||0,bb:+bb||0,k:+k||0,sb:+sb||0,hbp:0,
+        sf:+sf||0,sac:+sac||0,fc:+fc||0,roe:+roe||0,cs:+cs||0,
       }));
       let statsWarning = "";
       try {
@@ -9703,6 +9766,7 @@ function StatsPage() {
         <div style={{marginTop:16,fontSize:12,color:"rgba(0,0,0,0.35)",textAlign:"center"}}>
           Stats pulled live from database · {season} · {batting.length} batters, {pitching.length} pitchers logged
         </div>
+        <StatLegend />
       </div>
     </div>
   );
