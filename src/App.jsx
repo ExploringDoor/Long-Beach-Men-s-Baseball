@@ -2814,8 +2814,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
             <Card style={{padding:0}}>
               {roster.length === 0 ? (
                 <div style={{padding:"24px 20px",textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>Roster not yet submitted — check back soon.</div>
-              ) : (
-                {(() => {
+              ) : (() => {
                   const COLS = [
                     {label:"GP",  key:"gp"},
                     {label:"AB",  key:"ab"},
@@ -2890,8 +2889,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                       </table>
                     </div>
                   );
-                })()}
-              )}
+              })()}
             </Card>
           </div>
           {recentGames.length > 0 && (
