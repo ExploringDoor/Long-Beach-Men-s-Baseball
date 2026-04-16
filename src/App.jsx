@@ -8510,14 +8510,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
         {/* Add players not yet in the lineup */}
         {(() => {
-          const teamName = side==="away" ? game?.away : game?.home;
-          const fullRoster = rosterCache[teamName] || [];
-          const inactivePlayers = batters.filter(p=>!p.on);
-          const missingFromRoster = fullRoster.filter(r => !batters.some(b=>b.name.toLowerCase()===r.name.toLowerCase()));
-          const addable = [
-            ...inactivePlayers.map(p=>({name:p.name,_id:p._id,type:"inactive"})),
-            ...missingFromRoster.map(r=>({name:r.name,_id:null,type:"new"})),
-          ];
+          // In BoxScoreEntry, all roster players are already in batters (just inactive).
+          // Simply surface inactive ones so the user can tap them into the order.
+          const addable = batters
+            .filter(p=>!p.on && p.name)
+            .map(p=>({name:p.name,_id:p._id,type:"inactive"}));
           if (addable.length === 0) return null;
           return (
             <div style={{marginTop:18}}>
