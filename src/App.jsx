@@ -1736,9 +1736,24 @@ const buildStaticBomWeeks = () => BOOMERS_SCHED.map(g => ({
 }));
 
 function SchedulePage({ setTab, setTeamDetail }) {
+  const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
+  const todayMidnight = () => { const t = new Date(); t.setHours(0,0,0,0); return t; };
+  const currentSatIdx = () => {
+    const t = todayMidnight();
+    const weeks = buildStaticSatWeeks();
+    const idx = weeks.findIndex(w => parseLabel(w.label) >= t);
+    return idx >= 0 ? idx : weeks.length - 1;
+  };
+  const currentBomIdx = () => {
+    const t = todayMidnight();
+    const weeks = buildStaticBomWeeks();
+    const idx = weeks.findIndex(w => parseLabel(w.label) >= t);
+    return idx >= 0 ? idx : weeks.length - 1;
+  };
+
   const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers, 2=Tournaments
-  const [wk,setWk] = useState(0);
-  const [boomerWk, setBoomerWk] = useState(0);
+  const [wk,setWk] = useState(currentSatIdx);
+  const [boomerWk, setBoomerWk] = useState(currentBomIdx);
   const [tournGames, setTournGames] = useState([]);
   const [previewGame, setPreviewGame] = useState(null);
   const [schedScores, setSchedScores] = useState({});
@@ -1824,7 +1839,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const byTournament = {};
   tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
 
-  const handleLeagueChange = (i) => { setLeague(i); setWk(0); };
+  const handleLeagueChange = (i) => { setLeague(i); if(i===0) setWk(currentSatIdx()); else if(i===1) setBoomerWk(currentBomIdx()); };
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
@@ -1836,15 +1851,20 @@ function SchedulePage({ setTab, setTeamDetail }) {
       {league === 0 && <>
         <div style={{borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fff",padding:"0 clamp(12px,3vw,40px)"}}>
           <div style={{maxWidth:1400,margin:"0 auto",overflowX:"auto",display:"flex",gap:0,scrollbarWidth:"none"}}>
-            {satWeeks.map((s,i) => (
+            {satWeeks.map((s,i) => {
+              const isPast = parseLabel(s.label) < todayMidnight();
+              return (
               <button key={i} onClick={() => setWk(i)} style={{
                 fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
-                textTransform:"uppercase",color:wk===i?"#111":"rgba(0,0,0,0.38)",
+                textTransform:"uppercase",
+                color:wk===i?"#111":isPast?"rgba(0,0,0,0.22)":"rgba(0,0,0,0.38)",
                 padding:"12px 16px",background:"none",border:"none",
                 borderBottom:wk===i?"3px solid #111":"3px solid transparent",
                 cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,
+                textDecoration:isPast&&wk!==i?"line-through":"none",
               }}>{s.label}</button>
-            ))}
+              );
+            })}
           </div>
         </div>
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
@@ -1877,15 +1897,20 @@ function SchedulePage({ setTab, setTeamDetail }) {
         {/* Boomers date tab bar */}
         <div style={{borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fff",padding:"0 clamp(12px,3vw,40px)"}}>
           <div style={{maxWidth:1400,margin:"0 auto",overflowX:"auto",display:"flex",gap:0,scrollbarWidth:"none"}}>
-            {bomWeeks.map((w,i) => (
+            {bomWeeks.map((w,i) => {
+              const isPast = parseLabel(w.label) < todayMidnight();
+              return (
               <button key={i} onClick={()=>setBoomerWk(i)} style={{
                 fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
-                textTransform:"uppercase",color:boomerWk===i?"#111":"rgba(0,0,0,0.38)",
+                textTransform:"uppercase",
+                color:boomerWk===i?"#111":isPast?"rgba(0,0,0,0.22)":"rgba(0,0,0,0.38)",
                 padding:"12px 16px",background:"none",border:"none",
                 borderBottom:boomerWk===i?"3px solid #111":"3px solid transparent",
                 cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,
+                textDecoration:isPast&&boomerWk!==i?"line-through":"none",
               }}>{w.label}</button>
-            ))}
+              );
+            })}
           </div>
         </div>
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
