@@ -2350,7 +2350,7 @@ function PlayerStatsModal({ playerName, onClose }) {
               oppScore,
               won: myScore > oppScore,
               ab: l.ab||0, r: l.r||0, h: l.h||0, d: l.doubles||0,
-              t: l.triples||0, hr: l.hr||0, rbi: l.rbi||0, bb: l.bb||0, k: l.k||0,
+              t: l.triples||0, hr: l.hr||0, rbi: l.rbi||0, bb: l.bb||0, k: l.k||0, sb: l.sb||0,
             };
           })
           .filter(Boolean);
@@ -2414,8 +2414,8 @@ function PlayerStatsModal({ playerName, onClose }) {
   // Extract year label from current season name
   const yearLabel = curSeason ? (curSeason.name.match(/\d{4}/)||[""])[0] : (allSeasons && allSeasons.length ? (allSeasons[allSeasons.length-1].name.match(/\d{4}/)||[""])[0] : "");
 
-  const statCols = ["GP","AB","R","H","2B","3B","HR","RBI","BB","SO","AVG"];
-  const statVals = (s) => s ? [s.gp,s.ab,s.r,s.h,s.d,s.t,s.hr,s.rbi,s.bb,s.k,fmtAvg(s.h,s.ab)] : Array(11).fill("—");
+  const statCols = ["GP","AB","R","H","2B","3B","HR","RBI","BB","SO","SB","AVG"];
+  const statVals = (s) => s ? [s.gp,s.ab,s.r,s.h,s.d,s.t,s.hr,s.rbi,s.bb,s.k,s.sb||0,fmtAvg(s.h,s.ab)] : Array(12).fill("—");
 
   const fmtDate = (d) => {
     if (!d) return "";
@@ -2490,7 +2490,7 @@ function PlayerStatsModal({ playerName, onClose }) {
                     <tr key={i} style={{borderTop:"1px solid #e5e7eb",background:i%2===0?"#f9fafb":"#fff"}}>
                       <td style={{padding:"8px 16px 8px 20px",color:"#555",fontSize:12,whiteSpace:"nowrap"}}>{s.name}</td>
                       {statVals(s).map((v,j)=>(
-                        <td key={j} style={{padding:"8px 10px",textAlign:"center",color:j===10?"#002d6e":"#666",fontSize:12,fontWeight:j===10?600:400}}>{v}</td>
+                        <td key={j} style={{padding:"8px 10px",textAlign:"center",color:j===11?"#002d6e":"#666",fontSize:12,fontWeight:j===11?600:400}}>{v}</td>
                       ))}
                     </tr>
                   ))}
@@ -2513,7 +2513,7 @@ function PlayerStatsModal({ playerName, onClose }) {
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                     <thead>
                       <tr style={{background:"#f9fafb"}}>
-                        {["DATE","OPP","RESULT","AB","R","H","2B","3B","HR","RBI","BB","SO"].map(c=>(
+                        {["DATE","OPP","RESULT","AB","R","H","2B","3B","HR","RBI","BB","SO","SB"].map(c=>(
                           <th key={c} style={{padding:"8px 8px",textAlign:c==="DATE"||c==="OPP"?"left":"center",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb",paddingLeft:c==="DATE"?"20px":"8px"}}>{c}</th>
                         ))}
                       </tr>
@@ -2537,6 +2537,7 @@ function PlayerStatsModal({ playerName, onClose }) {
                           <td style={{padding:"9px 8px",textAlign:"center"}}>{g.rbi||0}</td>
                           <td style={{padding:"9px 8px",textAlign:"center"}}>{g.bb||0}</td>
                           <td style={{padding:"9px 8px",textAlign:"center",color:g.k>2?"#dc2626":"inherit"}}>{g.k||0}</td>
+                          <td style={{padding:"9px 8px",textAlign:"center",color:g.sb>0?"#002d6e":"inherit",fontWeight:g.sb>0?700:400}}>{g.sb||0}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -9473,8 +9474,8 @@ function StatsPage() {
               bb:rnd(curSeason.bb), k:rnd(curSeason.k), hbp:curSeason.hbp, sf:curSeason.sf, sb:rnd(curSeason.sb) };
           })() : null;
           const yearLabel = curSeason ? (curSeason.name.match(/\d{4}/)||[""])[0] : "";
-          const statCols = ["GP","AB","R","H","2B","3B","HR","RBI","BB","SO","AVG"];
-          const statVals = (s) => s ? [s.gp,s.ab,s.r,s.h,s.d,s.t,s.hr,s.rbi,s.bb,s.k,fmtAvg(s.h,s.ab)] : Array(11).fill("—");
+          const statCols = ["GP","AB","R","H","2B","3B","HR","RBI","BB","SO","SB","AVG"];
+          const statVals = (s) => s ? [s.gp,s.ab,s.r,s.h,s.d,s.t,s.hr,s.rbi,s.bb,s.k,s.sb||0,fmtAvg(s.h,s.ab)] : Array(12).fill("—");
           const visibleGames = showAllGames ? playerGameLog : playerGameLog.slice(0,5);
           return (
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={() => setSelectedPlayer(null)}>
@@ -9507,22 +9508,22 @@ function StatsPage() {
                         <tbody>
                           <tr style={{borderBottom:"1px solid #f0f0f0"}}>
                             <td style={{padding:"10px 16px 10px 20px",fontWeight:600,color:"#111",whiteSpace:"nowrap"}}>Regular Season</td>
-                            {statVals(curSeason).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#111":"#333",fontWeight:i===10?700:400}}>{v}</td>)}
+                            {statVals(curSeason).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===11?"#111":"#333",fontWeight:i===11?700:400}}>{v}</td>)}
                           </tr>
                           {proj && (
                             <tr style={{borderBottom:"1px solid #f0f0f0",background:"#fafafa"}}>
                               <td style={{padding:"10px 16px 10px 20px",fontWeight:600,color:"#555",whiteSpace:"nowrap",fontStyle:"italic"}}>Projected</td>
-                              {statVals(proj).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#555":"#888",fontStyle:"italic"}}>{v}</td>)}
+                              {statVals(proj).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===11?"#555":"#888",fontStyle:"italic"}}>{v}</td>)}
                             </tr>
                           )}
                           <tr style={{borderTop:"2px solid #002d6e"}}>
                             <td style={{padding:"10px 16px 10px 20px",fontWeight:700,color:"#111",whiteSpace:"nowrap"}}>Career</td>
-                            {statVals(careerTot).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===10?"#002d6e":"#333",fontWeight:700}}>{v}</td>)}
+                            {statVals(careerTot).map((v,i)=><td key={i} style={{padding:"10px",textAlign:"center",color:i===11?"#002d6e":"#333",fontWeight:700}}>{v}</td>)}
                           </tr>
                           {showAllSeasons && playerGames.map((s,i)=>(
                             <tr key={i} style={{borderTop:"1px solid #e5e7eb",background:i%2===0?"#f9fafb":"#fff"}}>
                               <td style={{padding:"8px 16px 8px 20px",color:"#555",fontSize:12,whiteSpace:"nowrap"}}>{s.name}</td>
-                              {statVals(s).map((v,j)=><td key={j} style={{padding:"8px 10px",textAlign:"center",color:j===10?"#002d6e":"#666",fontSize:12,fontWeight:j===10?600:400}}>{v}</td>)}
+                              {statVals(s).map((v,j)=><td key={j} style={{padding:"8px 10px",textAlign:"center",color:j===11?"#002d6e":"#666",fontSize:12,fontWeight:j===11?600:400}}>{v}</td>)}
                             </tr>
                           ))}
                         </tbody>
@@ -9543,7 +9544,7 @@ function StatsPage() {
                           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                             <thead>
                               <tr style={{background:"#f9fafb"}}>
-                                {["DATE","OPP","RESULT","AB","R","H","2B","3B","HR","RBI","BB","SO"].map(c=>(
+                                {["DATE","OPP","RESULT","AB","R","H","2B","3B","HR","RBI","BB","SO","SB"].map(c=>(
                                   <th key={c} style={{padding:"8px 8px",textAlign:c==="DATE"||c==="OPP"?"left":"center",fontWeight:700,fontSize:11,color:"#6b7280",letterSpacing:".07em",whiteSpace:"nowrap",borderBottom:"1px solid #e5e7eb",paddingLeft:c==="DATE"?"20px":"8px"}}>{c}</th>
                                 ))}
                               </tr>
@@ -9567,6 +9568,7 @@ function StatsPage() {
                                   <td style={{padding:"9px 8px",textAlign:"center"}}>{g.rbi||0}</td>
                                   <td style={{padding:"9px 8px",textAlign:"center"}}>{g.bb||0}</td>
                                   <td style={{padding:"9px 8px",textAlign:"center",color:g.k>2?"#dc2626":"inherit"}}>{g.k||0}</td>
+                                  <td style={{padding:"9px 8px",textAlign:"center",color:g.sb>0?"#002d6e":"inherit",fontWeight:g.sb>0?700:400}}>{g.sb||0}</td>
                                 </tr>
                               ))}
                             </tbody>
