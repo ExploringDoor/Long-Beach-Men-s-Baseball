@@ -2624,6 +2624,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const [liveRecord, setLiveRecord] = useState(null);
   const [teamStats, setTeamStats] = useState({});   // player_name → aggregated batting stats
   const [recentGames, setRecentGames] = useState([]); // last 5 final games from Supabase
+  const [rosterSort, setRosterSort] = useState({col:"avg", dir:"desc"});
   useEffect(() => {
     sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
       .then(rows => { if (rows && rows.length > 0) setRoster(rows.map(r => ({number: r.number||"", name: r.name||"", status: r.status||"Active"}))); })
@@ -2656,13 +2657,15 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         p.hbp+=l.hbp||0; p.sf+=l.sf||0; p.sb+=l.sb||0;
       });
       Object.values(map).forEach(p => {
+        p.tb = (p.h-p.doubles-p.triples-p.hr)+p.doubles*2+p.triples*3+p.hr*4;
         p.avg = p.ab > 0 ? (p.h/p.ab).toFixed(3).replace(/^0/,"") : "—";
         const obpN = (p.ab+p.bb+p.hbp) > 0 ? (p.h+p.bb+p.hbp)/(p.ab+p.bb+p.hbp+p.sf) : 0;
-        const tb = (p.h-p.doubles-p.triples-p.hr)+p.doubles*2+p.triples*3+p.hr*4;
-        const slgN = p.ab > 0 ? tb/p.ab : 0;
+        const slgN = p.ab > 0 ? p.tb/p.ab : 0;
         p.obp = obpN > 0 ? obpN.toFixed(3).replace(/^0/,"") : "—";
-        p.slg = slgN > 0 ? slgN.toFixed(3).replace(/^0/,"") : "—";
         p.ops = (obpN+slgN) > 0 ? (obpN+slgN).toFixed(3).replace(/^0/,"") : "—";
+        p.avgN = p.ab > 0 ? p.h/p.ab : 0;
+        p.obpN = obpN;
+        p.opsN = obpN+slgN;
       });
       setTeamStats(map);
     }).catch(() => {});
@@ -2811,45 +2814,81 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               {roster.length === 0 ? (
                 <div style={{padding:"24px 20px",textAlign:"center",color:"#aaa",fontSize:14,fontStyle:"italic"}}>Roster not yet submitted — check back soon.</div>
               ) : (
-                <div style={{overflowX:"auto"}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                    <thead>
-                      <tr style={{background:"#f8f9fb",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>
-                        <th style={{padding:"9px 10px 9px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",width:36}}>#</th>
-                        <th style={{padding:"9px 10px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Player</th>
-                        {["GP","AB","R","H","2B","3B","HR","RBI","BB","K","AVG","OBP","SLG","OPS"].map(c=>(
-                          <th key={c} style={{padding:"9px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:["AVG","OBP","SLG","OPS"].includes(c)?color:"rgba(0,0,0,0.4)",whiteSpace:"nowrap"}}>{c}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {roster.map((player,i) => {
-                        const name   = typeof player === "string" ? player : player.name;
-                        const num    = typeof player === "string" ? "" : player.number;
-                        const status = typeof player === "string" ? "Active" : (player.status || "Active");
-                        const st = teamStats[name];
-                        const dash = "—";
-                        return (
-                          <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa",opacity:status==="Released"?0.45:1,cursor:"pointer",transition:"background .1s"}}
-                            onClick={()=>setSelectedPlayer(name)}
-                            onMouseEnter={e=>e.currentTarget.style.background=`${color}0d`}
-                            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}>
-                            <td style={{padding:"9px 10px 9px 16px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"rgba(0,0,0,0.35)",textAlign:"center"}}>{num||"—"}</td>
-                            <td style={{padding:"9px 10px",fontWeight:600,whiteSpace:"nowrap"}}>
-                              <span style={{color:color,textDecoration:"underline",textDecorationStyle:"dotted"}}>{name}</span>
-                              {status!=="Active"&&<span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8,background:status==="DL"?"#fef3c7":"#f3f4f6",color:status==="DL"?"#92400e":"#6b7280",marginLeft:6}}>{status}</span>}
-                            </td>
-                            {st ? [st.gp,st.ab,st.r,st.h,st.doubles,st.triples,st.hr,st.rbi,st.bb,st.k,st.avg,st.obp,st.slg,st.ops].map((v,j)=>(
-                              <td key={j} style={{padding:"9px 8px",textAlign:"center",fontWeight:["AVG","OBP","SLG","OPS"][j-10]?700:400,color:j>=10?color:"inherit"}}>{v}</td>
-                            )) : Array(14).fill(null).map((_,j)=>(
-                              <td key={j} style={{padding:"9px 8px",textAlign:"center",color:"rgba(0,0,0,0.2)",fontSize:12}}>{dash}</td>
-                            ))}
+                {(() => {
+                  const COLS = [
+                    {label:"GP",  key:"gp"},
+                    {label:"AB",  key:"ab"},
+                    {label:"R",   key:"r"},
+                    {label:"H",   key:"h"},
+                    {label:"2B",  key:"doubles"},
+                    {label:"3B",  key:"triples"},
+                    {label:"HR",  key:"hr"},
+                    {label:"RBI", key:"rbi"},
+                    {label:"BB",  key:"bb"},
+                    {label:"K",   key:"k"},
+                    {label:"SB",  key:"sb"},
+                    {label:"TB",  key:"tb"},
+                    {label:"AVG", key:"avgN", display:"avg", rate:true},
+                    {label:"OBP", key:"obpN", display:"obp", rate:true},
+                    {label:"OPS", key:"opsN", display:"ops", rate:true},
+                  ];
+                  const handleSort = (key) => {
+                    setRosterSort(s => ({col:key, dir: s.col===key&&s.dir==="desc" ? "asc" : "desc"}));
+                  };
+                  const sorted = [...roster].sort((a,b) => {
+                    const na = typeof a==="string"?a:a.name;
+                    const nb = typeof b==="string"?b:b.name;
+                    const sa = teamStats[na], sb2 = teamStats[nb];
+                    const av = sa ? (sa[rosterSort.col]??-1) : -1;
+                    const bv = sb2 ? (sb2[rosterSort.col]??-1) : -1;
+                    return rosterSort.dir==="desc" ? bv-av : av-bv;
+                  });
+                  return (
+                    <div style={{overflowX:"auto"}}>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                        <thead>
+                          <tr style={{background:"#f8f9fb",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>
+                            <th style={{padding:"9px 10px 9px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",width:36}}>#</th>
+                            <th style={{padding:"9px 10px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",cursor:"pointer"}} onClick={()=>setRosterSort(s=>({col:"name",dir:s.col==="name"&&s.dir==="asc"?"desc":"asc"}))}>Player</th>
+                            {COLS.map(c=>{
+                              const active = rosterSort.col===c.key;
+                              return (
+                                <th key={c.key} onClick={()=>handleSort(c.key)} style={{padding:"9px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",color:active?color:c.rate?"rgba(0,45,110,0.6)":"rgba(0,0,0,0.4)",background:active?`${color}12`:"transparent",transition:"background .1s"}}>
+                                  {c.label}{active?(rosterSort.dir==="desc"?" ▼":" ▲"):""}
+                                </th>
+                              );
+                            })}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {sorted.map((player,i) => {
+                            const name   = typeof player === "string" ? player : player.name;
+                            const num    = typeof player === "string" ? "" : player.number;
+                            const status = typeof player === "string" ? "Active" : (player.status || "Active");
+                            const st = teamStats[name];
+                            return (
+                              <tr key={name} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa",opacity:status==="Released"?0.45:1,cursor:"pointer",transition:"background .1s"}}
+                                onClick={()=>setSelectedPlayer(name)}
+                                onMouseEnter={e=>e.currentTarget.style.background=`${color}0d`}
+                                onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}>
+                                <td style={{padding:"9px 10px 9px 16px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,color:"rgba(0,0,0,0.35)",textAlign:"center"}}>{num||"—"}</td>
+                                <td style={{padding:"9px 10px",fontWeight:600,whiteSpace:"nowrap"}}>
+                                  <span style={{color:color,textDecoration:"underline",textDecorationStyle:"dotted"}}>{name}</span>
+                                  {status!=="Active"&&<span style={{fontSize:10,fontWeight:700,padding:"1px 6px",borderRadius:8,background:status==="DL"?"#fef3c7":"#f3f4f6",color:status==="DL"?"#92400e":"#6b7280",marginLeft:6}}>{status}</span>}
+                                </td>
+                                {COLS.map((c,j) => {
+                                  const val = st ? (c.display ? st[c.display] : st[c.key]) : "—";
+                                  const active = rosterSort.col===c.key;
+                                  return <td key={c.key} style={{padding:"9px 8px",textAlign:"center",fontWeight:c.rate?700:400,color:c.rate?color:active?"#111":"inherit",background:active?`${color}08`:"transparent"}}>{val??0}</td>;
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               )}
             </Card>
           </div>
