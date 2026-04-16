@@ -812,7 +812,9 @@ function Ticker({ setTab }) {
 
   const openFinalBox = async (sc) => {
     const [bat, pit] = await Promise.all([
-      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${sc.id}&order=id.asc&limit=100`),
+      // Try fetching with new columns; fall back to old set if columns don't exist in DB yet
+      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,sf,sac,fc,roe,cs&game_id=eq.${sc.id}&order=id.asc&limit=100`)
+        .catch(() => sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${sc.id}&order=id.asc&limit=100`)),
       sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${sc.id}&order=id.asc&limit=50`),
     ]).catch(()=>[[], []]);
     setBoxModal({game:sc, batting:bat, pitching:pit});
@@ -1213,27 +1215,36 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:6,padding:"6px 10px",background:"#f0f4ff",borderRadius:6}}>{team} — Batting</div>
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <table style={{borderCollapse:"collapse",fontSize:12,width:"100%"}}>
             <thead><tr style={{background:"#f8f9fb"}}>
-              {["Player","AB","R","H","HR","RBI","BB","SO","SB"].map(c=><th key={c} style={{padding:"5px 8px",textAlign:c==="Player"?"left":"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>{c}</th>)}
+              {["Player","AB","R","H","HR","RBI","BB","SO","SB","SF","SAC","FC","ROE","CS"].map(c=>(
+                <th key={c} style={{
+                  padding:"5px 6px",
+                  textAlign:c==="Player"?"left":"center",
+                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
+                  textTransform:"uppercase",color:"rgba(0,0,0,0.45)",
+                  borderBottom:"1px solid rgba(0,0,0,0.08)",
+                  ...(c==="Player" ? {width:120,maxWidth:120} : {width:32,whiteSpace:"nowrap"}),
+                }}>{c}</th>
+              ))}
             </tr></thead>
             <tbody>
               {rows.map((r,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>
-                    <button type="button" onClick={()=>setSelectedPlayer(r.player_name)} style={{background:"none",border:"none",padding:0,fontWeight:600,cursor:"pointer",color:"#002d6e",textDecoration:"underline",textDecorationStyle:"dotted",fontSize:"inherit",fontFamily:"inherit",whiteSpace:"nowrap"}}>{r.player_name}</button>
+                  <td style={{padding:"5px 6px",maxWidth:120,overflow:"hidden"}}>
+                    <button type="button" onClick={()=>setSelectedPlayer(r.player_name)} style={{background:"none",border:"none",padding:0,fontWeight:600,cursor:"pointer",color:"#002d6e",textDecoration:"underline",textDecorationStyle:"dotted",fontSize:"inherit",fontFamily:"inherit",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:110,display:"block"}}>{r.player_name}</button>
                   </td>
-                  {[r.ab,r.r,r.h,r.hr||0,r.rbi,r.bb,r.k,r.sb||0].map((v,j)=>(
-                    <td key={j} style={{padding:"5px 8px",textAlign:"center",
+                  {[r.ab,r.r,r.h,r.hr||0,r.rbi,r.bb,r.k,r.sb||0,r.sf||0,r.sac||0,r.fc||0,r.roe||0,r.cs||0].map((v,j)=>(
+                    <td key={j} style={{padding:"5px 6px",textAlign:"center",
                       fontWeight:v>0&&[1,2,4].includes(j)?700:400,
                       color:j===3&&v>0?"#c8102e":"inherit"}}>{v||0}</td>
                   ))}
                 </tr>
               ))}
               <tr style={{borderTop:"2px solid rgba(0,0,0,0.1)",background:"#f8f9fb",fontWeight:700}}>
-                <td style={{padding:"5px 8px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:11}}>Totals</td>
-                {["ab","r","h","hr","rbi","bb","k","sb"].map(f=>(
-                  <td key={f} style={{padding:"5px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{rows.reduce((s,r)=>s+(r[f]||0),0)}</td>
+                <td style={{padding:"5px 6px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,textTransform:"uppercase",fontSize:11}}>Totals</td>
+                {["ab","r","h","hr","rbi","bb","k","sb","sf","sac","fc","roe","cs"].map(f=>(
+                  <td key={f} style={{padding:"5px 6px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900}}>{rows.reduce((s,r)=>s+(r[f]||0),0)}</td>
                 ))}
               </tr>
             </tbody>
