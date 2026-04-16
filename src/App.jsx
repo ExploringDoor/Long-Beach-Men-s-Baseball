@@ -7155,14 +7155,6 @@ function AdminPage({ onAlertChange }) {
                   <div style={{fontSize:13,color:"rgba(255,255,255,0.6)"}}>Score pitch-by-pitch in real time — shows only your team's games</div>
                 </div>
               </button>
-              <button onClick={()=>setCaptainView("boxscore")}
-                style={{background:"#374151",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
-                <div style={{fontSize:40}}>📋</div>
-                <div>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase",marginBottom:4}}>Submit Box Score</div>
-                  <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>Enter final stats after the game</div>
-                </div>
-              </button>
               <button onClick={()=>setCaptainView("roster")}
                 style={{background:"#1a4332",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
                 <div style={{fontSize:40}}>👥</div>
@@ -7747,7 +7739,6 @@ function AdminPage({ onAlertChange }) {
                   {icon:"⚡",title:"Score Live",desc:"Score a game in real time",accent:"#16a34a",action:()=>setQuickView("live")},
                   {icon:"🚨",title:"League Alert Banner",desc:"Post urgent site-wide notices",accent:hasAlert?"#dc2626":"#002d6e",badge:hasAlert?"ACTIVE":null,action:()=>setQuickView("alert")},
                   {icon:"📰",title:"News & Events",desc:"Post announcements to the Home page",accent:"#b45309",action:()=>{setQuickView("news");loadNews();}},
-                  {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",accent:"#002d6e",action:()=>{setPreloadGame(null);setShowBoxScore(true);}},
                   {icon:"🗂️",title:"Manage Games",desc:"Edit or delete saved games",accent:"#dc2626",action:()=>{setQuickView("games");loadAdminGames();}},
                   {icon:"🏆",title:"Tournaments",desc:"Add tournament games to schedule",accent:"#002d6e",action:()=>setQuickView("tournaments")},
                   {icon:"🏅",title:"Player Eligibility",desc:"Track fees paid & game appearances",accent:"#002d6e",action:()=>setQuickView("eligibility")},
@@ -10283,10 +10274,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
                 ):inProg?(
                   <button onClick={()=>{setGs({...saved,_hist:[]});setView("game");}} style={{padding:"8px 16px",background:"#b45309",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer"}}>▶ Resume</button>
                 ):(
-                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    <button onClick={()=>{setBsMode(false);setSetupInfo(g);const saved=loadLineupDraft(g.away,g.home,g.date);setLineupDraft(saved||{away:[],home:[]});setLineupStep("away");setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
-                    <button onClick={()=>{setBsMode(true);setSetupInfo(g);const saved=loadLineupDraft(g.away,g.home,g.date);setLineupDraft(saved||{away:[],home:[]});setLineupStep("away");setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#374151",border:"none",borderRadius:8,fontWeight:700,fontSize:13,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>📋 Box Score</button>
-                  </div>
+                  <button onClick={()=>{setBsMode(false);setSetupInfo(g);const saved=loadLineupDraft(g.away,g.home,g.date);setLineupDraft(saved||{away:[],home:[]});setLineupStep("away");setView("lineup");sbFetch(`lbdc_rosters?select=name,number,team&team=in.(${encodeURIComponent(g.away)},${encodeURIComponent(g.home)})&order=id.asc`).then(rows=>{const c={};rows.forEach(r=>{if(!c[r.team])c[r.team]=[];c[r.team].push({name:r.name,number:r.number||""});});setRosterCache(c);}).catch(()=>{});}} style={{padding:"8px 16px",background:"#002d6e",border:"none",borderRadius:8,fontWeight:700,fontSize:14,color:"#fff",cursor:"pointer",whiteSpace:"nowrap"}}>⚡ Score Live</button>
                 )}
               </div>
             </div>
