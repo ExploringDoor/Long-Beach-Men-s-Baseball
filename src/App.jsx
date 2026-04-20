@@ -9763,8 +9763,12 @@ function StatsPage() {
       const namesWithData = new Set(allSeasons.filter(s => seasonIdsWithData.has(s.id)).map(s => s.name));
       setSeasonsWithData(namesWithData);
 
-      // Default to current Saturday season
-      const curSat = allSeasons.find(s => s.name.includes("Diamond Classics Saturdays")) || allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
+      // Default to "Spring/Summer 2026" (the simple-named season). The
+      // leaderboard fetch widens to both sat season IDs anyway, so picking
+      // the friendlier label here is safe.
+      const curSat = allSeasons.find(s => s.name === "Spring/Summer 2026")
+        || allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026") && !s.name.includes("Diamond"))
+        || allSeasons.find(s => s.name.includes("Diamond Classics Saturdays"));
       setSeason(curSat ? curSat.name : ALL_SEASONS_KEY);
     }).catch(() => {});
   }, []);
