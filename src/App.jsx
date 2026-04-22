@@ -366,7 +366,7 @@ const SCHED = [
 
 const BOOMERS_SCHED = [
   {date:"Apr 11",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
-  {date:"Apr 25",time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey"},
+  {date:"Apr 25",time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey",status:"PPD"},
   {date:"May 9", time:"3:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
   {date:"Jun 6", time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey"},
   {date:"Jun 20",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
@@ -587,27 +587,33 @@ function FinalCard({ g, onTeamClick }) {
   );
 }
 
-function UpcomingCard({ away, home, time, date, field, isNext, onTeamClick, onPreview }) {
+function UpcomingCard({ away, home, time, date, field, isNext, status, onTeamClick, onPreview }) {
+  const isPPD = status === "PPD" || (status||"").toLowerCase().startsWith("postpone");
+  const isCAN = status === "CAN" || (status||"").toLowerCase().startsWith("cancel");
+  const statusLabel = isCAN ? "CANCELED" : isPPD ? "POSTPONED" : null;
   return (
-    <div onClick={() => onPreview?.({away, home, time, date, field})}
-      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:"3px solid #002d6e",borderLeft:isNext?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview?"pointer":"default",transition:"box-shadow .12s",width:"100%",minWidth:280}}
-      onMouseEnter={e=>{if(onPreview)e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)";}}
+    <div onClick={() => !statusLabel && onPreview?.({away, home, time, date, field})}
+      style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:statusLabel?"3px solid #c8102e":"3px solid #002d6e",borderLeft:isNext&&!statusLabel?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview&&!statusLabel?"pointer":"default",transition:"box-shadow .12s",width:"100%",minWidth:280,opacity:statusLabel?0.72:1,position:"relative"}}
+      onMouseEnter={e=>{if(onPreview&&!statusLabel)e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)";}}
       onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)";}}>
+      {statusLabel && (
+        <div style={{position:"absolute",top:8,right:8,background:"#c8102e",color:"#fff",padding:"3px 10px",borderRadius:4,fontSize:10,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",zIndex:2}}>{statusLabel}</div>
+      )}
       <div style={{display:"flex",alignItems:"center",padding:"12px 14px",gap:60}}>
         <div style={{display:"flex",flexDirection:"column",gap:8,flex:"0 0 auto",minWidth:0}}>
-          {isNext && <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#c8102e",marginBottom:-2}}>▶ NEXT GAME</div>}
+          {isNext && !statusLabel && <div style={{fontSize:10,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#c8102e",marginBottom:-2}}>▶ NEXT GAME</div>}
           {[away,home].map((t,i) => (
             <div key={i} onClick={e=>{e.stopPropagation();onTeamClick?.(t);}} style={{display:"flex",alignItems:"center",gap:10,cursor:onTeamClick?"pointer":"default"}}>
               <TLogo name={t} size={60} />
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(14px,2vw,24px)",textTransform:"uppercase",color:"#111",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t}</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(14px,2vw,24px)",textTransform:"uppercase",color:statusLabel?"#777":"#111",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:statusLabel?"line-through":"none"}}>{t}</div>
             </div>
           ))}
         </div>
         <div style={{flexShrink:0,borderLeft:"1px solid rgba(0,0,0,0.08)",paddingLeft:14}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(20px,3vw,32px)",color:"#002d6e",lineHeight:1}}>{time}</div>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(20px,3vw,32px)",color:statusLabel?"#888":"#002d6e",lineHeight:1,textDecoration:statusLabel?"line-through":"none"}}>{time}</div>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:"clamp(12px,1.5vw,15px)",color:"rgba(0,0,0,0.55)",fontWeight:700,marginTop:3}}>{date}</div>
           <div style={{fontSize:"clamp(11px,1.2vw,13px)",color:"rgba(0,0,0,0.4)",marginTop:2,fontWeight:500}}>{field}</div>
-          {onPreview && <div style={{fontSize:10,fontWeight:700,color:"rgba(0,45,110,0.45)",marginTop:4,letterSpacing:".05em"}}>⚾ Preview →</div>}
+          {onPreview && !statusLabel && <div style={{fontSize:10,fontWeight:700,color:"rgba(0,45,110,0.45)",marginTop:4,letterSpacing:".05em"}}>⚾ Preview →</div>}
         </div>
       </div>
     </div>
@@ -778,6 +784,7 @@ function Ticker({ setTab }) {
   const [preview, setPreview] = useState(null);
   const [boxModal, setBoxModal] = useState(null); // {game, batting, pitching}
   const [liveScores, setLiveScores] = useState({}); // key: "away|home" → {away_score, home_score, status}
+  const [schedOverrides, setSchedOverrides] = useState({}); // key: "away|home|date" → {status, notes}
   // Find the most recently played week (latest date <= today), fallback to next upcoming
   const today = new Date(); today.setHours(0,0,0,0);
   const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
@@ -789,7 +796,30 @@ function Ticker({ setTab }) {
 
   const satGames = week.fields.flatMap(f => f.games.map(g => ({...g, field:f.name})));
   const boomerGame = BOOMERS_SCHED.find(g => g.date === week.label);
-  const games = boomerGame ? [...satGames, boomerGame] : satGames;
+  const rawGames = boomerGame ? [...satGames, boomerGame] : satGames;
+  // Apply admin overrides (status/notes) from lbdc_schedules
+  const games = rawGames.map(g => {
+    const key = `${g.away}|${g.home}|${g.date||week.label}`;
+    const ov = schedOverrides[key];
+    return ov ? { ...g, status: ov.status || g.status, notes: ov.notes || g.notes } : g;
+  });
+
+  useEffect(() => {
+    // Load admin schedule overrides so PPD/CAN set via admin UI flows through
+    Promise.all([
+      sbFetch("lbdc_schedules?id=eq.bom&select=data"),
+      sbFetch("lbdc_schedules?id=eq.sat&select=data"),
+    ]).then(([br, sr]) => {
+      const m = {};
+      const add = (list, fallbackDate) => (list||[]).forEach(e => {
+        if (!e.status && !e.notes) return;
+        m[`${e.away}|${e.home}|${e.date||fallbackDate||""}`] = { status: e.status, notes: e.notes };
+      });
+      add(br && br[0] ? br[0].data : null);
+      add(sr && sr[0] ? sr[0].data : null);
+      setSchedOverrides(m);
+    }).catch(()=>{});
+  }, []);
 
   useEffect(() => {
     // Compute this week's ISO date (e.g., "2026-04-18") so we only fetch games for THIS week.
@@ -841,23 +871,27 @@ function Ticker({ setTab }) {
             const isFinal = sc && (sc.status==="Final"||sc.status==="final");
             const awayWin = isFinal && sc.away_score > sc.home_score;
             const homeWin = isFinal && sc.home_score > sc.away_score;
+            const isPPD = !isFinal && (g.status==="PPD" || (g.status||"").toLowerCase().startsWith("postpone"));
+            const isCAN = !isFinal && (g.status==="CAN" || (g.status||"").toLowerCase().startsWith("cancel"));
+            const statusTag = isCAN ? "CAN" : isPPD ? "PPD" : null;
+            const muted = !!statusTag;
             return (
-              <div key={i} onClick={()=>isFinal ? openFinalBox(sc) : setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"})}
+              <div key={i} onClick={()=>{ if (isFinal) return openFinalBox(sc); if (statusTag) return; setPreview({away:g.away,home:g.home,time:g.time,field:g.field,date:week.label+" 2026"}); }}
                 className="ticker-game-item"
-                style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"6px 16px",borderRight:"1px solid rgba(255,255,255,0.1)",minWidth:160,gap:3,cursor:"pointer",transition:"background .12s",flexShrink:0}}
-                onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}
+                style={{display:"flex",flexDirection:"column",justifyContent:"center",padding:"6px 16px",borderRight:"1px solid rgba(255,255,255,0.1)",minWidth:160,gap:3,cursor:statusTag?"default":"pointer",transition:"background .12s",flexShrink:0,opacity:muted?0.6:1}}
+                onMouseEnter={e=>{ if(!statusTag) e.currentTarget.style.background="rgba(255,255,255,0.07)"; }}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <span className="ticker-time" style={{fontSize:11,color:isFinal?"#4ade80":"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",lineHeight:1}}>
-                  {isFinal?"FINAL":g.time}{g.status==="PPD"?" · PPD":""}
+                <span className="ticker-time" style={{fontSize:11,color:isFinal?"#4ade80":statusTag?"#FFD700":"#ff6b6b",fontWeight:700,whiteSpace:"nowrap",lineHeight:1}}>
+                  {statusTag ? statusTag : (isFinal?"FINAL":g.time)}
                 </span>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <TLogo name={g.away} size={22} />
-                  <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:isFinal?(awayWin?"#fff":"rgba(255,255,255,0.45)"):"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.away]||g.away}</span>
+                  <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:isFinal?(awayWin?"#fff":"rgba(255,255,255,0.45)"):"#fff",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1,textDecoration:statusTag?"line-through":"none"}}>{TICKER_NAME[g.away]||g.away}</span>
                   {isFinal&&<span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:awayWin?"#FFD700":"rgba(255,215,0,0.45)",marginLeft:"auto"}}>{sc.away_score}</span>}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <TLogo name={g.home} size={22} />
-                  <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:isFinal?(homeWin?"#fff":"rgba(255,255,255,0.45)"):"rgba(255,255,255,0.7)",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1}}>{TICKER_NAME[g.home]||g.home}</span>
+                  <span className="ticker-team-name" style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:isFinal?(homeWin?"#fff":"rgba(255,255,255,0.45)"):"rgba(255,255,255,0.7)",textTransform:"uppercase",whiteSpace:"nowrap",lineHeight:1,textDecoration:statusTag?"line-through":"none"}}>{TICKER_NAME[g.home]||g.home}</span>
                   {isFinal&&<span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:homeWin?"#FFD700":"rgba(255,215,0,0.45)",marginLeft:"auto"}}>{sc.home_score}</span>}
                 </div>
               </div>
@@ -1135,7 +1169,7 @@ function HomePage({ setTab, setTeamDetail }) {
                 <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
-                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={`${nextWeek.label}, 2026`} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} />)}
+                {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={`${nextWeek.label}, 2026`} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} />)}
               </div>
             </div>
           </div>
@@ -1836,7 +1870,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
               if (sc && sc.status === 'Final') {
                 return <LiveBoxScoreFinalCard key={i} game={sc} onTeamClick={goTeam} />;
               }
-              return <div key={i} style={{width:"100%"}}><UpcomingCard away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} onPreview={setPreviewGame} /></div>;
+              return <div key={i} style={{width:"100%"}}><UpcomingCard away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} /></div>;
             })}
           </div>
           {byeTeams.length > 0 && (
@@ -1883,13 +1917,15 @@ function SchedulePage({ setTab, setTeamDetail }) {
               <div>
                 {boomerScore && boomerScore.status === 'Final'
                   ? <LiveBoxScoreFinalCard game={boomerScore} onTeamClick={goTeam} />
-                  : <UpcomingCard away={g.away} home={g.home} time={g.time} date={boomerWeek.label} field={g.field} isNext={false} onTeamClick={goTeam} onPreview={p=>setPreviewGame(p)} />
+                  : <UpcomingCard away={g.away} home={g.home} time={g.time} date={boomerWeek.label} field={g.field} isNext={false} status={g.status} onTeamClick={goTeam} onPreview={p=>setPreviewGame(p)} />
                 }
                 {rsvpGame && <BoomersRSVPModal game={rsvpGame} onClose={()=>setRsvpGame(null)} />}
-                <button onClick={()=>setRsvpGame(g)}
-                  style={{marginTop:12,width:"100%",padding:"12px",background:"#7c3aed",border:"none",borderRadius:10,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase",letterSpacing:".06em",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                  👥 Who's Playing This Week?
-                </button>
+                {!(g.status === "PPD" || g.status === "CAN" || (g.status||"").toLowerCase().startsWith("postpone") || (g.status||"").toLowerCase().startsWith("cancel")) && (
+                  <button onClick={()=>setRsvpGame(g)}
+                    style={{marginTop:12,width:"100%",padding:"12px",background:"#7c3aed",border:"none",borderRadius:10,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase",letterSpacing:".06em",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                    👥 Who's Playing This Week?
+                  </button>
+                )}
               </div>
             );
           })()}
@@ -2909,16 +2945,16 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const fullSchedule = BOOMERS_TEAMS.has(teamName)
     ? (liveSchedule || BOOMERS_SCHED.map(g => ({...g, away:g.away, home:g.home})))
         .filter(g => g.away===teamName || g.home===teamName)
-        .map(g => ({date:g.date, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:g.field}))
+        .map(g => ({date:g.date, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:g.field, status:g.status||"", notes:g.notes||""}))
     : liveSchedule
       ? liveSchedule
           .filter(g => g.away===teamName || g.home===teamName)
-          .map(g => ({date:g.date, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:g.field}))
+          .map(g => ({date:g.date, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:g.field, status:g.status||"", notes:g.notes||""}))
       : SCHED.flatMap(week =>
           week.fields.flatMap(f =>
             f.games
               .filter(g => g.away===teamName || g.home===teamName)
-              .map(g => ({date:week.label, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:f.name}))
+              .map(g => ({date:week.label, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:f.name, status:g.status||"", notes:g.notes||""}))
           )
         );
   return (
@@ -3082,33 +3118,39 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>2026 Schedule</span>
               <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,color:color,fontWeight:700}}>{fullSchedule.length} Games</span>
             </div>
-            {fullSchedule.map((g,i) => (
-              <div key={i} style={{display:"grid",gridTemplateColumns:"52px 48px 1fr",alignItems:"center",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"transparent":"rgba(0,0,0,0.01)"}}>
+            {fullSchedule.map((g,i) => {
+              const isPPD = g.status==="PPD" || (g.status||"").toLowerCase().startsWith("postpone");
+              const isCAN = g.status==="CAN" || (g.status||"").toLowerCase().startsWith("cancel");
+              const badge = isCAN ? "CANCELED" : isPPD ? "POSTPONED" : null;
+              return (
+              <div key={i} style={{display:"grid",gridTemplateColumns:"52px 48px 1fr",alignItems:"center",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:badge?"rgba(200,16,46,0.04)":(i%2===0?"transparent":"rgba(0,0,0,0.01)"),opacity:badge?0.72:1}}>
                 <div>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#111",lineHeight:1}}>{g.date}</div>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.time}</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#111",lineHeight:1,textDecoration:badge?"line-through":"none"}}>{g.date}</div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2,textDecoration:badge?"line-through":"none"}}>{g.time}</div>
                 </div>
                 <div style={{
                   fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
                   letterSpacing:".08em",textTransform:"uppercase",
-                  color:g.isHome?"#fff":"#002d6e",
-                  background:g.isHome?"#002d6e":"rgba(0,45,110,0.08)",
-                  border:`1px solid ${g.isHome?"#002d6e":"rgba(0,45,110,0.2)"}`,
+                  color:badge?"#fff":(g.isHome?"#fff":"#002d6e"),
+                  background:badge?"#c8102e":(g.isHome?"#002d6e":"rgba(0,45,110,0.08)"),
+                  border:`1px solid ${badge?"#c8102e":(g.isHome?"#002d6e":"rgba(0,45,110,0.2)")}`,
                   borderRadius:4,padding:"2px 6px",textAlign:"center",
                 }}>
-                  {g.isHome?"HOME":"AWAY"}
+                  {badge ? (isCAN?"CAN":"PPD") : (g.isHome?"HOME":"AWAY")}
                 </div>
                 <div>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
                     <TLogo name={g.opponent} size={44} />
                     <div>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,color:"#111",textTransform:"uppercase",lineHeight:1}}>{g.isHome?"vs":"@"} {g.opponent}</div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,color:badge?"#888":"#111",textTransform:"uppercase",lineHeight:1,textDecoration:badge?"line-through":"none"}}>{g.isHome?"vs":"@"} {g.opponent}</div>
                       <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.field.replace("Clark Field — Long Beach","Clark Field").replace("Fromhold Field — San Pedro","Fromhold Field").replace("St Pius X — Downey","St Pius X")}</div>
+                      {g.notes && <div style={{fontSize:10,color:"#c8102e",marginTop:2,fontWeight:700}}>📝 {g.notes}</div>}
                     </div>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </Card>
         </div>
       </div>
@@ -5601,10 +5643,10 @@ function ManageSchedulePage({ onBack }) {
 
   const buildDefaultSat = () => SCHED.flatMap(week =>
     week.fields.flatMap(f =>
-      f.games.map(g => ({ id: Math.random().toString(36).slice(2), date: week.label, time: g.time, field: f.name, away: g.away, home: g.home, source: "sched" }))
+      f.games.map(g => ({ id: Math.random().toString(36).slice(2), date: week.label, time: g.time, field: f.name, away: g.away, home: g.home, status: g.status||"", source: "sched" }))
     )
   );
-  const buildDefaultBom = () => BOOMERS_SCHED.map(g => ({ id: Math.random().toString(36).slice(2), date: g.date, time: g.time, field: g.field, away: g.away, home: g.home, source: "sched" }));
+  const buildDefaultBom = () => BOOMERS_SCHED.map(g => ({ id: Math.random().toString(36).slice(2), date: g.date, time: g.time, field: g.field, away: g.away, home: g.home, status: g.status||"", source: "sched" }));
 
   const [satGames, setSatGames] = useState([]);
   const [bomGames, setBomGames] = useState([]);
@@ -5637,11 +5679,12 @@ function ManageSchedulePage({ onBack }) {
     await sbUpsert("lbdc_schedules", {id:key, data:list}).catch(() => {});
   };
 
-  const startEdit = (g) => { setEditId(g.id); setEditForm({date:g.date,time:g.time,field:g.field,away:g.away,home:g.home}); };
+  const startEdit = (g) => { setEditId(g.id); setEditForm({date:g.date,time:g.time,field:g.field,away:g.away,home:g.home,status:g.status||"",notes:g.notes||""}); };
   const saveEdit = () => {
     persist(games.map(g => g.id===editId ? {...g,...editForm} : g));
     setEditId(null);
   };
+  const setStatus = (id, status) => persist(games.map(g => g.id===id ? {...g, status} : g));
   const deleteGame = (id) => persist(games.filter(g=>g.id!==id));
   const addGame = () => {
     if(!addForm.date) return;
@@ -5740,24 +5783,54 @@ function ManageSchedulePage({ onBack }) {
                           </select></div>
                       ))}
                     </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8,marginBottom:10}}>
+                      <div><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Status</label>
+                        <select value={editForm.status||""} onChange={e=>setEditForm(f=>({...f,status:e.target.value}))} style={selStyle}>
+                          <option value="">Scheduled</option>
+                          <option value="PPD">Postponed</option>
+                          <option value="CAN">Canceled</option>
+                        </select></div>
+                      <div><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Notes (e.g. "Makeup: May 9, 2026")</label>
+                        <input value={editForm.notes||""} onChange={e=>setEditForm(f=>({...f,notes:e.target.value}))} placeholder="Optional note shown with this game" style={inputStyle}/></div>
+                    </div>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(0,45,110,0.04)",padding:"8px 10px",borderRadius:6,marginBottom:10}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"#555",textTransform:"uppercase",letterSpacing:".04em"}}>Quick:</div>
+                      <button type="button" onClick={()=>setEditForm(f=>({...f,status:"PPD"}))} style={{padding:"4px 10px",background:"#fff",border:"1px solid rgba(200,16,46,0.3)",borderRadius:6,color:"#c8102e",fontWeight:700,fontSize:11,cursor:"pointer"}}>Mark Postponed</button>
+                      <button type="button" onClick={()=>setEditForm(f=>({...f,status:"CAN"}))} style={{padding:"4px 10px",background:"#fff",border:"1px solid rgba(200,16,46,0.3)",borderRadius:6,color:"#c8102e",fontWeight:700,fontSize:11,cursor:"pointer"}}>Mark Canceled</button>
+                      <button type="button" onClick={()=>setEditForm(f=>({...f,status:""}))} style={{padding:"4px 10px",background:"#fff",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,color:"#444",fontWeight:700,fontSize:11,cursor:"pointer"}}>Clear</button>
+                    </div>
                     <div style={{display:"flex",gap:8}}>
                       <button type="button" onClick={saveEdit} style={{padding:"7px 18px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>Save</button>
                       <button type="button" onClick={()=>setEditId(null)} style={{padding:"7px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
                       <button type="button" onClick={()=>deleteGame(g.id)} style={{marginLeft:"auto",padding:"7px 12px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Delete</button>
                     </div>
                   </div>
-                ) : (
+                ) : (() => {
+                  const isPPD = g.status === "PPD" || (g.status||"").toLowerCase().startsWith("postpone");
+                  const isCAN = g.status === "CAN" || (g.status||"").toLowerCase().startsWith("cancel");
+                  const badge = isCAN ? "CANCELED" : isPPD ? "POSTPONED" : null;
+                  return (
                   <div onClick={()=>startEdit(g)}
-                    style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 20px",borderBottom:"1px solid rgba(0,0,0,0.04)",cursor:"pointer",transition:"background .1s"}}
-                    onMouseEnter={e=>e.currentTarget.style.background="#f0f4ff"}
-                    onMouseLeave={e=>e.currentTarget.style.background=""}>
-                    <div>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away} <span style={{color:"#ccc",fontWeight:400}}>@</span> {g.home}</div>
+                    style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 20px",borderBottom:"1px solid rgba(0,0,0,0.04)",cursor:"pointer",transition:"background .1s",background:badge?"rgba(200,16,46,0.04)":""}}
+                    onMouseEnter={e=>e.currentTarget.style.background=badge?"rgba(200,16,46,0.08)":"#f0f4ff"}
+                    onMouseLeave={e=>e.currentTarget.style.background=badge?"rgba(200,16,46,0.04)":""}>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                        {badge && <span style={{background:"#c8102e",color:"#fff",padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:900,letterSpacing:".1em"}}>{badge}</span>}
+                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",textDecoration:badge?"line-through":"none",color:badge?"#888":"#111"}}>{g.away} <span style={{color:"#ccc",fontWeight:400}}>@</span> {g.home}</div>
+                      </div>
                       <div style={{fontSize:11,color:"#888",marginTop:1}}>{g.time} · {g.field}</div>
+                      {g.notes && <div style={{fontSize:11,color:"#c8102e",marginTop:2,fontWeight:700}}>📝 {g.notes}</div>}
                     </div>
-                    <div style={{fontSize:11,color:"#002d6e",fontWeight:700,flexShrink:0}}>✏️ Edit</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                      {!badge && <button type="button" onClick={e=>{e.stopPropagation();setStatus(g.id,"PPD");}} style={{padding:"4px 8px",background:"#fff",border:"1px solid rgba(200,16,46,0.3)",borderRadius:5,color:"#c8102e",fontWeight:700,fontSize:10,cursor:"pointer"}}>PPD</button>}
+                      {!badge && <button type="button" onClick={e=>{e.stopPropagation();setStatus(g.id,"CAN");}} style={{padding:"4px 8px",background:"#fff",border:"1px solid rgba(200,16,46,0.3)",borderRadius:5,color:"#c8102e",fontWeight:700,fontSize:10,cursor:"pointer"}}>CAN</button>}
+                      {badge && <button type="button" onClick={e=>{e.stopPropagation();setStatus(g.id,"");}} style={{padding:"4px 8px",background:"#fff",border:"1px solid rgba(0,0,0,0.15)",borderRadius:5,color:"#444",fontWeight:700,fontSize:10,cursor:"pointer"}}>Clear</button>}
+                      <div style={{fontSize:11,color:"#002d6e",fontWeight:700}}>✏️ Edit</div>
+                    </div>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             ))}
           </div>
