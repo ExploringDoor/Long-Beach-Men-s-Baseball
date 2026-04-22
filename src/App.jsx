@@ -645,7 +645,8 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
         if (isBoomers && !bomSeason) { setLoading(false); return; }
         if (!isBoomers && !satIds.length) { setLoading(false); return; }
         const seasonFilter = isBoomers ? `season_id=eq.${bomSeason.id}` : `season_id=in.(${satIds.join(",")})`;
-        const games = await sbFetch(`games?select=away_team,home_team,away_score,home_score,status&${seasonFilter}&status=eq.Final&limit=200`);
+        const rawGames = await sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&${seasonFilter}&status=eq.Final&limit=200`);
+        const games = dedupGames(rawGames || []);
         const rec = {};
         [away, home].forEach(t => { rec[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
         let awayW=0, homeW=0, ties=0;
@@ -791,20 +792,23 @@ function Ticker({ setTab }) {
   const games = boomerGame ? [...satGames, boomerGame] : satGames;
 
   useEffect(() => {
-    // Fetch scores for this week's games
+    // Compute this week's ISO date (e.g., "2026-04-18") so we only fetch games for THIS week.
+    const _weekDate = (() => {
+      const d = new Date(week.label + " 2026");
+      if (isNaN(d)) return null;
+      const y = d.getFullYear(), mm = String(d.getMonth()+1).padStart(2,"0"), dd = String(d.getDate()).padStart(2,"0");
+      return `${y}-${mm}-${dd}`;
+    })();
+    const dateFilter = _weekDate ? `&game_date=eq.${_weekDate}` : "";
+    // Fetch scores for this week's games (filtered by date so dupes across weeks don't leak in)
     const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
-    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
+    sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status,headline&or=(${pairs})&away_score=not.is.null${dateFilter}&order=id.desc&limit=40`)
       .then(rows => {
+        const deduped = dedupGames(rows || []);
         const m = {};
-        rows.forEach(r => {
+        deduped.forEach(r => {
           const k = `${r.away_team}|${r.home_team}`;
-          const cur = m[k];
-          if (!cur) { m[k] = r; return; }
-          const rFinal = r.status === 'Final', curFinal = cur.status === 'Final';
-          const rHl = !!r.headline, curHl = !!cur.headline;
-          // Prefer: Final+headline > Final > non-Final; keep higher id among equal rank
-          if (rFinal && rHl && !(curFinal && curHl)) m[k] = r;
-          else if (rFinal && !curFinal && !curHl) m[k] = r;
+          m[k] = r;
         });
         setLiveScores(m);
       }).catch(()=>{});
@@ -1052,22 +1056,8 @@ function HomePage({ setTab, setTeamDetail }) {
       sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${bf})&status=eq.Final&away_score=not.is.null&order=id.desc&limit=10`)
         .then(data => data.filter(g => BOOMERS_TEAMS.has(g.home_team))),
     ]).then(([satData, bomData]) => {
-        // Dedup Boomers — prefer Final+headline, keep highest id
-        const bm = {};
-        bomData.forEach(r => {
-          const k = `${r.away_team}|${r.home_team}`, cur = bm[k];
-          if (!cur) { bm[k] = r; return; }
-          const rHl=!!r.headline, cHl=!!cur.headline;
-          if (rHl && !cHl) bm[k] = r;
-        });
-        const bomDeduped = Object.values(bm);
-        const data = [...satData];
-        // Pass 1: dedup same date+teams (prefer: most runs > has headline > highest id)
-        const s1={}; data.forEach(g=>{const k=`${g.game_date||""}|${g.away_team}|${g.home_team}`,t=(g.away_score||0)+(g.home_score||0),hl=!!g.headline,c=s1[k];if(!c||t>c.t||(t===c.t&&hl&&!c.hl)||(t===c.t&&hl===c.hl&&g.id>c.id))s1[k]={id:g.id,t,hl};});
-        let p1=data.filter(g=>s1[`${g.game_date||""}|${g.away_team}|${g.home_team}`]?.id===g.id);
-        // Pass 2: merge null-date records into dated counterparts (null-date wins if more runs)
-        const dated=p1.filter(g=>g.game_date),nulls=p1.filter(g=>!g.game_date);
-        if(nulls.length){const res=[...dated];nulls.forEach(ng=>{const nt=(ng.away_score||0)+(ng.home_score||0),nhl=!!ng.headline,m=res.find(d=>d.away_team===ng.away_team&&d.home_team===ng.home_team);if(m){const mt=(m.away_score||0)+(m.home_score||0),mhl=!!m.headline;if(nt>mt||(nt===mt&&nhl&&!mhl))res[res.indexOf(m)]={...ng,game_date:m.game_date};}else res.push(ng);});p1=res;}
+        const bomDeduped = dedupGames(bomData || []);
+        const p1 = dedupGames(satData || []);
         // Merge Boomers + Saturday, sort by date desc then id desc, cap at 6
         const combined = [...p1, ...bomDeduped].sort((a,b) => {
           if (a.game_date && b.game_date) return a.game_date < b.game_date ? 1 : a.game_date > b.game_date ? -1 : b.id - a.id;
@@ -1599,34 +1589,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
         }))
     )
       .then(games => {
-        // Pass 1: dedup same date+teams (prefer: most runs > has headline > highest id)
-        const seen1 = {};
-        games.forEach(g => {
-          const key = `${g.game_date||""}|${g.away_team}|${g.home_team}`;
-          const tot = (g.away_score||0)+(g.home_score||0), hl = !!g.headline, cur = seen1[key];
-          if (!cur || tot > cur.tot || (tot===cur.tot && hl && !cur.hl) || (tot===cur.tot && hl===cur.hl && g.id > cur.id))
-            seen1[key] = {id:g.id, tot, hl};
-        });
-        let pass1 = games.filter(g => seen1[`${g.game_date||""}|${g.away_team}|${g.home_team}`]?.id === g.id);
-        // Pass 2: merge null-date records into their dated counterparts (same teams)
-        // A record with no game_date is a duplicate entry missing a date — replace its dated match if it has more runs
-        const dated = pass1.filter(g => g.game_date), nullDates = pass1.filter(g => !g.game_date);
-        let deduped;
-        if (!nullDates.length) {
-          deduped = pass1;
-        } else {
-          const result = [...dated];
-          nullDates.forEach(ng => {
-            const ngTot = (ng.away_score||0)+(ng.home_score||0), ngHl = !!ng.headline;
-            const match = result.find(dg => dg.away_team===ng.away_team && dg.home_team===ng.home_team);
-            if (match) {
-              const mTot = (match.away_score||0)+(match.home_score||0), mHl = !!match.headline;
-              const ngWins = ngTot > mTot || (ngTot===mTot && ngHl && !mHl);
-              if (ngWins) result[result.indexOf(match)] = {...ng, game_date:match.game_date};
-            } else result.push(ng);
-          });
-          deduped = result;
-        }
+        const deduped = dedupGames(games);
         const weekMap = {};
         deduped.forEach(g => {
           const d = g.game_date || "Unknown";
@@ -1813,18 +1776,11 @@ function SchedulePage({ setTab, setTeamDetail }) {
   useEffect(() => {
     if (games.length === 0 || !satSeasonId) return;
     const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
-    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${satSeasonId}&game_date=eq.${toISODate(dateStr)}&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
+    sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${satSeasonId}&game_date=eq.${toISODate(dateStr)}&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
       .then(rows => {
+        const deduped = dedupGames(rows || []);
         const m = {};
-        rows.forEach(r => {
-          const k = `${r.away_team}|${r.home_team}`;
-          const cur = m[k];
-          if (!cur) { m[k] = r; return; }
-          const rFinal = r.status === 'Final', curFinal = cur.status === 'Final';
-          const rHl = !!r.headline, curHl = !!cur.headline;
-          if (rFinal && rHl && !(curFinal && curHl)) m[k] = r;
-          else if (rFinal && !curFinal && !curHl) m[k] = r;
-        });
+        deduped.forEach(r => { m[`${r.away_team}|${r.home_team}`] = r; });
         setSchedScores(m);
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1833,16 +1789,9 @@ function SchedulePage({ setTab, setTeamDetail }) {
   useEffect(() => {
     const bg = boomerWeek ? boomerWeek.games[0] : null;
     if (!bg || !bomSeasonId) return;
-    sbFetch(`games?select=id,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${bomSeasonId}&game_date=eq.${toISODate(boomerWeek.label)}&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
+    sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${bomSeasonId}&game_date=eq.${toISODate(boomerWeek.label)}&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
       .then(rows => {
-        let best = null;
-        rows.forEach(r => {
-          if (!best) { best = r; return; }
-          const rFinal = r.status === 'Final', bFinal = best.status === 'Final';
-          const rHl = !!r.headline, bHl = !!best.headline;
-          if (rFinal && rHl && !(bFinal && bHl)) best = r;
-          else if (rFinal && !bFinal && !bHl) best = r;
-        });
+        const best = dedupGames(rows || [])[0] || null;
         setBoomerScore(best);
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2822,12 +2771,24 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         sbFetch(`games?select=id,away_team,home_team,away_score,home_score,game_date,status&${seasonFilter}&or=(away_team.eq.${enc(teamName)},home_team.eq.${enc(teamName)})&status=eq.Final&order=game_date.desc&limit=20`),
       ]);
       setRecentGames(dedupGames(recentRaw || []).slice(0,5));
-      const dedupedGames = dedupGames(games || []);
-      if (!dedupedGames.length) return;
-      const ids = dedupedGames.map(g => g.id).join(",");
-      const lines = await sbFetch(`batting_lines?select=player_name,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&team=eq.${enc(teamName)}&game_id=in.(${ids})&limit=1000`);
+      if (!games || !games.length) return;
+      // Line-level dedup by gameKey — handles duplicate game rows with scattered batting_lines
+      const gameKeyById = {};
+      games.forEach(g => { gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`; });
+      const allIds = games.map(g => g.id).join(",");
+      const rawLines = await sbFetch(`batting_lines?select=game_id,player_name,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`);
+      const linesBest = {};
+      (rawLines || []).forEach(r => {
+        if (!r.player_name) return;
+        const gk = gameKeyById[r.game_id]; if (!gk) return;
+        const k = `${r.player_name}||${gk}`;
+        const pa = (r.ab||0)+(r.bb||0)+(r.hbp||0)+(r.sf||0);
+        const sc = pa*100 + (r.h||0) + (r.rbi||0);
+        if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...r, __s: sc };
+      });
+      const lines = Object.values(linesBest);
       const map = {};
-      (lines||[]).forEach(l => {
+      lines.forEach(l => {
         if (!map[l.player_name]) map[l.player_name] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
         const p = map[l.player_name];
         p.gp++; p.ab+=l.ab||0; p.r+=l.r||0; p.h+=l.h||0;
@@ -4071,8 +4032,8 @@ function HistoryPage() {
       // Convert M/D/YYYY → YYYY-MM-DD
       const [mo,dy,yr] = g.date.split("/");
       const gameDate = `${yr}-${mo.padStart(2,"0")}-${dy.padStart(2,"0")}`;
-      const games = await sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${sb.id}&game_date=eq.${gameDate}&away_team=eq.${encodeURIComponent(g.away_team)}&limit=5`);
-      const game = games[0];
+      const gamesRaw = await sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${sb.id}&game_date=eq.${gameDate}&away_team=eq.${encodeURIComponent(g.away_team)}&limit=5`);
+      const game = dedupGames(gamesRaw || [])[0];
       if (!game) { setBoxModal(null); alert("No box score found for this game."); return; }
       const [batting, pitching] = await Promise.all([
         sbFetch(`batting_lines?select=*&game_id=eq.${game.id}&limit=100`),
@@ -4933,24 +4894,23 @@ function PlayerEligibilityPage({ onBack }) {
       const counts = {};
       const satIds = getSatSeasonFilter(seasons || []);
       if (satIds.length) {
+        // Fetch ALL games (including duplicates) and ALL batting_lines, then dedup at the line level
+        // by gameKey (date|away|home). This handles the case where duplicate game rows have
+        // scattered batting_lines — a player who appeared in one real game counts exactly once.
         const gameRows = await sbFetch(`games?select=id,away_team,home_team,game_date,away_score,home_score&season_id=in.(${satIds.join(",")})&away_score=not.is.null&limit=500`);
         if (gameRows && gameRows.length > 0) {
-          // Deduplicate: same away+home+date → keep the record with the most runs (or highest id)
-          const dedup = {};
-          (gameRows || []).forEach(g => {
-            const key = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`;
-            const score = (g.away_score||0)+(g.home_score||0);
-            const cur = dedup[key];
-            if (!cur || score > cur.score || (score === cur.score && g.id > cur.id)) {
-              dedup[key] = { id: g.id, score };
-            }
+          const gameKeyById = {};
+          gameRows.forEach(g => {
+            gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`;
           });
-          const ids = Object.values(dedup).map(g => g.id).join(",");
-          const apData = await sbFetch(`batting_lines?select=player_name,game_id&game_id=in.(${ids})&player_name=not.is.null&limit=5000`);
+          const allIds = gameRows.map(g => g.id).join(",");
+          const apData = await sbFetch(`batting_lines?select=player_name,game_id&game_id=in.(${allIds})&player_name=not.is.null&limit=10000`);
           (apData || []).forEach(row => {
             if (!row.player_name) return;
+            const gk = gameKeyById[row.game_id];
+            if (!gk) return;
             if (!counts[row.player_name]) counts[row.player_name] = new Set();
-            counts[row.player_name].add(row.game_id);
+            counts[row.player_name].add(gk);
           });
         }
       }
@@ -5822,8 +5782,9 @@ function WeeklyEmailPage({ onBack }) {
       if(!satIds.length) { setLoading(false); return; }
       setSeason("Spring/Summer 2026");
       return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`);
-    }).then(games => {
-      if(!games) return;
+    }).then(rawGames => {
+      if(!rawGames) return;
+      const games = dedupGames(rawGames);
       setLiveGames(games);
       // compute standings
       const tm = {};
@@ -8189,11 +8150,33 @@ const dedupGames = (games) => {
     const key = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`;
     const score = (g.away_score||0) + (g.home_score||0);
     const cur = seen[key];
-    if (!cur || score > cur.score || (score === cur.score && g.id > cur.id)) {
-      seen[key] = { ...g, score };
+    const hasHl = !!g.headline;
+    if (!cur
+      || score > cur.score
+      || (score === cur.score && hasHl && !cur.hasHl)
+      || (score === cur.score && hasHl === cur.hasHl && (g.id||0) > (cur.id||0))) {
+      seen[key] = { ...g, score, hasHl };
     }
   });
-  return Object.values(seen);
+  const pass1 = Object.values(seen).map(({score, hasHl, ...rest}) => rest);
+  const dated = pass1.filter(g => g.game_date);
+  const nullDates = pass1.filter(g => !g.game_date);
+  if (!nullDates.length) return pass1;
+  const result = [...dated];
+  nullDates.forEach(ng => {
+    const ngTot = (ng.away_score||0)+(ng.home_score||0);
+    const ngHl = !!ng.headline;
+    const match = result.find(dg => dg.away_team===ng.away_team && dg.home_team===ng.home_team);
+    if (match) {
+      const mTot = (match.away_score||0)+(match.home_score||0);
+      const mHl = !!match.headline;
+      const ngWins = ngTot > mTot || (ngTot===mTot && ngHl && !mHl);
+      if (ngWins) result[result.indexOf(match)] = {...ng, game_date:match.game_date};
+    } else {
+      result.push(ng);
+    }
+  });
+  return result;
 };
 
 // Translate raw Supabase / network errors into plain-English messages for end users
@@ -8719,14 +8702,32 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res?.[0];}
         }
         if(!season) throw new Error("Could not find or create a season record — please try again.");
-        const gameRes = await sbPost("games",[{
-          season_id:season.id, game_date:toISODate(game.date), game_time:game.time, field:game.field,
-          away_team:game.away, home_team:game.home,
-          away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
-          headline:headlineVal, status:gameStatus,
-        }]);
-        if(!gameRes?.[0]?.id) throw new Error("Game record was not created — please try again.");
-        gid = gameRes[0].id;
+        // Before inserting, check if a game already exists for the same date+teams+season
+        // (prevents duplicate rows when captains resubmit)
+        const _hsISODate = toISODate(game.date) || null;
+        const _hsDateFilter = _hsISODate ? `&game_date=eq.${_hsISODate}` : "";
+        const existingHS = await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(game.away)}&home_team=eq.${encodeURIComponent(game.home)}&season_id=eq.${season.id}${_hsDateFilter}&order=id.desc&limit=1`);
+        if (existingHS && existingHS.length) {
+          gid = existingHS[0].id;
+          await sbPatch(`games?id=eq.${gid}`, {
+            season_id:season.id, game_date:_hsISODate, game_time:game.time, field:game.field,
+            away_team:game.away, home_team:game.home,
+            away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
+            headline:headlineVal, status:gameStatus,
+          });
+          // Clear old lines — they'll be reinserted fresh below
+          await sbDelete(`batting_lines?game_id=eq.${gid}`);
+          await sbDelete(`pitching_lines?game_id=eq.${gid}`);
+        } else {
+          const gameRes = await sbPost("games",[{
+            season_id:season.id, game_date:_hsISODate, game_time:game.time, field:game.field,
+            away_team:game.away, home_team:game.home,
+            away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
+            headline:headlineVal, status:gameStatus,
+          }]);
+          if(!gameRes?.[0]?.id) throw new Error("Game record was not created — please try again.");
+          gid = gameRes[0].id;
+        }
       }
       const batRows = [
         ...(awayStatMode==="full" ? awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
@@ -10776,7 +10777,9 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r?.[0];}
       }
       if(!season) throw new Error("Could not find or create season — please try again.");
-      const existing=await sbFetch(`games?select=id,headline&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}&limit=1`);
+      const _gsISODate = toISODate(gs.date) || null;
+      const _gsDateFilter = _gsISODate ? `&game_date=eq.${_gsISODate}` : "";
+      const existing=await sbFetch(`games?select=id,headline&away_team=eq.${encodeURIComponent(gs.away)}&home_team=eq.${encodeURIComponent(gs.home)}&season_id=eq.${season.id}${_gsDateFilter}&order=id.desc&limit=1`);
       const finalAway = bsScore.away!==""?parseInt(bsScore.away)||0:gs.score.away;
       const finalHome = bsScore.home!==""?parseInt(bsScore.home)||0:gs.score.home;
       const gameData={away_team:gs.away,home_team:gs.home,season_id:season.id,status:"Final",away_score:finalAway,home_score:finalHome,game_date:toISODate(gs.date)||null,game_time:gs.time||null,field:gs.field||null};
@@ -11057,8 +11060,10 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         let season = seasons.find(s => s.name.includes("Diamond Classics Saturdays")) || seasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
         if (!season) { const r = await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]); season=r?.[0]; }
         if (!season) throw new Error("Could not find or create season — please try again.");
-        const existing = await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(g.away)}&home_team=eq.${encodeURIComponent(g.home)}&season_id=eq.${season.id}&limit=1`);
-        const gameData = {away_team:g.away,home_team:g.home,season_id:season.id,status:"Final",away_score:parseInt(bsScore.away)||0,home_score:parseInt(bsScore.home)||0};
+        const _gISODate = toISODate(g.date) || null;
+        const _gDateFilter = _gISODate ? `&game_date=eq.${_gISODate}` : "";
+        const existing = await sbFetch(`games?select=id&away_team=eq.${encodeURIComponent(g.away)}&home_team=eq.${encodeURIComponent(g.home)}&season_id=eq.${season.id}${_gDateFilter}&order=id.desc&limit=1`);
+        const gameData = {away_team:g.away,home_team:g.home,season_id:season.id,status:"Final",away_score:parseInt(bsScore.away)||0,home_score:parseInt(bsScore.home)||0,game_date:_gISODate,game_time:g.time||null,field:g.field||null};
         let gameId;
         if (existing.length) {
           gameId = existing[0].id;
