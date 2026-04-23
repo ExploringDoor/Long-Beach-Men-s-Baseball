@@ -5651,6 +5651,7 @@ function ManageSchedulePage({ onBack }) {
   const [satGames, setSatGames] = useState([]);
   const [bomGames, setBomGames] = useState([]);
   const [schedLoading, setSchedLoading] = useState(true);
+  const [fieldOptions, setFieldOptions] = useState(SCHEDULE_FIELDS);
   const games = league === 1 ? bomGames : satGames;
 
   const [editId, setEditId] = useState(null);
@@ -5662,9 +5663,14 @@ function ManageSchedulePage({ onBack }) {
     Promise.all([
       sbFetch("lbdc_schedules?id=eq.sat&select=data"),
       sbFetch("lbdc_schedules?id=eq.bom&select=data"),
-    ]).then(([sr, br]) => {
+      sbFetch("lbdc_fields?id=eq.main&select=data"),
+    ]).then(([sr, br, fr]) => {
       setSatGames(sr && sr[0] ? sr[0].data : buildDefaultSat());
       setBomGames(br && br[0] ? br[0].data : buildDefaultBom());
+      const fdata = fr && fr[0] && Array.isArray(fr[0].data) ? fr[0].data : FIELDS_INFO;
+      const opts = fdata.map(f => f.location ? `${f.name} — ${f.location.split(",")[0].trim()}` : f.name);
+      setFieldOptions(opts.length ? opts : SCHEDULE_FIELDS);
+      setAddForm(prev => ({...prev, field: prev.field || opts[0] || SCHEDULE_FIELDS[0]}));
       setSchedLoading(false);
     }).catch(() => {
       setSatGames(buildDefaultSat());
@@ -5732,8 +5738,9 @@ function ManageSchedulePage({ onBack }) {
             ))}
             <div><label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:3}}>Field</label>
               <select value={addForm.field} onChange={e=>setAddForm(f=>({...f,field:e.target.value}))} style={selStyle}>
-                {SCHEDULE_FIELDS.map(f=><option key={f}>{f}</option>)}
+                {(fieldOptions.includes(addForm.field) || !addForm.field ? fieldOptions : [addForm.field, ...fieldOptions]).map(f=><option key={f}>{f}</option>)}
               </select>
+              <div style={{fontSize:10,color:"#888",marginTop:3}}>Need a new field? Add it in <strong>Admin → Field Directions</strong>.</div>
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
@@ -5771,7 +5778,7 @@ function ManageSchedulePage({ onBack }) {
                       ))}
                       <div><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Field</label>
                         <select value={editForm.field||""} onChange={e=>setEditForm(f=>({...f,field:e.target.value}))} style={selStyle}>
-                          {SCHEDULE_FIELDS.map(f=><option key={f}>{f}</option>)}
+                          {(editForm.field && !fieldOptions.includes(editForm.field) ? [editForm.field, ...fieldOptions] : fieldOptions).map(f=><option key={f}>{f}</option>)}
                         </select>
                       </div>
                     </div>
@@ -6380,8 +6387,12 @@ function AdminFieldsEditor({ onBack }) {
   const updNote=(fi,ni,v)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:x.notes.map((n,j)=>j!==ni?n:v)}));
   const delNote=(fi,ni)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:x.notes.filter((_,j)=>j!==ni)}));
   const addNote=(fi)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:[...x.notes,"New note — click to edit"]}));
+  const addField=()=>setFields(p=>[...p,{name:"New Field",location:"City, ST",address:"",mapsUrl:"",appleMapsUrl:"",notes:[],color:"#002d6e"}]);
+  const delField=(fi)=>{ if(!window.confirm(`Delete field "${fields[fi].name}"?`)) return; setFields(p=>p.filter((_,i)=>i!==fi)); };
+  const moveField=(fi,dir)=>setFields(p=>{ const n=[...p]; const j=fi+dir; if(j<0||j>=n.length) return p; [n[fi],n[j]]=[n[j],n[fi]]; return n; });
   const btn=(bg,color="#fff")=>({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"});
   const inp={fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"8px 12px",width:"100%",boxSizing:"border-box"};
+  const COLOR_CHOICES = ["#002d6e","#1d4ed8","#7c3aed","#c8102e","#b45309","#16a34a","#0891b2","#db2777","#111"];
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
       <PageHero label="Admin" title="Edit Field Directions" subtitle="Update field notes, addresses, and directions" />
@@ -6399,16 +6410,50 @@ function AdminFieldsEditor({ onBack }) {
         {loading ? <div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.4)"}}>Loading…</div> : fields.map((field,fi)=>(
           <div key={fi} style={{background:"#fff",borderRadius:12,marginBottom:20,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${field.color}`}}>
             <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"rgba(0,0,0,0.02)"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase",marginBottom:10}}>{field.name}</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:4}}>
+                  <button type="button" onClick={()=>moveField(fi,-1)} disabled={fi===0} style={{padding:"4px 8px",background:"rgba(0,0,0,0.05)",border:"1px solid rgba(0,0,0,0.1)",borderRadius:5,cursor:fi===0?"default":"pointer",fontSize:12,opacity:fi===0?0.3:1}}>↑</button>
+                  <button type="button" onClick={()=>moveField(fi,1)} disabled={fi===fields.length-1} style={{padding:"4px 8px",background:"rgba(0,0,0,0.05)",border:"1px solid rgba(0,0,0,0.1)",borderRadius:5,cursor:fi===fields.length-1?"default":"pointer",fontSize:12,opacity:fi===fields.length-1?0.3:1}}>↓</button>
+                </div>
+                <button type="button" onClick={()=>delField(fi)} style={{padding:"5px 12px",background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Delete Field</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8,marginBottom:8}}>
+                <div>
+                  <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Field Name</label>
+                  <input value={field.name||""} onChange={e=>updField(fi,"name",e.target.value)} placeholder="e.g. Clark Field" style={{...inp,fontWeight:700,fontSize:16}} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>City</label>
+                  <input value={field.location||""} onChange={e=>updField(fi,"location",e.target.value)} placeholder="e.g. Long Beach, CA" style={inp} />
+                </div>
+              </div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                <RichTextInput key={`addr-${fi}`} defaultValue={field.address} onChange={v=>updField(fi,"address",v)} placeholder="Street address" minHeight={38} />
-                <input value={field.mapsUrl} onChange={e=>updField(fi,"mapsUrl",e.target.value)} placeholder="Google Maps URL (paste URL)" style={inp} />
-                <input value={field.appleMapsUrl} onChange={e=>updField(fi,"appleMapsUrl",e.target.value)} placeholder="Apple Maps URL (paste URL)" style={inp} />
+                <div>
+                  <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Address</label>
+                  <RichTextInput key={`addr-${fi}`} defaultValue={field.address} onChange={v=>updField(fi,"address",v)} placeholder="Street address" minHeight={38} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Google Maps URL</label>
+                  <input value={field.mapsUrl||""} onChange={e=>updField(fi,"mapsUrl",e.target.value)} placeholder="https://maps.google.com/..." style={inp} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Apple Maps URL</label>
+                  <input value={field.appleMapsUrl||""} onChange={e=>updField(fi,"appleMapsUrl",e.target.value)} placeholder="https://maps.apple.com/..." style={inp} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:4}}>Accent Color</label>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                    {COLOR_CHOICES.map(c=>(
+                      <button key={c} type="button" onClick={()=>updField(fi,"color",c)} title={c} style={{width:26,height:26,borderRadius:"50%",background:c,border:field.color===c?"3px solid #111":"2px solid rgba(0,0,0,0.1)",cursor:"pointer",padding:0}} />
+                    ))}
+                    <input value={field.color||""} onChange={e=>updField(fi,"color",e.target.value)} placeholder="#rrggbb" style={{...inp,width:110,padding:"6px 8px",fontSize:12}} />
+                  </div>
+                </div>
               </div>
             </div>
             <div style={{padding:"14px 18px"}}>
               <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:10}}>Field Notes & Parking</div>
-              {field.notes.map((note,ni)=>(
+              {(field.notes||[]).map((note,ni)=>(
                 <div key={ni} style={{display:"flex",gap:8,marginBottom:8,alignItems:"flex-start"}}>
                   <div style={{flex:1}}><RichTextInput key={`field-${fi}-${ni}`} defaultValue={note} onChange={v=>updNote(fi,ni,v)} placeholder="Field note…" minHeight={50} /></div>
                   <button onClick={()=>delNote(fi,ni)} style={{background:"none",border:"none",color:"#dc2626",fontSize:18,cursor:"pointer",padding:"6px",flexShrink:0}}>✕</button>
@@ -6418,6 +6463,11 @@ function AdminFieldsEditor({ onBack }) {
             </div>
           </div>
         ))}
+        {!loading && (
+          <button type="button" onClick={addField} style={{width:"100%",background:"#fff",border:"2px dashed #002d6e",borderRadius:12,padding:"18px",color:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",letterSpacing:".06em",cursor:"pointer",marginBottom:16}}>
+            + Add New Field
+          </button>
+        )}
         <div style={{position:"sticky",bottom:20,marginTop:8,textAlign:"center"}}>
           <button onClick={save} disabled={saving} style={{...btn(saving?"#6b7280":saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
             {saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}
