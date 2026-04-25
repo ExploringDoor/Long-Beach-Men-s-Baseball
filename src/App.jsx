@@ -3370,8 +3370,47 @@ function getSponsorsData() {
   return SPONSORS_DATA;
 }
 
+/* ─── CONTACT INFO ───────────────────────────────────────────────────────── */
+// Single source of truth for league/site contact info. Editable by admin via
+// AdminContactEditor → upserted into Supabase `lbdc_contact` (id="main").
+const CONTACT_INFO = {
+  commissionerTitle: "League Commissioner",
+  commissionerName: "Daniel Gutierrez",
+  commissionerEmail: "dgutierrez22@yahoo.com",
+  commissionerPhone: "(626) 722-2938",
+  zelleNote: "Send to cell number above",
+  venmoHandle: "@Titans-baseball",
+  venmoQrUrl: "/qr-code.png",
+  designerName: "Adam — Mainline Web Design",
+  designerEmail: "adam.mainlinewebdesign@gmail.com",
+  designerWebsite: "https://mainline-webdesign.com/",
+};
+// Strip non-digits for tel: links
+const phoneToTel = (p) => "+1" + (p||"").replace(/[^0-9]/g, "");
+// Module-level cache so any page render can read contact info synchronously
+// after the first fetch resolves. Components also subscribe via useContactInfo.
+let _CONTACT_CACHE = { ...CONTACT_INFO };
+const _CONTACT_LISTENERS = new Set();
+function _setContactCache(next) {
+  _CONTACT_CACHE = { ...CONTACT_INFO, ...(next||{}) };
+  _CONTACT_LISTENERS.forEach(fn => { try { fn(_CONTACT_CACHE); } catch(e){} });
+}
+function useContactInfo() {
+  const [info, setInfo] = useState(_CONTACT_CACHE);
+  useEffect(() => {
+    _CONTACT_LISTENERS.add(setInfo);
+    sbFetch("lbdc_contact?id=eq.main&select=data")
+      .then(rows => {
+        if (rows && rows[0] && rows[0].data) _setContactCache(rows[0].data);
+      }).catch(()=>{});
+    return () => { _CONTACT_LISTENERS.delete(setInfo); };
+  }, []);
+  return info;
+}
+
 function FieldDirectionsPage() {
   const [fields, setFields] = useState(FIELDS_INFO);
+  const c = useContactInfo();
   useEffect(() => {
     sbFetch("lbdc_fields?id=eq.main&select=data")
       .then(rows => { if (rows && rows[0] && rows[0].data) setFields(rows[0].data); })
@@ -3422,7 +3461,7 @@ function FieldDirectionsPage() {
           ))}
         </div>
         <div style={{marginTop:24,background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"16px 20px",textAlign:"center"}}>
-          <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>Questions about field locations? Contact <strong>Dan Gutierrez</strong> at <a href="mailto:dgutierrez22@yahoo.com" style={{color:"#002d6e"}}>dgutierrez22@yahoo.com</a></div>
+          <div style={{fontSize:13,color:"rgba(0,0,0,0.5)"}}>Questions about field locations? Contact <strong>{c.commissionerName}</strong>{c.commissionerEmail && <> at <a href={`mailto:${c.commissionerEmail}`} style={{color:"#002d6e"}}>{c.commissionerEmail}</a></>}</div>
         </div>
       </div>
     </div>
@@ -4725,6 +4764,8 @@ function SubBoardPage() {
 
 /* ─── CONTACT PAGE ───────────────────────────────────────────────────────── */
 function ContactPage() {
+  const c = useContactInfo();
+  const designerHost = (c.designerWebsite||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics" title="Contact Us" subtitle="Reach out to the league commissioner with questions or concerns" />
@@ -4733,79 +4774,93 @@ function ContactPage() {
           <div style={{background:"#002d6e",padding:"20px 24px",display:"flex",alignItems:"center",gap:16}}>
             <div style={{width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>⚾</div>
             <div>
-              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".12em",color:"rgba(255,255,255,0.6)",marginBottom:2}}>League Commissioner</div>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,color:"#fff",textTransform:"uppercase",lineHeight:1}}>Daniel Gutierrez</div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".12em",color:"rgba(255,255,255,0.6)",marginBottom:2}}>{c.commissionerTitle||"League Commissioner"}</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,color:"#fff",textTransform:"uppercase",lineHeight:1}}>{c.commissionerName}</div>
             </div>
           </div>
           <div style={{padding:"8px 0"}}>
-            <a href="tel:+16267222938" style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)",textDecoration:"none",transition:"background .12s"}}
+            {c.commissionerPhone && (
+            <a href={`tel:${phoneToTel(c.commissionerPhone)}`} style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)",textDecoration:"none",transition:"background .12s"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.03)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>📞</div>
               <div>
                 <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Phone / Cell</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e"}}>(626) 722-2938</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e"}}>{c.commissionerPhone}</div>
                 <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:1}}>Tap to call</div>
               </div>
             </a>
-            <a href="mailto:dgutierrez22@yahoo.com" style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)",textDecoration:"none",transition:"background .12s"}}
+            )}
+            {c.commissionerEmail && (
+            <a href={`mailto:${c.commissionerEmail}`} style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)",textDecoration:"none",transition:"background .12s"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(0,45,110,0.03)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>✉️</div>
               <div>
                 <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Email</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e"}}>dgutierrez22@yahoo.com</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e"}}>{c.commissionerEmail}</div>
                 <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:1}}>Tap to email</div>
               </div>
             </a>
+            )}
+            {c.zelleNote && (
             <div style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
               <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>💸</div>
               <div>
                 <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Zelle</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111"}}>Send to cell number above</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111"}}>{c.zelleNote}</div>
               </div>
             </div>
+            )}
+            {c.venmoHandle && (
             <div style={{display:"flex",alignItems:"center",gap:16,padding:"18px 24px"}}>
               <div style={{width:44,height:44,borderRadius:10,background:"rgba(0,45,110,0.08)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>📱</div>
               <div>
                 <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:2}}>Venmo</div>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111"}}>@Titans-baseball</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111"}}>{c.venmoHandle}</div>
               </div>
             </div>
+            )}
           </div>
         </div>
 
         {/* Built by Mainline Web Design */}
+        {(c.designerName || c.designerEmail || c.designerWebsite) && (
         <div style={{marginTop:28,background:"linear-gradient(135deg,#001a4d 0%,#002d6e 60%,#003d99 100%)",borderRadius:14,padding:"24px 24px 20px",boxShadow:"0 4px 20px rgba(0,45,110,0.18)",position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",right:-18,top:-18,fontSize:80,opacity:0.06,lineHeight:1}}>💻</div>
           <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".14em",color:"rgba(255,255,255,0.5)",marginBottom:6}}>Love This Site?</div>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#FFD700",textTransform:"uppercase",lineHeight:1.1,marginBottom:8}}>Get a Custom Website Built for Your League</div>
           <div style={{fontSize:14,color:"rgba(255,255,255,0.75)",lineHeight:1.6,marginBottom:18}}>
-            This site was built specifically for Long Beach Diamond Classics — every feature, every page, exactly how the league needs it. If your organization wants a fully custom website tailored to your team, league, or club, reach out to Adam!
+            This site was built specifically for Long Beach Diamond Classics — every feature, every page, exactly how the league needs it. If your organization wants a fully custom website tailored to your team, league, or club, reach out to {(c.designerName||"the designer").split("—")[0].trim()}!
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <a href="https://mainline-webdesign.com/" target="_blank" rel="noopener noreferrer"
+            {c.designerWebsite && (
+            <a href={c.designerWebsite} target="_blank" rel="noopener noreferrer"
               style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"12px 16px",textDecoration:"none",transition:"background .15s",border:"1px solid rgba(255,255,255,0.12)"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.18)"}
               onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}>
               <span style={{fontSize:20}}>🌐</span>
               <div>
                 <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(255,255,255,0.5)",marginBottom:1}}>Website</div>
-                <div style={{fontFamily:"Arial,sans-serif",fontWeight:700,fontSize:15,color:"#FFD700",letterSpacing:".01em"}}>mainline-webdesign.com</div>
+                <div style={{fontFamily:"Arial,sans-serif",fontWeight:700,fontSize:15,color:"#FFD700",letterSpacing:".01em"}}>{designerHost}</div>
               </div>
             </a>
-            <a href="mailto:adam.mainlinewebdesign@gmail.com"
+            )}
+            {c.designerEmail && (
+            <a href={`mailto:${c.designerEmail}`}
               style={{display:"flex",alignItems:"center",gap:12,background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"12px 16px",textDecoration:"none",transition:"background .15s",border:"1px solid rgba(255,255,255,0.12)"}}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.18)"}
               onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.1)"}>
               <span style={{fontSize:20}}>✉️</span>
               <div>
                 <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(255,255,255,0.5)",marginBottom:1}}>Email</div>
-                <div style={{fontFamily:"Arial,sans-serif",fontWeight:700,fontSize:15,color:"#FFD700",letterSpacing:".01em"}}>adam.mainlinewebdesign@gmail.com</div>
+                <div style={{fontFamily:"Arial,sans-serif",fontWeight:700,fontSize:15,color:"#FFD700",letterSpacing:".01em"}}>{c.designerEmail}</div>
               </div>
             </a>
+            )}
           </div>
         </div>
+        )}
 
       </div>
     </div>
@@ -4825,6 +4880,7 @@ const PAYMENT_CATEGORIES = [
 function PaymentsPage() {
   const [selected, setSelected] = useState(null);
   const cat = PAYMENT_CATEGORIES.find(c => c.id === selected);
+  const ci = useContactInfo();
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
@@ -4870,7 +4926,7 @@ function PaymentsPage() {
         <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
           <div style={{background:"#002d6e",padding:"14px 20px"}}>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#fff",letterSpacing:".04em"}}>💰 How to Pay</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.65)",marginTop:2}}>Send payment to Daniel Gutierrez using either method below</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.65)",marginTop:2}}>Send payment to {ci.commissionerName} using either method below</div>
           </div>
           <div style={{padding:"6px 0"}}>
             <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
@@ -4879,7 +4935,7 @@ function PaymentsPage() {
               </div>
               <div>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Zelle</div>
-                <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>Send to Daniel Gutierrez · <a href="tel:+16267222938" style={{color:"#002d6e",textDecoration:"none",fontWeight:700}}>(626) 722-2938</a></div>
+                <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>Send to {ci.commissionerName} · <a href={`tel:${phoneToTel(ci.commissionerPhone)}`} style={{color:"#002d6e",textDecoration:"none",fontWeight:700}}>{ci.commissionerPhone}</a></div>
               </div>
             </div>
             <div style={{padding:"16px 20px"}}>
@@ -4889,19 +4945,21 @@ function PaymentsPage() {
                 </div>
                 <div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Venmo</div>
-                  <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>@Titans-baseball · Daniel Gutierrez</div>
+                  <div style={{fontSize:14,color:"rgba(0,0,0,0.5)",marginTop:1}}>{ci.venmoHandle} · {ci.commissionerName}</div>
                 </div>
               </div>
+              {ci.venmoQrUrl && (
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",background:"rgba(0,138,255,0.05)",border:"1px solid rgba(0,138,255,0.15)",borderRadius:10,padding:"14px 12px",gap:8}}>
-                <img src="/QR%20code.png" alt="Venmo QR Code" style={{width:180,height:180,borderRadius:8,objectFit:"contain",display:"block"}} />
+                <img src={ci.venmoQrUrl} alt="Venmo QR Code" onError={e=>{e.currentTarget.style.display="none";}} style={{width:180,height:180,borderRadius:8,objectFit:"contain",display:"block",background:"#fff"}} />
                 <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",textAlign:"center"}}>Scan with your camera or Venmo app to pay instantly</div>
               </div>
+              )}
             </div>
           </div>
         </div>
 
         <div style={{marginTop:16,padding:"12px 16px",background:"rgba(0,45,110,0.04)",border:"1px solid rgba(0,45,110,0.1)",borderRadius:8,fontSize:13,color:"rgba(0,0,0,0.5)",lineHeight:1.6}}>
-          ⚾ Questions about fees or payments? Contact Daniel Gutierrez at <a href="tel:+16267222938" style={{color:"#002d6e",fontWeight:700,textDecoration:"none"}}>(626) 722-2938</a> or your team captain.
+          ⚾ Questions about fees or payments? Contact {ci.commissionerName} at <a href={`tel:${phoneToTel(ci.commissionerPhone)}`} style={{color:"#002d6e",fontWeight:700,textDecoration:"none"}}>{ci.commissionerPhone}</a> or your team captain.
         </div>
       </div>
     </div>
@@ -6478,6 +6536,155 @@ function AdminFieldsEditor({ onBack }) {
   );
 }
 
+/* ─── ADMIN CONTACT EDITOR ───────────────────────────────────────────────── */
+function AdminContactEditor({ onBack }) {
+  const [info, setInfo] = useState(CONTACT_INFO);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    sbFetch("lbdc_contact?id=eq.main&select=data")
+      .then(rows => {
+        if (rows && rows[0] && rows[0].data) setInfo({...CONTACT_INFO, ...rows[0].data});
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const upd = (k, v) => setInfo(p => ({...p, [k]: v}));
+
+  const save = async () => {
+    setSaving(true);
+    setSaveError("");
+    try {
+      await sbUpsert("lbdc_contact", {id:"main", data: info});
+      _setContactCache(info);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setSaveError(err.message || "Save failed");
+    }
+    setSaving(false);
+  };
+
+  const reset = async () => {
+    if (!window.confirm("Reset contact info to defaults?")) return;
+    try {
+      await sbUpsert("lbdc_contact", {id:"main", data: CONTACT_INFO});
+      _setContactCache(CONTACT_INFO);
+      setInfo(CONTACT_INFO);
+    } catch(e) {}
+  };
+
+  const inp = {fontFamily:"inherit",fontSize:14,border:"1px solid #ddd",borderRadius:6,padding:"9px 12px",width:"100%",boxSizing:"border-box"};
+  const lbl = {fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:4,letterSpacing:".04em"};
+  const btn = (bg,color="#fff") => ({background:bg,color,border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,cursor:"pointer"});
+  const sectionWrap = {background:"#fff",borderRadius:12,marginBottom:18,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden"};
+  const sectionHead = (title,sub) => (
+    <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"rgba(0,45,110,0.04)"}}>
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e",textTransform:"uppercase",letterSpacing:".04em"}}>{title}</div>
+      {sub && <div style={{fontSize:12,color:"rgba(0,0,0,0.5)",marginTop:2}}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin" title="Contact Information" subtitle="Email, phone, Venmo, and credits — used across the public site" />
+      <div style={{maxWidth:740,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:24,flexWrap:"wrap",alignItems:"center"}}>
+          <button type="button" onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
+          <button type="button" onClick={save} disabled={saving} style={btn(saving?"#6b7280":saved?"#16a34a":"#002d6e")}>{saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}</button>
+          <button type="button" onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
+        </div>
+        {saveError && (
+          <div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#991b1b",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:14}}>
+            <strong>Save failed:</strong> {saveError}
+          </div>
+        )}
+        {loading ? <div style={{textAlign:"center",padding:"40px 0",color:"rgba(0,0,0,0.4)"}}>Loading…</div> : (
+          <>
+            {/* Commissioner */}
+            <div style={sectionWrap}>
+              {sectionHead("League Commissioner","Shown on Contact page, Payments page, Field Directions footer.")}
+              <div style={{padding:"16px 18px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div style={{gridColumn:"1 / -1"}}>
+                  <label style={lbl}>Title</label>
+                  <input value={info.commissionerTitle||""} onChange={e=>upd("commissionerTitle",e.target.value)} placeholder="League Commissioner" style={inp} />
+                </div>
+                <div style={{gridColumn:"1 / -1"}}>
+                  <label style={lbl}>Name</label>
+                  <input value={info.commissionerName||""} onChange={e=>upd("commissionerName",e.target.value)} placeholder="Daniel Gutierrez" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Email</label>
+                  <input value={info.commissionerEmail||""} onChange={e=>upd("commissionerEmail",e.target.value)} placeholder="dgutierrez22@yahoo.com" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Phone / Cell</label>
+                  <input value={info.commissionerPhone||""} onChange={e=>upd("commissionerPhone",e.target.value)} placeholder="(626) 722-2938" style={inp} />
+                  <div style={{fontSize:11,color:"#888",marginTop:3}}>Format anything — digits are auto-extracted for tap-to-call.</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Payments */}
+            <div style={sectionWrap}>
+              {sectionHead("Payment Handles","Used on Payments page and Contact page.")}
+              <div style={{padding:"16px 18px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div>
+                  <label style={lbl}>Venmo Handle</label>
+                  <input value={info.venmoHandle||""} onChange={e=>upd("venmoHandle",e.target.value)} placeholder="@Titans-baseball" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Zelle Note</label>
+                  <input value={info.zelleNote||""} onChange={e=>upd("zelleNote",e.target.value)} placeholder="Send to cell number above" style={inp} />
+                </div>
+                <div style={{gridColumn:"1 / -1"}}>
+                  <label style={lbl}>Venmo QR Image URL</label>
+                  <input value={info.venmoQrUrl||""} onChange={e=>upd("venmoQrUrl",e.target.value)} placeholder="/qr-code.png or https://..." style={inp} />
+                  <div style={{fontSize:11,color:"#888",marginTop:3}}>Path to the QR image. Default: <code>/qr-code.png</code> (place file in <code>public/</code>). Leave blank to hide the QR.</div>
+                  {info.venmoQrUrl && (
+                    <div style={{marginTop:10,padding:"10px",background:"rgba(0,138,255,0.05)",border:"1px solid rgba(0,138,255,0.15)",borderRadius:8,display:"inline-block"}}>
+                      <img src={info.venmoQrUrl} alt="Venmo QR preview" onError={e=>{e.currentTarget.style.opacity=0.2;e.currentTarget.title="Image not found";}} style={{width:120,height:120,objectFit:"contain",display:"block",background:"#fff",borderRadius:6}} />
+                      <div style={{fontSize:10,color:"#888",marginTop:4,textAlign:"center"}}>Preview</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Designer / credits */}
+            <div style={sectionWrap}>
+              {sectionHead("Site Credit","Shown in the blue \"Love this site?\" card on the Contact page.")}
+              <div style={{padding:"16px 18px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div style={{gridColumn:"1 / -1"}}>
+                  <label style={lbl}>Designer Name</label>
+                  <input value={info.designerName||""} onChange={e=>upd("designerName",e.target.value)} placeholder="Adam — Mainline Web Design" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Designer Email</label>
+                  <input value={info.designerEmail||""} onChange={e=>upd("designerEmail",e.target.value)} placeholder="adam.mainlinewebdesign@gmail.com" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Designer Website</label>
+                  <input value={info.designerWebsite||""} onChange={e=>upd("designerWebsite",e.target.value)} placeholder="https://mainline-webdesign.com/" style={inp} />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+        <div style={{position:"sticky",bottom:20,marginTop:8,textAlign:"center"}}>
+          <button type="button" onClick={save} disabled={saving} style={{...btn(saving?"#6b7280":saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+            {saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── MANAGE TEAMS PAGE ──────────────────────────────────────────────────── */
 function ManageTeamsPage({ onBack }) {
   const builtIn = Object.keys(TEAM_ROSTERS);
@@ -7586,6 +7793,7 @@ function AdminPage({ onAlertChange }) {
   if (screen === "admin_photos")  return <AdminPhotosEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_sponsors") return <AdminSponsorsEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_fields")  return <AdminFieldsEditor onBack={() => setScreen("admin")} />;
+  if (screen === "admin_contact") return <AdminContactEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_signups") return <AdminSignupsViewer onBack={() => setScreen("admin")} />;
 
   // ── ADMIN ROSTERS SCREEN ──
@@ -8220,6 +8428,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"⚾",title:"Manage Teams",desc:"Add tournament or custom teams",accent:"#b45309",action:()=>setQuickView("teams")},
                   {icon:"🤝",title:"Edit Sponsors",desc:"Add or remove sponsor cards",accent:"#002d6e",action:()=>setScreen("admin_sponsors")},
                   {icon:"🏟️",title:"Field Directions",desc:"Edit field notes and addresses",accent:"#002d6e",action:()=>setScreen("admin_fields")},
+                  {icon:"📞",title:"Contact Info",desc:"Email, phone, Venmo, QR, credits",accent:"#002d6e",action:()=>setScreen("admin_contact")},
                   {icon:"📋",title:"Player Sign-Ups",desc:"View all sign-up submissions",accent:"#16a34a",action:()=>setScreen("admin_signups")},
                 ].map((a,i)=>(
                   <div key={i} onClick={a.action} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${a.accent}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s",position:"relative"}}
