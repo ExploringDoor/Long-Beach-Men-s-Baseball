@@ -1132,20 +1132,6 @@ function HomePage({ setTab, setTeamDetail }) {
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px",width:"100%",boxSizing:"border-box"}}>
         <div className="home-two-col" style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:32,alignItems:"start",minWidth:0}}>
           <div style={{minWidth:0,overflow:"hidden"}}>
-            {nextGames.length > 0 && (
-              <div style={{marginBottom:32}}>
-                <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#002d6e",marginBottom:4}}>{(() => { const d = parseSchedLabel(nextDate); if (!d || isNaN(d)) return "On Deck"; return d.getTime() === today.getTime() ? "Today" : "This Week"; })()}</div>
-                    <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>Upcoming Matchups</h2>
-                  </div>
-                  <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
-                  {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={nextWeekLabel ? `${nextWeekLabel}, 2026` : ""} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} />)}
-                </div>
-              </div>
-            )}
             {newsItems.length > 0 && (
               <div style={{marginBottom:32}}>
                 <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
@@ -1167,6 +1153,20 @@ function HomePage({ setTab, setTeamDetail }) {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {nextGames.length > 0 && (
+              <div style={{marginBottom:32}}>
+                <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#002d6e",marginBottom:4}}>{(() => { const d = parseSchedLabel(nextDate); if (!d || isNaN(d)) return "On Deck"; return d.getTime() === today.getTime() ? "Today" : "This Week"; })()}</div>
+                    <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>Upcoming Matchups</h2>
+                  </div>
+                  <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
+                  {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={nextWeekLabel ? `${nextWeekLabel}, 2026` : ""} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} />)}
                 </div>
               </div>
             )}
