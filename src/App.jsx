@@ -792,40 +792,50 @@ function Ticker({ setTab }) {
   const [preview, setPreview] = useState(null);
   const [boxModal, setBoxModal] = useState(null); // {game, batting, pitching}
   const [liveScores, setLiveScores] = useState({}); // key: "away|home" → {away_score, home_score, status}
-  const [schedOverrides, setSchedOverrides] = useState({}); // key: "away|home|date" → {status, notes}
-  // Find the most recently played week (latest date <= today), fallback to next upcoming
+  // Live admin-saved schedule (lbdc_schedules). null = not loaded yet → fall back to hardcoded.
+  const [liveSat, setLiveSat] = useState(null);
+  const [liveBom, setLiveBom] = useState(null);
   const today = new Date(); today.setHours(0,0,0,0);
   const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
-  let weekIdx = -1;
-  for (let i = SCHED.length - 1; i >= 0; i--) { if (parseLabel(SCHED[i].label) <= today) { weekIdx = i; break; } }
-  if (weekIdx < 0) { weekIdx = SCHED.findIndex(w => parseLabel(w.label) >= today); }
-  if (weekIdx < 0) weekIdx = 0;
-  const week = SCHED[weekIdx];
 
-  const satGames = week.fields.flatMap(f => f.games.map(g => ({...g, field:f.name})));
-  const boomerGame = BOOMERS_SCHED.find(g => g.date === week.label);
-  const rawGames = boomerGame ? [...satGames, boomerGame] : satGames;
-  // Apply admin overrides (status/notes) from lbdc_schedules
-  const games = rawGames.map(g => {
-    const key = `${g.away}|${g.home}|${g.date||week.label}`;
-    const ov = schedOverrides[key];
-    return ov ? { ...g, status: ov.status || g.status, notes: ov.notes || g.notes } : g;
-  });
+  // Build [{label, games:[{away,home,time,field,date,status,notes}]}] from saved data,
+  // else from hardcoded SCHED. Saved data already has status/notes/venue baked in, so
+  // separate "overrides" merging is no longer needed.
+  const satWeeks = liveSat
+    ? (() => {
+        const byDate = {};
+        liveSat.forEach(g => { if(!byDate[g.date]) byDate[g.date]=[]; byDate[g.date].push(g); });
+        return Object.entries(byDate)
+          .sort((a,b)=> parseLabel(a[0]) - parseLabel(b[0]))
+          .map(([label, gs]) => ({ label, games: gs }));
+      })()
+    : SCHED.map(w => ({
+        label: w.label,
+        games: w.fields.flatMap(f => f.games.map(g => ({...g, field:f.name, date:w.label}))),
+      }));
+
+  // Find the most recently played week (latest date <= today), fallback to next upcoming
+  let weekIdx = -1;
+  for (let i = satWeeks.length - 1; i >= 0; i--) { if (parseLabel(satWeeks[i].label) <= today) { weekIdx = i; break; } }
+  if (weekIdx < 0) { weekIdx = satWeeks.findIndex(w => parseLabel(w.label) >= today); }
+  if (weekIdx < 0) weekIdx = 0;
+  const week = satWeeks[weekIdx] || { label: "", games: [] };
+
+  const satGames = week.games || [];
+  const boomerList = liveBom || BOOMERS_SCHED;
+  const boomerGame = boomerList.find(g => g.date === week.label);
+  const games = boomerGame ? [...satGames, boomerGame] : satGames;
 
   useEffect(() => {
-    // Load admin schedule overrides so PPD/CAN set via admin UI flows through
+    // Pull the FULL admin-saved schedule (sat + bom). Status, venue, time, and added/
+    // deleted games all come through here — not just the PPD/CAN overrides previously
+    // grafted on top of the hardcoded SCHED.
     Promise.all([
-      sbFetch("lbdc_schedules?id=eq.bom&select=data"),
       sbFetch("lbdc_schedules?id=eq.sat&select=data"),
-    ]).then(([br, sr]) => {
-      const m = {};
-      const add = (list, fallbackDate) => (list||[]).forEach(e => {
-        if (!e.status && !e.notes) return;
-        m[`${e.away}|${e.home}|${e.date||fallbackDate||""}`] = { status: e.status, notes: e.notes };
-      });
-      add(br && br[0] ? br[0].data : null);
-      add(sr && sr[0] ? sr[0].data : null);
-      setSchedOverrides(m);
+      sbFetch("lbdc_schedules?id=eq.bom&select=data"),
+    ]).then(([sr, br]) => {
+      if (sr && sr[0] && Array.isArray(sr[0].data)) setLiveSat(sr[0].data);
+      if (br && br[0] && Array.isArray(br[0].data)) setLiveBom(br[0].data);
     }).catch(()=>{});
   }, []);
 
@@ -1106,7 +1116,7 @@ function HomePage({ setTab, setTeamDetail }) {
     Promise.all([
       sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${tf})&status=not.in.(PPD,CAN)&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=30`)
         .then(data => data.filter(g => satTeams.includes(g.home_team))),
-      sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${bf})&status=eq.Final&away_score=not.is.null&order=id.desc&limit=10`)
+      sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${bf})&status=eq.Final&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=10`)
         .then(data => data.filter(g => BOOMERS_TEAMS.has(g.home_team))),
     ]).then(([satData, bomData]) => {
         const bomDeduped = dedupGames(bomData || []);
@@ -2787,11 +2797,14 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
     const hasAway = bat.some(b => b.team === g.away_team);
     const hasHome = bat.some(b => b.team === g.home_team);
     if (!hasAway || !hasHome) {
-      const [datedSibs, nullSibs] = await Promise.all([
-        sbFetch(`games?select=id&away_team=eq.${enc(g.away_team)}&home_team=eq.${enc(g.home_team)}&id=neq.${g.id}&away_score=not.is.null&game_date=gte.2026-01-01&limit=10`),
-        sbFetch(`games?select=id&away_team=eq.${enc(g.away_team)}&home_team=eq.${enc(g.home_team)}&id=neq.${g.id}&away_score=not.is.null&game_date=is.null&limit=10`),
-      ]);
-      const sibIds = [...datedSibs, ...nullSibs].map(s => s.id);
+      // Same-date siblings only — without a date scope this would pull stats
+      // from past matchups of the same two teams (e.g. a January game's box
+      // score appearing under an April game). See cleanHeadline / earlier
+      // fix in LiveBoxScoreFinalCard for the same bug class.
+      const sameDateSibs = g.game_date
+        ? await sbFetch(`games?select=id&away_team=eq.${enc(g.away_team)}&home_team=eq.${enc(g.home_team)}&id=neq.${g.id}&away_score=not.is.null&game_date=eq.${g.game_date}&limit=10`)
+        : [];
+      const sibIds = sameDateSibs.map(s => s.id);
       if (sibIds.length) {
         const ids = sibIds.join(',');
         const [mb, mp] = await Promise.all([
