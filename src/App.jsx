@@ -1494,11 +1494,14 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
     const hasAway = bat.some(b => b.team === game.away_team);
     const hasHome = bat.some(b => b.team === game.home_team);
     if (!hasAway || !hasHome) {
-      const [datedSibs, nullSibs] = await Promise.all([
-        sbFetch(`games?select=id&away_team=eq.${enc(game.away_team)}&home_team=eq.${enc(game.home_team)}&id=neq.${game.id}&away_score=not.is.null&game_date=gte.2026-01-01&limit=10`),
-        sbFetch(`games?select=id&away_team=eq.${enc(game.away_team)}&home_team=eq.${enc(game.home_team)}&id=neq.${game.id}&away_score=not.is.null&game_date=is.null&limit=10`),
-      ]);
-      const sibIds = [...datedSibs, ...nullSibs].map(s => s.id);
+      // Only look up SIBLING records for the SAME game_date. Without this date
+      // scope we'd pull stats from a totally different past matchup of the
+      // same two teams (e.g. a January game's box score appearing under an
+      // April game), which made the box score look completely wrong.
+      const sameDateSibs = game.game_date
+        ? await sbFetch(`games?select=id&away_team=eq.${enc(game.away_team)}&home_team=eq.${enc(game.home_team)}&id=neq.${game.id}&away_score=not.is.null&game_date=eq.${game.game_date}&limit=10`)
+        : [];
+      const sibIds = sameDateSibs.map(s => s.id);
       if (sibIds.length) {
         const ids = sibIds.join(',');
         const [moreBat, morePit] = await Promise.all([
