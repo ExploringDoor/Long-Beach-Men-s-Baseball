@@ -2157,6 +2157,8 @@ function StandingsPage({ setTab, setTeamDetail }) {
   const [histIdx, setHistIdx] = useState(0);
   const [liveTeams, setLiveTeams] = useState(null);
   const [boomersTeams, setBoomersTeams] = useState(null);
+  const [loadingSat, setLoadingSat] = useState(true);
+  const [loadingBom, setLoadingBom] = useState(true);
   const div = DIV["SAT"];
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); } };
   const hist = STANDINGS_HISTORY[histIdx];
@@ -2197,7 +2199,8 @@ function StandingsPage({ setTab, setTeamDetail }) {
         }).map((t,i)=>({...t,seed:i+1}));
         setLiveTeams(rows);
       })
-      .catch(()=>{});
+      .catch(()=>{})
+      .finally(() => setLoadingSat(false));
   }, []);
 
   // Load Boomers standings
@@ -2236,7 +2239,8 @@ function StandingsPage({ setTab, setTeamDetail }) {
         }).map((t,i)=>({...t,seed:i+1}));
         setBoomersTeams(rows);
       })
-      .catch(()=>{});
+      .catch(()=>{})
+      .finally(() => setLoadingBom(false));
   }, []);
 
   const StandingsTable = ({ teams, accent="#002d6e" }) => {
@@ -2312,17 +2316,24 @@ function StandingsPage({ setTab, setTeamDetail }) {
           </div>
 
           {view==="current" && <>
-            {!liveTeams && (
-              <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
-                ⚾ <strong>Season opens April 11, 2026</strong> — standings will update after each week's games.
+            {loadingSat ? (
+              <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:10,padding:"40px 20px",textAlign:"center",color:"#888",fontSize:14}}>
+                <span style={{fontSize:24,display:"block",marginBottom:8}}>⚾</span>
+                Loading standings…
               </div>
-            )}
-            {liveTeams && (
-              <div style={{background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:8,padding:"10px 18px",marginBottom:16,fontSize:13,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:16}}>✅</span> <strong>Live standings</strong> — updated from the database after each box score entry.
-              </div>
-            )}
-            <StandingsTable teams={liveTeams || div.teams} />
+            ) : (<>
+              {!liveTeams && (
+                <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
+                  ⚾ <strong>Season opens April 11, 2026</strong> — standings will update after each week's games.
+                </div>
+              )}
+              {liveTeams && (
+                <div style={{background:"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:8,padding:"10px 18px",marginBottom:16,fontSize:13,color:"#2e7d32",display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:16}}>✅</span> <strong>Live standings</strong> — updated from the database after each box score entry.
+                </div>
+              )}
+              <StandingsTable teams={liveTeams || div.teams} />
+            </>)}
           </>}
 
           {view==="history" && <>
@@ -2361,12 +2372,19 @@ function StandingsPage({ setTab, setTeamDetail }) {
             <span style={{fontSize:18}}>👴</span>
             <span><strong>Boomers 60/70 Division</strong> — Eddie Murray Mashers '56 vs Greg Maddux Magicians '66 · 2026 season</span>
           </div>
-          {!boomersTeams && (
-            <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
-              ⚾ <strong>Season underway</strong> — standings will update after each game is entered.
+          {loadingBom ? (
+            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:10,padding:"40px 20px",textAlign:"center",color:"#888",fontSize:14}}>
+              <span style={{fontSize:24,display:"block",marginBottom:8}}>⚾</span>
+              Loading standings…
             </div>
-          )}
-          <StandingsTable teams={boomersTeams || DIV.BOM.teams} accent="#7c3aed" />
+          ) : (<>
+            {!boomersTeams && (
+              <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
+                ⚾ <strong>Season underway</strong> — standings will update after each game is entered.
+              </div>
+            )}
+            <StandingsTable teams={boomersTeams || DIV.BOM.teams} accent="#7c3aed" />
+          </>)}
         </div>
       )}
     </div>
@@ -3171,6 +3189,13 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>2026 Schedule</span>
               <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,color:color,fontWeight:700}}>{fullSchedule.length} Games</span>
             </div>
+            {fullSchedule.length === 0 && (
+              <div style={{padding:"32px 18px",textAlign:"center",color:"#888",fontSize:13,lineHeight:1.5}}>
+                <span style={{fontSize:28,display:"block",marginBottom:8,opacity:0.4}}>⚾</span>
+                No games scheduled yet.
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:6}}>Schedule will appear here once games are posted.</div>
+              </div>
+            )}
             {fullSchedule.map((g,i) => {
               const isPPD = g.status==="PPD" || (g.status||"").toLowerCase().startsWith("postpone");
               const isCAN = g.status==="CAN" || (g.status||"").toLowerCase().startsWith("cancel");
@@ -5769,6 +5794,9 @@ function ManageSchedulePage({ onBack }) {
   const [editForm, setEditForm] = useState({});
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ date:"", time:"9:00 AM", field:SCHEDULE_FIELDS[0], away:TEAMS[0], home:TEAMS[1] });
+  // Disable Save/Delete buttons while a write is in flight so a double-click
+  // doesn't fire two racey writes against the same row.
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -5794,7 +5822,9 @@ function ManageSchedulePage({ onBack }) {
     const key = league === 1 ? "bom" : "sat";
     const prev = league === 1 ? bomGames : satGames;
     if (league === 1) setBomGames(list); else setSatGames(list);
+    setSaving(true);
     const r = await safeSave("Schedule", () => sbUpsert("lbdc_schedules", {id:key, data:list}));
+    setSaving(false);
     // Roll local state back if the DB write failed so the UI doesn't lie about success.
     if (!r.ok) { if (league === 1) setBomGames(prev); else setSatGames(prev); }
   };
@@ -5835,8 +5865,8 @@ function ManageSchedulePage({ onBack }) {
           ))}
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-          <button type="button" onClick={async()=>{ if(window.confirm("Reset schedule back to original?")){ const prev = league===1?bomGames:satGames; const d=league===1?buildDefaultBom():buildDefaultSat(); if(league===1)setBomGames(d);else setSatGames(d); const r=await safeSave("Schedule reset",()=>sbUpsert("lbdc_schedules",{id:league===1?"bom":"sat",data:d})); if(!r.ok){ if(league===1)setBomGames(prev);else setSatGames(prev); } }}}
-            style={{padding:"7px 14px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Reset</button>
+          <button type="button" disabled={saving} onClick={async()=>{ if(window.confirm("Reset schedule back to original?")){ const prev = league===1?bomGames:satGames; const d=league===1?buildDefaultBom():buildDefaultSat(); if(league===1)setBomGames(d);else setSatGames(d); setSaving(true); const r=await safeSave("Schedule reset",()=>sbUpsert("lbdc_schedules",{id:league===1?"bom":"sat",data:d})); setSaving(false); if(!r.ok){ if(league===1)setBomGames(prev);else setSatGames(prev); } }}}
+            style={{padding:"7px 14px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:saving?"wait":"pointer"}}>Reset</button>
           <button type="button" onClick={()=>setShowAdd(s=>!s)}
             style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Game</button>
         </div>
@@ -5866,8 +5896,8 @@ function ManageSchedulePage({ onBack }) {
             ))}
           </div>
           <div style={{display:"flex",gap:8}}>
-            <button type="button" onClick={addGame} style={{padding:"9px 22px",background:"#002d6e",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>Save</button>
-            <button type="button" onClick={()=>setShowAdd(false)} style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
+            <button type="button" onClick={addGame} disabled={saving} style={{padding:"9px 22px",background:saving?"#94a3b8":"#002d6e",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:saving?"wait":"pointer"}}>{saving?"Saving…":"Save"}</button>
+            <button type="button" onClick={()=>setShowAdd(false)} disabled={saving} style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:saving?"wait":"pointer"}}>Cancel</button>
           </div>
         </div>
       )}
@@ -5921,9 +5951,9 @@ function ManageSchedulePage({ onBack }) {
                       <button type="button" onClick={()=>setEditForm(f=>({...f,status:""}))} style={{padding:"4px 10px",background:"#fff",border:"1px solid rgba(0,0,0,0.15)",borderRadius:6,color:"#444",fontWeight:700,fontSize:11,cursor:"pointer"}}>Clear</button>
                     </div>
                     <div style={{display:"flex",gap:8}}>
-                      <button type="button" onClick={saveEdit} style={{padding:"7px 18px",background:"#002d6e",border:"none",borderRadius:6,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>Save</button>
-                      <button type="button" onClick={()=>setEditId(null)} style={{padding:"7px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
-                      <button type="button" onClick={()=>deleteGame(g.id)} style={{marginLeft:"auto",padding:"7px 12px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Delete</button>
+                      <button type="button" onClick={saveEdit} disabled={saving} style={{padding:"7px 18px",background:saving?"#94a3b8":"#002d6e",border:"none",borderRadius:6,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:saving?"wait":"pointer"}}>{saving?"Saving…":"Save"}</button>
+                      <button type="button" onClick={()=>setEditId(null)} disabled={saving} style={{padding:"7px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:saving?"wait":"pointer"}}>Cancel</button>
+                      <button type="button" onClick={()=>deleteGame(g.id)} disabled={saving} style={{marginLeft:"auto",padding:"7px 12px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:saving?"wait":"pointer"}}>Delete</button>
                     </div>
                   </div>
                 ) : (() => {
