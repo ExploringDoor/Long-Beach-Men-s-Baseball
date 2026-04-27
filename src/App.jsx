@@ -32,6 +32,18 @@ const toISODate = (str) => {
   return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
 };
 
+// ── Normalize player names before any DB write. Pasting from PDFs / Word
+//    docs / certain mobile keyboards can introduce non-breaking spaces
+//    (U+00A0) and other invisible whitespace, which then split a single
+//    player into "two players" across the season's stat tables. Always
+//    call this before inserting/upserting `player_name`. Past audit caught
+//    70+ NBSP splits across Brooklyn / Titans / Generals rosters.
+const cleanName = (n) =>
+  String(n || "")
+    .replace(/\p{Z}/gu, " ") // \p{Z} = every Unicode separator (NBSP, narrow nbsp, ideographic, etc.)
+    .replace(/\s+/g, " ")
+    .trim();
+
 // ── Strip internal "[submitted: X]" submission-tracking metadata before
 //    rendering a game.headline to the public. Multiple display sites
 //    have re-introduced raw `{game.headline}` over time and leaked the
@@ -3845,7 +3857,7 @@ function savePageContent(id, html) {
   _pageContentMap[id] = html;
   clearTimeout(_savePageDebounce[id]);
   _savePageDebounce[id] = setTimeout(() => {
-    sbUpsert("lbdc_page_content", {id, content: html}).catch(() => {});
+    safeSave(`Page content (${id})`, () => sbUpsert("lbdc_page_content", {id, content: html}));
   }, 1000);
 }
 
@@ -5376,7 +5388,7 @@ function PlayerEligibilityPage({ onBack }) {
 function TournamentManagerPage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
 
-  const saveTournMeta = async (list) => { await sbUpsert("lbdc_tournament_meta", {id:"main", data:list}).catch(()=>{}); };
+  const saveTournMeta = async (list) => { await safeSave("Tournaments", () => sbUpsert("lbdc_tournament_meta", {id:"main", data:list})); };
 
   const moveTournament = async (idx, dir) => {
     const next = idx + dir;
@@ -5780,8 +5792,11 @@ function ManageSchedulePage({ onBack }) {
 
   const persist = async (list) => {
     const key = league === 1 ? "bom" : "sat";
+    const prev = league === 1 ? bomGames : satGames;
     if (league === 1) setBomGames(list); else setSatGames(list);
-    await sbUpsert("lbdc_schedules", {id:key, data:list}).catch(() => {});
+    const r = await safeSave("Schedule", () => sbUpsert("lbdc_schedules", {id:key, data:list}));
+    // Roll local state back if the DB write failed so the UI doesn't lie about success.
+    if (!r.ok) { if (league === 1) setBomGames(prev); else setSatGames(prev); }
   };
 
   const startEdit = (g) => { setEditId(g.id); setEditForm({date:g.date,time:g.time,field:g.field,away:g.away,home:g.home,status:g.status||"",notes:g.notes||""}); };
@@ -5820,7 +5835,7 @@ function ManageSchedulePage({ onBack }) {
           ))}
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-          <button type="button" onClick={async()=>{ if(window.confirm("Reset schedule back to original?")){ const d=league===1?buildDefaultBom():buildDefaultSat(); if(league===1)setBomGames(d);else setSatGames(d); await sbUpsert("lbdc_schedules",{id:league===1?"bom":"sat",data:d}).catch(()=>{}); }}}
+          <button type="button" onClick={async()=>{ if(window.confirm("Reset schedule back to original?")){ const prev = league===1?bomGames:satGames; const d=league===1?buildDefaultBom():buildDefaultSat(); if(league===1)setBomGames(d);else setSatGames(d); const r=await safeSave("Schedule reset",()=>sbUpsert("lbdc_schedules",{id:league===1?"bom":"sat",data:d})); if(!r.ok){ if(league===1)setBomGames(prev);else setSatGames(prev); } }}}
             style={{padding:"7px 14px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Reset</button>
           <button type="button" onClick={()=>setShowAdd(s=>!s)}
             style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Game</button>
@@ -6141,8 +6156,8 @@ function AdminRulesEditor({ onBack }) {
       .then(rows => { if (rows && rows[0] && rows[0].data) setRules(rows[0].data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
-  const save = async () => { setSaving(true); await sbUpsert("lbdc_rules", {id:"main", data:rules}).catch(()=>{}); setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2500); };
-  const reset = async () => { if(!window.confirm("Reset to original default rules? All edits will be lost.")) return; await sbUpsert("lbdc_rules", {id:"main", data:RULES_DATA}).catch(()=>{}); setRules(RULES_DATA); };
+  const save = async () => { setSaving(true); const r = await safeSave("Rules", () => sbUpsert("lbdc_rules", {id:"main", data:rules})); setSaving(false); if (r.ok) { setSaved(true); setTimeout(()=>setSaved(false),2500); } };
+  const reset = async () => { if(!window.confirm("Reset to original default rules? All edits will be lost.")) return; const prev = rules; setRules(RULES_DATA); const r = await safeSave("Rules reset", () => sbUpsert("lbdc_rules", {id:"main", data:RULES_DATA})); if (!r.ok) setRules(prev); };
   const updSection=(si,f,v)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,[f]:v}));
   const updItem=(si,ii,v)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,items:s.items.map((x,j)=>j!==ii?x:v)}));
   const delItem=(si,ii)=>setRules(p=>p.map((s,i)=>i!==si?s:{...s,items:s.items.filter((_,j)=>j!==ii)}));
@@ -6381,7 +6396,7 @@ function AdminSponsorsEditor({ onBack }) {
     catch(e) { setSaveError(e.message || "Save failed"); }
     setSaving(false);
   };
-  const reset = async () => { if(!window.confirm("Reset sponsors to default? All edits will be lost.")) return; await sbUpsert("lbdc_sponsors", {id:"main", data:SPONSORS_DATA}).catch(()=>{}); setSponsors(SPONSORS_DATA); };
+  const reset = async () => { if(!window.confirm("Reset sponsors to default? All edits will be lost.")) return; const prev = sponsors; setSponsors(SPONSORS_DATA); const r = await safeSave("Sponsors reset", () => sbUpsert("lbdc_sponsors", {id:"main", data:SPONSORS_DATA})); if (!r.ok) setSponsors(prev); };
   const upd = (i,f,v) => setSponsors(p=>p.map((s,j)=>j!==i?s:{...s,[f]:v}));
   const del = (i) => { if(!window.confirm(`Remove "${sponsors[i].name}"?`)) return; const u=sponsors.filter((_,j)=>j!==i); setSponsors(u); save(u); };
   const addSponsor = () => {
@@ -6479,8 +6494,10 @@ function AdminFieldsEditor({ onBack }) {
   };
   const reset = async () => {
     if (!window.confirm("Reset to original field info?")) return;
-    await sbUpsert("lbdc_fields", {id:"main", data:FIELDS_INFO}).catch(()=>{});
+    const prev = fields;
     setFields(FIELDS_INFO);
+    const r = await safeSave("Fields reset", () => sbUpsert("lbdc_fields", {id:"main", data:FIELDS_INFO}));
+    if (!r.ok) setFields(prev);
   };
   const updField=(fi,f,v)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,[f]:v}));
   const updNote=(fi,ni,v)=>setFields(p=>p.map((x,i)=>i!==fi?x:{...x,notes:x.notes.map((n,j)=>j!==ni?n:v)}));
@@ -7723,19 +7740,21 @@ function AdminPage({ onAlertChange }) {
       ...alertHistory.filter(h => h.text !== trimmed),
     ].slice(0, 5);
     setAlertHistory(newHistory);
-    await sbUpsert("lbdc_alert", {
+    const r = await safeSave("Alert", () => sbUpsert("lbdc_alert", {
       id: "main",
       text: trimmed,
       style: alertStyle,
       expire_at: alertExpire || null,
       go_live_at: alertSchedule || null,
       history: newHistory,
-    }).catch(() => {});
+    }));
+    if (!r.ok) return; // don't flip the on-screen alert if persistence failed
     if (alertSchedule && new Date(alertSchedule) > new Date()) { onAlertChange(null, {}); return; }
     onAlertChange(trimmed, alertStyle);
   };
   const clearAlert = async () => {
-    await sbUpsert("lbdc_alert", {id:"main", text:null, expire_at:null, go_live_at:null}).catch(() => {});
+    const r = await safeSave("Alert clear", () => sbUpsert("lbdc_alert", {id:"main", text:null, expire_at:null, go_live_at:null}));
+    if (!r.ok) return;
     setAlertText("");
     setAlertExpire("");
     setAlertSchedule("");
@@ -7766,12 +7785,13 @@ function AdminPage({ onAlertChange }) {
       if (!rows || !rows[0]) return;
       const {text, style, expire_at, go_live_at} = rows[0];
       if (go_live_at && new Date(go_live_at) <= new Date() && text) {
-        await sbUpsert("lbdc_alert", {id:"main", go_live_at:null}).catch(() => {});
+        // Background poll — log but don't toast (would spam every 60s on persistent failure)
+        await sbUpsert("lbdc_alert", {id:"main", go_live_at:null}).catch(e => console.warn("Alert auto go-live save failed:", e.message));
         setAlertSchedule("");
         onAlertChange(text, style || {});
       }
       if (expire_at && new Date(expire_at) <= new Date()) {
-        await sbUpsert("lbdc_alert", {id:"main", text:null, expire_at:null}).catch(() => {});
+        await sbUpsert("lbdc_alert", {id:"main", text:null, expire_at:null}).catch(e => console.warn("Alert auto expire save failed:", e.message));
         onAlertChange(null, {});
       }
     };
@@ -8639,6 +8659,69 @@ async function sbUpsert(path, body) {
   return r.json();
 }
 
+// ── Save-status toast ──────────────────────────────────────────────────────
+//
+// Many admin save paths historically used `.catch(()=>{})` to swallow errors,
+// so the user got no feedback when a save failed (RLS denial, network drop,
+// schema mismatch, missing table). That caused the "I clicked save and
+// nothing happened" complaints.
+//
+// safeSave(label, fn) wraps the save call. On success it shows a green toast.
+// On failure it shows a red toast that the user must dismiss. Always returns
+// { ok, data?, err? } so callers can also branch locally if they want.
+//
+// Mount <SaveStatusToast/> once at App root.
+let _SAVE_STATUS = null;            // { type: "success"|"error", msg, ts }
+const _SAVE_LISTENERS = new Set();
+function _setSaveStatus(s) {
+  _SAVE_STATUS = s;
+  _SAVE_LISTENERS.forEach(fn => { try { fn(s); } catch(e){} });
+}
+function flashSaveOk(msg = "Saved") {
+  const ts = Date.now();
+  _setSaveStatus({ type: "success", msg, ts });
+  setTimeout(() => {
+    if (_SAVE_STATUS && _SAVE_STATUS.ts === ts) _setSaveStatus(null);
+  }, 2400);
+}
+function flashSaveErr(msg) {
+  _setSaveStatus({ type: "error", msg, ts: Date.now() });
+}
+function useSaveStatus() {
+  const [s, set] = useState(_SAVE_STATUS);
+  useEffect(() => { _SAVE_LISTENERS.add(set); return () => { _SAVE_LISTENERS.delete(set); }; }, []);
+  return s;
+}
+function SaveStatusToast() {
+  const s = useSaveStatus();
+  if (!s) return null;
+  const isErr = s.type === "error";
+  return (
+    <div onClick={() => _setSaveStatus(null)} style={{
+      position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)",
+      zIndex: 9999, padding: "10px 16px", borderRadius: 8,
+      background: isErr ? "#dc2626" : "#16a34a", color: "#fff",
+      fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 14,
+      boxShadow: "0 4px 14px rgba(0,0,0,0.25)", cursor: "pointer",
+      maxWidth: "calc(100vw - 24px)", textAlign: "center", lineHeight: 1.3,
+    }}>
+      {isErr ? "⚠ " : "✓ "}{s.msg}
+      {isErr && <span style={{marginLeft: 10, opacity: 0.85, fontSize: 11, fontWeight: 400}}>(tap to dismiss)</span>}
+    </div>
+  );
+}
+async function safeSave(label, fn) {
+  try {
+    const data = await fn();
+    flashSaveOk(`${label} saved`);
+    return { ok: true, data };
+  } catch (e) {
+    const msg = (e && e.message) || String(e);
+    flashSaveErr(`${label} save failed — ${msg.slice(0, 160)}`);
+    return { ok: false, err: msg };
+  }
+}
+
 // Fetch batting/pitching lines for a list of game IDs in batches of 100
 // More reliable than offset pagination — avoids PostgreSQL ordering issues
 async function sbFetchLinesByGameIds(table, selectCols, gameIds) {
@@ -9106,7 +9189,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         ...(awayStatMode==="full" ? awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
         ...(homeStatMode==="full" ? homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})) : []),
       ].map(({name,_t,ab,r,singles,doubles,triples,hr,rbi,bb,k,sb,sf,sac,fc,roe,cs,e})=>({
-        game_id:gid,player_name:name,team:_t,
+        game_id:gid,player_name:cleanName(name),team:_t,
         ab:+ab||0,r:+r||0,
         h:(+singles||0)+(+doubles||0)+(+triples||0)+(+hr||0),
         doubles:+doubles||0,triples:+triples||0,
@@ -9120,7 +9203,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
           ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
         ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
-          game_id:gid,player_name:name,team:_t,
+          game_id:gid,player_name:cleanName(name),team:_t,
           ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
           decision:decision==="ND"?null:decision,
         }));
@@ -11170,7 +11253,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         const awayIdx=gs.lineup.away.indexOf(name);
         const team=awayIdx>=0?gs.away:gs.home;
         const order=awayIdx>=0?awayIdx+1:gs.lineup.home.indexOf(name)+1;
-        batRows.push({game_id:gameId,player_name:name,team,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0,sb:st.sb||0});
+        batRows.push({game_id:gameId,player_name:cleanName(name),team,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0,sb:st.sb||0});
       });
       if(batRows.length)await sbPost("batting_lines",batRows);
       const toIP=(v)=>{if(!v&&v!==0)return null;const s=String(v).trim();const m=s.match(/^(\d+)\.([012])?$/);if(m)return parseInt(m[1])+(parseInt(m[2]||0)/3);const n=parseFloat(s);return isNaN(n)?null:n;};
@@ -11180,12 +11263,12 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         const team=gs.lineup.away.includes(name)?gs.away:gs.home;
         const outs=st.outs||0;
         const ip=Math.floor(outs/3)+(outs%3)/3; // decimal innings
-        autoRows[name]={game_id:gameId,player_name:name,team,ip,h:st.h||0,r:st.r||0,er:st.er||0,bb:st.bb||0,k:st.k||0,decision:null};
+        autoRows[name]={game_id:gameId,player_name:cleanName(name),team,ip,h:st.h||0,r:st.r||0,er:st.er||0,bb:st.bb||0,k:st.k||0,decision:null};
       });
       // Manual bsPit entries override auto-tracked ones
       bsPit.filter(p=>p.name).forEach(p=>{
         const key=p.name;
-        const base=autoRows[key]||{game_id:gameId,player_name:p.name,team:p.team};
+        const base=autoRows[key]||{game_id:gameId,player_name:cleanName(p.name),team:p.team};
         autoRows[key]={...base,ip:p.ip?toIP(p.ip):(base.ip||0),h:p.h?+p.h:(base.h||0),r:p.r?+p.r:(base.r||0),er:p.er?+p.er:(base.er||0),bb:p.bb?+p.bb:(base.bb||0),k:p.k?+p.k:(base.k||0),decision:p.decision||null};
       });
       const pitRows=Object.values(autoRows).filter(p=>p.ip>0||p.h>0||p.k>0||p.bb>0);
@@ -11452,14 +11535,14 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         [...awayPlayers.map(n=>({n,team:g.away})),...homePlayers.map(n=>({n,team:g.home}))].forEach(({n,team},i) => {
           const s = bsBat[n]||{};
           if (!s.ab && !s.h) return;
-          batRows.push({game_id:gameId,player_name:n,team,
+          batRows.push({game_id:gameId,player_name:cleanName(n),team,
             ab:parseInt(s.ab)||0,h:parseInt(s.h)||0,r:parseInt(s.r)||0,rbi:parseInt(s.rbi)||0,
             bb:parseInt(s.bb)||0,k:parseInt(s.k)||0,doubles:parseInt(s.doubles)||0,
             triples:parseInt(s.triples)||0,hr:parseInt(s.hr)||0,hbp:parseInt(s.hbp)||0,sf:parseInt(s.sf)||0});
         });
         if (batRows.length) await sbPost("batting_lines", batRows);
         const pitRows = bsPit.filter(p=>p.name&&p.ip).map(p=>({
-          game_id:gameId,player_name:p.name,team:p.team,ip:parseFloat(p.ip)||0,
+          game_id:gameId,player_name:cleanName(p.name),team:p.team,ip:parseFloat(p.ip)||0,
           h:parseInt(p.h)||0,r:parseInt(p.r)||0,er:parseInt(p.er)||0,bb:parseInt(p.bb)||0,k:parseInt(p.k)||0,decision:p.decision||null
         }));
         if (pitRows.length) await sbPost("pitching_lines", pitRows);
@@ -12456,6 +12539,7 @@ export default function App() {
           .ticker-lbdc-date{font-size:9px!important;}
         }
       `}</style>
+      <SaveStatusToast />
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
       <div style={{position:"sticky",top:0,zIndex:300,width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
