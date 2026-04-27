@@ -1,5 +1,15 @@
 import { useState, useEffect, useRef } from "react";
+import DOMPurify from "dompurify";
 import { HISTORY_DATA } from "./historyData.js";
+
+// ── Sanitize any HTML before passing to dangerouslySetInnerHTML.
+//    All admin-edited rich text (lbdc_page_content, lbdc_rules,
+//    lbdc_sponsors, lbdc_fields) lives behind public-write Supabase
+//    tables, so without sanitization any visitor with the (public)
+//    anon key could inject <script> via PATCH and have it execute
+//    in every other visitor's browser. Always wrap. Default config
+//    strips <script>, on*= handlers, javascript: URLs.
+const sanitizeHTML = (html) => ({ __html: DOMPurify.sanitize(html || "") });
 
 const L_LEAGUE = "/hero111.jpg";
 
@@ -1157,7 +1167,7 @@ function HomePage({ setTab, setTeamDetail }) {
       <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
         <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" fetchpriority="high" loading="eager" style={{display:"block"}} />
       </div>
-      {getPageContent("home_announcement") && <div style={{maxWidth:900,margin:"0 auto",padding:"0 clamp(12px,3vw,40px)"}} dangerouslySetInnerHTML={{__html:getPageContent("home_announcement")}} />}
+      {getPageContent("home_announcement") && <div style={{maxWidth:900,margin:"0 auto",padding:"0 clamp(12px,3vw,40px)"}} dangerouslySetInnerHTML={sanitizeHTML(getPageContent("home_announcement"))} />}
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px",width:"100%",boxSizing:"border-box"}}>
         <div className="home-two-col" style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:32,alignItems:"start",minWidth:0}}>
@@ -3508,7 +3518,7 @@ function FieldDirectionsPage() {
                       <span style={{fontSize:22}}>🏟️</span>
                       <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,color:"#111",textTransform:"uppercase",lineHeight:1}}>{field.name}</h2>
                     </div>
-                    <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:6}} dangerouslySetInnerHTML={{__html:field.address}} />
+                    <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",marginBottom:6}} dangerouslySetInnerHTML={sanitizeHTML(field.address)} />
                   </div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     <a href={field.mapsUrl} target="_blank" rel="noopener noreferrer"
@@ -3530,7 +3540,7 @@ function FieldDirectionsPage() {
                   {field.notes.map((note,i) => (
                     <li key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                       <span style={{color:field.color,fontWeight:900,fontSize:13,marginTop:1,flexShrink:0}}>→</span>
-                      <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.5}} dangerouslySetInnerHTML={{__html:note}} />
+                      <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.5}} dangerouslySetInnerHTML={sanitizeHTML(note)} />
                     </li>
                   ))}
                 </ul>
@@ -3557,14 +3567,14 @@ function SponsorsPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Sponsors & Contributors" subtitle="With gratitude to those who support Long Beach Diamond Classics" />
-      {getPageContent("sponsors_intro") && <div style={{maxWidth:900,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={{__html:getPageContent("sponsors_intro")}} />}
+      {getPageContent("sponsors_intro") && <div style={{maxWidth:900,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={sanitizeHTML(getPageContent("sponsors_intro"))} />}
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         {sponsors.map((sp,i)=> sp.featured ? (
           <div key={i} style={{background:"linear-gradient(135deg,#001a3e 0%,#002d6e 100%)",borderRadius:16,padding:"32px",marginBottom:28,color:"#fff",position:"relative",overflow:"hidden"}}>
             <div style={{position:"absolute",right:-20,top:-20,fontSize:120,opacity:.06,lineHeight:1}}>⚾</div>
             <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#FFD700",marginBottom:8}}>{sp.role}</div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:36,textTransform:"uppercase",lineHeight:1,marginBottom:8}}>{sp.name}</div>
-            <div style={{fontSize:14,color:"rgba(255,255,255,0.7)",lineHeight:1.6,maxWidth:600}} dangerouslySetInnerHTML={{__html:sp.description||""}} />
+            <div style={{fontSize:14,color:"rgba(255,255,255,0.7)",lineHeight:1.6,maxWidth:600}} dangerouslySetInnerHTML={sanitizeHTML(sp.description||"")} />
           </div>
         ) : (
           <div key={i} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${i===1?"#f59e0b":"#002d6e"}`,borderRadius:12,padding:"24px",marginBottom:16,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
@@ -3573,7 +3583,7 @@ function SponsorsPage() {
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>{sp.name}</div>
                 {sp.role && <div style={{fontSize:12,fontWeight:700,color:i===1?"rgba(245,158,11,0.85)":"#002d6e",textTransform:"uppercase",letterSpacing:".06em",marginTop:2}}>{sp.role}</div>}
-                {sp.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4,lineHeight:1.5}} dangerouslySetInnerHTML={{__html:sp.description}} />}
+                {sp.description && <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",marginTop:4,lineHeight:1.5}} dangerouslySetInnerHTML={sanitizeHTML(sp.description)} />}
                 {!sp.description && sp.email && <div style={{marginTop:6}}><a href={`mailto:${sp.email}`} style={{fontSize:13,color:"#002d6e"}}>{sp.email}</a></div>}
                 {sp.website && <div style={{marginTop:4}}><a href={sp.website} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:"#002d6e"}}>{sp.website}</a></div>}
               </div>
@@ -3999,7 +4009,7 @@ function RichTextEditor({ contentId, placeholder }) {
         onInput={onInput}
         onKeyUp={updateActive}
         onMouseUp={updateActive}
-        dangerouslySetInnerHTML={{__html: saved}}
+        dangerouslySetInnerHTML={sanitizeHTML(saved)}
         data-placeholder={placeholder}
         style={{minHeight:100,padding:"12px 14px",fontSize:14,lineHeight:1.7,outline:"none",color:"#222"}}
       />
@@ -4057,7 +4067,7 @@ function RulesPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Field Guide" subtitle="Official rules and guidelines for the 2026 season" />
-      {getPageContent("rules_intro") && <div style={{maxWidth:900,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={{__html:getPageContent("rules_intro")}} />}
+      {getPageContent("rules_intro") && <div style={{maxWidth:900,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={sanitizeHTML(getPageContent("rules_intro"))} />}
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
 
         {/* Division picker */}
@@ -4097,7 +4107,7 @@ function RulesPage() {
                     {r.items.map((item,i) => (
                       <li key={i} style={{display:"flex",gap:14}}>
                         <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,color:"#002d6e",minWidth:24,paddingTop:1,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
-                        <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.6}} dangerouslySetInnerHTML={{__html:item}} />
+                        <span style={{fontSize:14,color:"rgba(0,0,0,0.65)",lineHeight:1.6}} dangerouslySetInnerHTML={sanitizeHTML(item)} />
                       </li>
                     ))}
                   </ol>
@@ -4577,7 +4587,7 @@ function PlayerSignUpPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
       <PageHero label="Spring/Summer 2026" title="Player Sign Up" subtitle="Get game reminders, score alerts & rainout notices straight to your phone or email" />
-      {getPageContent("signup_intro") && <div style={{maxWidth:700,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={{__html:getPageContent("signup_intro")}} />}
+      {getPageContent("signup_intro") && <div style={{maxWidth:700,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={sanitizeHTML(getPageContent("signup_intro"))} />}
       <div style={{maxWidth:560,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         <div style={{background:"#fff",borderRadius:14,padding:"28px 24px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
           {/* Registration fee & payment info */}
@@ -12386,7 +12396,7 @@ function GraphicsPage() {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
       <PageHero label="Schedule" title="Schedule Graphics" subtitle="Weekly schedule graphics for social media" />
-      {getPageContent("graphics_intro") && <div style={{maxWidth:700,margin:"0 auto",padding:"16px clamp(12px,3vw,32px) 0"}} dangerouslySetInnerHTML={{__html:getPageContent("graphics_intro")}} />}
+      {getPageContent("graphics_intro") && <div style={{maxWidth:700,margin:"0 auto",padding:"16px clamp(12px,3vw,32px) 0"}} dangerouslySetInnerHTML={sanitizeHTML(getPageContent("graphics_intro"))} />}
       <div style={{maxWidth:700,margin:"0 auto",padding:"28px clamp(12px,3vw,32px) 60px"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:18}}>
           {WEEKS.map((w,i) => (
