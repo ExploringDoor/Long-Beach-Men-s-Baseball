@@ -32,6 +32,14 @@ const toISODate = (str) => {
   return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
 };
 
+// ── Strip internal "[submitted: X]" submission-tracking metadata before
+//    rendering a game.headline to the public. Multiple display sites
+//    have re-introduced raw `{game.headline}` over time and leaked the
+//    bracketed tag onto the public UI; this single helper is the
+//    canonical sanitizer. Always call it instead of rendering raw.
+const cleanHeadline = (h) =>
+  ((h || "").replace(/\s*\[submitted:[^\]]*\]/g, "")).trim();
+
 // Short display names for the ticker
 const TICKER_NAME = {
   "Eddie Murray Mashers '56":  "Mashers",
@@ -1586,7 +1594,7 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
               {game.game_date && <span style={{fontSize:9,fontWeight:600,color:"rgba(0,0,0,0.35)",letterSpacing:".04em"}}>{new Date(game.game_date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
-              {game.headline && <span style={{fontSize:9,fontWeight:700,color:"#dc2626",textTransform:"uppercase"}}>{game.headline}</span>}
+              {cleanHeadline(game.headline) && <span style={{fontSize:9,fontWeight:700,color:"#dc2626",textTransform:"uppercase"}}>{cleanHeadline(game.headline)}</span>}
             </div>
           </div>
           <div style={{padding:"6px 10px 10px"}}>
@@ -4424,10 +4432,10 @@ function HistoryPage() {
                             {g.home_team}
                           </span>
                         </div>
-                        {g.headline && (
+                        {cleanHeadline(g.headline) && (
                           <div style={{fontSize:11,color:"#666",fontStyle:"italic",
                             flex:"0 0 100%",marginTop:2,paddingLeft:85}}>
-                            {g.headline}
+                            {cleanHeadline(g.headline)}
                           </div>
                         )}
                       </div>
@@ -5993,7 +6001,7 @@ function WeeklyEmailPage({ onBack }) {
     const as=+g.away_score, hs=+g.home_score;
     const winner=as>hs?g.away_team:g.home_team, loser=as>hs?g.home_team:g.away_team;
     const ws=as>hs?as:hs, ls=as>hs?hs:as, margin=ws-ls;
-    if(g.headline&&!g.headline.includes("[submitted")) return g.headline;
+    if(cleanHeadline(g.headline)) return cleanHeadline(g.headline);
     if(margin===0) return `${g.away_team} and ${g.home_team} played to a ${as}–${hs} tie in a hard-fought contest.`;
     if(margin>=10) return `${winner} dominated ${loser}, cruising to a ${ws}–${ls} victory.`;
     if(margin<=2) return `${winner} edged ${loser} in a nail-biter, ${ws}–${ls}.`;
@@ -8360,7 +8368,7 @@ function AdminPage({ onAlertChange }) {
                       </div>
                       <div style={{fontSize:11,color:"#888",marginTop:2}}>
                         {g.game_date} · <strong style={{color:"#002d6e"}}>{g.away_score ?? "?"} – {g.home_score ?? "?"}</strong> · {g.status||"Final"}
-                        {g.headline && <span style={{marginLeft:6,color:"#444"}}>· {g.headline.replace(/\s*\[submitted:[^\]]*\]/g,"").trim()}</span>}
+                        {cleanHeadline(g.headline) && <span style={{marginLeft:6,color:"#444"}}>· {cleanHeadline(g.headline)}</span>}
                       </div>
                     </div>
                     {scoreEditId===g.id && (
