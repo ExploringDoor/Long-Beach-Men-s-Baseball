@@ -4552,7 +4552,6 @@ function PlayerSignUpPage() {
   const [form, setForm] = useState({name:"",team:"",email:"",phone:"",notes:""});
   const [prefs, setPrefs] = useState({reminders:false,scores:false,playoffs:false,rainouts:false});
   const [status, setStatus] = useState(null); // null | "saving" | "done" | "error"
-  const ci = useContactInfo(); // commissioner email/phone — drives where signup notifications go
   const set = (k,v) => setForm(p=>({...p,[k]:v}));
   const togglePref = (k) => setPrefs(p=>({...p,[k]:!p[k]}));
 
@@ -4584,12 +4583,13 @@ function PlayerSignUpPage() {
           await sbPost("lbdc_rosters", { name: cleanedName, team: form.team, number: "" });
         }
       } catch(e) { /* signup still succeeds even if roster sync fails */ }
-      // Also email a notification to the commissioner (pulled live from
-      // Contact Info admin — change there to re-route, no code edit needed).
-      // Falls back to the contact-info default (Daniel Gutierrez) if the
-      // editable field hasn't been set.
-      const notifyEmail = (ci && ci.commissionerEmail) || "dgutierrez22@yahoo.com";
-      fetch(`https://formsubmit.co/ajax/${encodeURIComponent(notifyEmail)}`, {
+      // Also email a notification via FormSubmit. This address must match
+      // the inbox that previously verified itself with FormSubmit (clicking
+      // the one-time confirmation link they send). Don't switch this to a
+      // different address without ALSO going through that confirmation —
+      // FormSubmit silently holds emails to unverified addresses, which
+      // makes it look like signups stopped working.
+      fetch("https://formsubmit.co/ajax/toddharris1222@gmail.com", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
