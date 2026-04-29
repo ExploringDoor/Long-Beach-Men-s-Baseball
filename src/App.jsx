@@ -5057,9 +5057,18 @@ function PaymentsPage() {
 /* ─── ADMIN PAGE ─────────────────────────────────────────────────────────── */
 function PlayerEligibilityPage({ onBack }) {
   const SEASON = "Spring/Summer 2026";
-  const TEAMS = Object.keys(TEAM_ROSTERS);
+  // Saturday teams. Hardcoded list — same as Object.keys(TEAM_ROSTERS) minus
+  // the Boomers entries, but kept explicit so it doesn't depend on roster
+  // data. Live rosters come from lbdc_rosters below; the hardcoded
+  // TEAM_ROSTERS constant is only a fallback when the DB is unreachable.
+  const SAT_TEAMS = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
+  const TEAMS = SAT_TEAMS;
   const [payments, setPayments] = useState([]); // [{player_name, team_name, paid}]
   const [appearances, setAppearances] = useState({}); // {player_name: count}
+  // Live Saturday rosters from lbdc_rosters (same source the admin's roster
+  // editor writes to). Without this the page used stale hardcoded data —
+  // Tribe was empty in source so its full 17-player roster never showed up.
+  const [satRosters, setSatRosters] = useState(null); // {team: [{name, number}]}
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filterTeam, setFilterTeam] = useState("All");
@@ -5073,11 +5082,22 @@ function PlayerEligibilityPage({ onBack }) {
   const load = async () => {
     setLoading(true);
     try {
-      const [payData, seasons] = await Promise.all([
+      const [payData, seasons, ...rosterArrays] = await Promise.all([
         sbFetch(`player_payments?select=id,player_name,team_name,paid,notes&season=eq.${encodeURIComponent(SEASON)}&order=team_name.asc,player_name.asc`),
         sbFetch("seasons?select=id,name&limit=50"),
+        ...SAT_TEAMS.map(t => sbFetch(`lbdc_rosters?select=name,number&team=eq.${encodeURIComponent(t)}&order=name.asc`)),
       ]);
       setPayments(payData || []);
+      // Stitch the live rosters into a {team: [{name,number}]} map. Falls
+      // back to hardcoded TEAM_ROSTERS for any team whose DB returned empty.
+      const rosters = {};
+      SAT_TEAMS.forEach((t, i) => {
+        const live = rosterArrays[i] || [];
+        rosters[t] = live.length
+          ? live.map(p => ({ name: p.name, number: p.number || "" }))
+          : (TEAM_ROSTERS[t] || []);
+      });
+      setSatRosters(rosters);
       // Count distinct game appearances per player — current season only
       const counts = {};
       const satIds = getSatSeasonFilter(seasons || []);
@@ -5160,7 +5180,9 @@ function PlayerEligibilityPage({ onBack }) {
   const buildRows = () => {
     const rows = [];
     TEAMS.forEach(team => {
-      const roster = TEAM_ROSTERS[team] || [];
+      // Prefer live roster from lbdc_rosters (admin's edits); fall back to
+      // the hardcoded TEAM_ROSTERS constant if Supabase fetch hasn't returned.
+      const roster = (satRosters && satRosters[team]) || TEAM_ROSTERS[team] || [];
       roster.forEach(p => {
         const rec = payments.find(r => r.player_name === p.name && r.team_name === team);
         rows.push({
