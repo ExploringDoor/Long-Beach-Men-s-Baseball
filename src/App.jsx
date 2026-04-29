@@ -2868,7 +2868,29 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   };
   useEffect(() => {
     sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
-      .then(rows => { if (rows && rows.length > 0) setRoster(rows.map(r => ({number: r.number||"", name: r.name||"", status: r.status||"Active"}))); })
+      .then(rows => {
+        if (!rows || !rows.length) return;
+        // Dedup by normalized name. If the same player appears twice (e.g. once
+        // from the original roster import + once from a later sign-up auto-add),
+        // prefer the entry with a number set so we don't lose jersey info.
+        const byName = {};
+        rows.forEach(r => {
+          const key = cleanName(r.name).toLowerCase();
+          if (!key) return;
+          const existing = byName[key];
+          if (!existing) { byName[key] = r; return; }
+          // Keep whichever has a number; if both or neither, keep the older id.
+          const existingHasNum = !!(existing.number && String(existing.number).trim());
+          const incomingHasNum = !!(r.number && String(r.number).trim());
+          if (incomingHasNum && !existingHasNum) byName[key] = r;
+        });
+        const deduped = Object.values(byName).map(r => ({
+          number: r.number || "",
+          name: cleanName(r.name) || r.name || "",
+          status: r.status || "Active",
+        }));
+        setRoster(deduped);
+      })
       .catch(() => {});
   }, [teamName]);
   // Fetch inline batting stats + recent results for this team
@@ -3171,14 +3193,18 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                   const isAway = g.away_team===teamName;
                   const myScore = isAway ? g.away_score : g.home_score;
                   const oppScore = isAway ? g.home_score : g.away_score;
-                  const won = myScore > oppScore;
+                  // Three-way result. Previously this was just `won = myScore > oppScore`,
+                  // so any tie quietly rendered as a loss (red L) on the team page even
+                  // though standings counted it correctly. Treat ties explicitly.
+                  const result = myScore > oppScore ? "W" : myScore < oppScore ? "L" : "T";
+                  const resultColor = result === "W" ? "#16a34a" : result === "L" ? "#dc2626" : "#b45309"; // green / red / amber
                   const opp = isAway ? g.home_team : g.away_team;
                   const dateStr = g.game_date ? new Date(g.game_date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
                   return (
-                    <div key={i} onClick={()=>openBoxScore(g)} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.08)",borderLeft:`4px solid ${won?"#16a34a":"#dc2626"}`,borderRadius:8,padding:"12px 16px",display:"flex",alignItems:"center",gap:14,cursor:"pointer"}}
+                    <div key={i} onClick={()=>openBoxScore(g)} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.08)",borderLeft:`4px solid ${resultColor}`,borderRadius:8,padding:"12px 16px",display:"flex",alignItems:"center",gap:14,cursor:"pointer"}}
                       onMouseEnter={e=>e.currentTarget.style.background="#f8f9fb"}
                       onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:won?"#16a34a":"#dc2626",width:22,textAlign:"center"}}>{won?"W":"L"}</div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:resultColor,width:22,textAlign:"center"}}>{result}</div>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,textTransform:"uppercase",color:"#111"}}>{isAway?"@":""} {opp}</div>
                         <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:1}}>{dateStr} · {isAway?"Away":"Home"}</div>
@@ -4547,10 +4573,17 @@ function PlayerSignUpPage() {
         playoffs: prefs.playoffs,
         rainouts: prefs.rainouts,
       });
-      // Auto-add to roster so they appear in availability, box scores & live scoring
+      // Auto-add to roster so they appear in availability, box scores & live
+      // scoring — but ONLY if no row already exists for this name+team
+      // (prevents the duplicate-Daniel-Gutierrez bug where re-signing up
+      // created a second roster row alongside the original).
       try {
-        await sbPost("lbdc_rosters", { name: form.name, team: form.team, number: "" });
-      } catch(e) { /* ignore if already exists */ }
+        const cleanedName = cleanName(form.name);
+        const existing = await sbFetch(`lbdc_rosters?select=id&team=eq.${encodeURIComponent(form.team)}&name=eq.${encodeURIComponent(cleanedName)}&limit=1`);
+        if (!existing || existing.length === 0) {
+          await sbPost("lbdc_rosters", { name: cleanedName, team: form.team, number: "" });
+        }
+      } catch(e) { /* signup still succeeds even if roster sync fails */ }
       // Also email a notification to the commissioner (pulled live from
       // Contact Info admin — change there to re-route, no code edit needed).
       // Falls back to the contact-info default (Daniel Gutierrez) if the
