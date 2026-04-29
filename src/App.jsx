@@ -7158,14 +7158,20 @@ function AdminSignupsViewer({ onBack }) {
   const deleteSignup = async (s) => {
     if (!window.confirm(`Delete sign-up for ${s.name}? This will also remove them from the roster.`)) return;
     setDeleting(s.id);
-    try {
+    const enc = encodeURIComponent(s.name);
+    const encTeam = encodeURIComponent(s.team);
+    const r = await safeSave(`Delete sign-up (${s.name})`, async () => {
       await sbDelete(`lbdc_signups?id=eq.${s.id}`);
-      // Also remove from roster (match by name + team)
-      const enc = encodeURIComponent(s.name);
-      const encTeam = encodeURIComponent(s.team);
       await sbDelete(`lbdc_rosters?name=ilike.${enc}&team=eq.${encTeam}`);
-      setSignups(prev => prev.filter(x => x.id !== s.id));
-    } catch(e) { alert("Error deleting."); }
+      // Re-read from DB rather than trusting the optimistic update — PostgREST
+      // returns 204 success even when RLS silently denies the delete. If the
+      // row is still there afterward, surface that to the admin.
+      const after = await sbFetch(`lbdc_signups?select=id&id=eq.${s.id}`);
+      if (after && after.length > 0) {
+        throw new Error("DB still has the row — RLS may be blocking DELETE. Add a DELETE policy on lbdc_signups in Supabase.");
+      }
+    });
+    if (r.ok) setSignups(prev => prev.filter(x => x.id !== s.id));
     setDeleting(null);
   };
 
