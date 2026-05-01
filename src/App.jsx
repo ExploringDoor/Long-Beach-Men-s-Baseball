@@ -7759,6 +7759,29 @@ function AdminPage({ onAlertChange }) {
   const [showBoxScore, setShowBoxScore] = useState(false);
   const [quickView, setQuickView] = useState(null); // null | "alert" | "news" | "schedule" | "email" | "games" | "tournaments" | "eligibility"
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
+  // Live team list for the Captain Login dropdown — loaded from lbdc_rosters
+  // so tournament teams (which only exist in the DB, not in the hardcoded
+  // TEAM_ROSTERS constant) are selectable. Falls back to TEAM_ROSTERS if
+  // the DB fetch fails.
+  const [captainTeamOptions, setCaptainTeamOptions] = useState(null);
+  useEffect(() => {
+    sbFetch("lbdc_rosters?select=team&limit=2000")
+      .then(rows => {
+        const seen = new Set();
+        (rows || []).forEach(r => { if (r && r.team) seen.add(r.team); });
+        // Junk team names that should never appear in the captain dropdown.
+        ["Test", ""].forEach(j => seen.delete(j));
+        // Order regular Saturday + Boomers teams first (hardcoded order), then
+        // any other team (tournament, free-agent group, etc.) alphabetically.
+        const PRIMARY_ORDER = Object.keys(TEAM_ROSTERS);
+        const primary = PRIMARY_ORDER.filter(t => seen.has(t));
+        primary.forEach(t => seen.delete(t));
+        const rest = [...seen].sort();
+        const list = [...primary, ...rest];
+        setCaptainTeamOptions(list.length ? list : Object.keys(TEAM_ROSTERS));
+      })
+      .catch(() => setCaptainTeamOptions(Object.keys(TEAM_ROSTERS)));
+  }, []);
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
   const [adminGamesLeague, setAdminGamesLeague] = useState(0); // 0=Saturday, 1=Boomers
@@ -7956,7 +7979,7 @@ function AdminPage({ onAlertChange }) {
             <select value={captainTeam} onChange={e=>setCaptainTeam(e.target.value)}
               style={{width:"100%",padding:"10px 14px",borderRadius:8,border:"1px solid rgba(0,0,0,0.15)",fontSize:15,marginBottom:12,background:"#f8f9fb",boxSizing:"border-box"}}>
               <option value="">— Select your team —</option>
-              {Object.keys(TEAM_ROSTERS).map(t=><option key={t} value={t}>{t}</option>)}
+              {(captainTeamOptions || Object.keys(TEAM_ROSTERS)).map(t=><option key={t} value={t}>{t}</option>)}
             </select>
             <button type="button" onClick={()=>captainTeam&&setScreen("captain")} disabled={!captainTeam}
               style={{width:"100%",padding:"11px",background:captainTeam?"#2d6a4f":"#ccc",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase",cursor:captainTeam?"pointer":"default"}}>
