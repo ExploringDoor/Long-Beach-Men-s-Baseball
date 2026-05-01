@@ -2819,6 +2819,10 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const [roster, setRoster] = useState(TEAM_ROSTERS[teamName] || []);
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [liveRecord, setLiveRecord] = useState(null);
+  // Map of "ISODate|opponentTeam" -> {myScore, oppScore, result}. Used by the
+  // 2026 Schedule card on the right side of the team page so each row can
+  // display the final if the game has already been played.
+  const [scheduleScores, setScheduleScores] = useState({});
   const [teamStats, setTeamStats] = useState({});   // player_name → aggregated batting stats
   const [recentGames, setRecentGames] = useState([]); // last 5 final games from Supabase
   const [boxGame, setBoxGame] = useState(null);
@@ -2962,17 +2966,27 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       if (!rawGames) return;
       const games = dedupGames(rawGames);
       let w=0,l=0,t=0,gp=0,rs=0,ra=0;
+      const scoreMap = {};
       games.forEach(g => {
         const isAway = g.away_team === teamName, isHome = g.home_team === teamName;
         if (!isAway && !isHome) return;
         const myScore = isAway ? +g.away_score : +g.home_score;
         const oppScore = isAway ? +g.home_score : +g.away_score;
+        const opp = isAway ? g.home_team : g.away_team;
         gp++; rs+=myScore; ra+=oppScore;
-        if(myScore>oppScore) w++; else if(oppScore>myScore) l++; else t++;
+        const result = myScore>oppScore ? "W" : myScore<oppScore ? "L" : "T";
+        if(result==="W") w++; else if(result==="L") l++; else t++;
+        // Index by ISO game_date + opponent — the 2026 Schedule card renders
+        // schedule rows whose `date` is something like "Apr 25"; converting
+        // via toISODate lets us key into this map regardless of format.
+        if (g.game_date) {
+          scoreMap[`${g.game_date}|${opp}`] = { myScore, oppScore, result };
+        }
       });
       const pts=w*2+t, max=(gp||1)*2;
       const pct = gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"");
       setLiveRecord({w,l,t,gp,rs,ra,pct});
+      setScheduleScores(scoreMap);
     }).catch(()=>{});
   }, [teamName]);
   const [liveSchedule, setLiveSchedule] = useState(null); // null = not loaded yet
@@ -3077,7 +3091,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
             </div>
             <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
               <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${color}`,borderRadius:10,padding:"16px 24px",textAlign:"center"}}>
-                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:44,color,lineHeight:1}}>{rec.w}-{rec.l}</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:44,color,lineHeight:1}}>{rec.w}-{rec.l}{(rec.t||0)>0?`-${rec.t}`:""}</div>
                 <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",marginTop:4,fontFamily:"'Barlow Condensed',sans-serif"}}>{rec.pct} PCT</div>
                 <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:2}}>{rec.rs} RF · {rec.ra} RA</div>
               </div>
@@ -9139,26 +9153,39 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     }
   };
 
-  // ── Merge Supabase roster players that aren't in the hardcoded list ──
+  // ── Pull live roster from lbdc_rosters and merge into the bat lists.
+  //
+  // Runs every time the selected game changes — including when editing a
+  // previously-submitted box score, since players may have been added to
+  // the roster AFTER the game was originally entered (the admin should
+  // still be able to pick them).
+  //
+  // Merge (not replace) so:
+  //  - In-flight unsaved bat-list edits aren't wiped
+  //  - localStorage draft entries aren't lost
+  //  - Players already in batting_lines for an edited game stay
+  //
+  // Names are normalized via cleanName before comparison so non-breaking
+  // spaces + casing don't cause spurious duplicates.
   useEffect(() => {
-    if (!game || editGameId) return;
+    if (!game) return;
     const away = game.away || game.away_team;
     const home = game.home || game.home_team;
     if (!away || !home) return;
     const teamsToFetch = [...new Set([away, home])];
     Promise.all(
       teamsToFetch.map(t =>
-        sbFetch(`lbdc_rosters?select=name,number&team=eq.${encodeURIComponent(t)}&order=name.asc&limit=100`)
-          .then(rows => ({ team: t, rows }))
+        sbFetch(`lbdc_rosters?select=name,number&team=eq.${encodeURIComponent(t)}&order=name.asc&limit=200`)
+          .then(rows => ({ team: t, rows: rows || [] }))
           .catch(() => ({ team: t, rows: [] }))
       )
     ).then(results => {
       results.forEach(({ team, rows }) => {
-        const names = rows.map(r => (r.name||"").trim()).filter(Boolean);
+        const names = rows.map(r => cleanName(r.name)).filter(Boolean);
         if (!names.length) return;
         const setter = team === away ? setAwayBat : setHomeBat;
         setter(prev => {
-          const existing = new Set(prev.map(p => p.name.trim().toLowerCase()));
+          const existing = new Set(prev.map(p => cleanName(p.name).toLowerCase()));
           const toAdd = names.filter(n => !existing.has(n.toLowerCase()));
           if (!toAdd.length) return prev;
           return [...prev, ...toAdd.map(blankBatter)];
@@ -9167,7 +9194,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setRosterFetched(true);
     }).catch(() => setRosterFetched(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game]);
+  }, [game, editGameId]);
 
   // ── Helpers ──
   const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>{
