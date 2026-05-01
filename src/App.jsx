@@ -1259,7 +1259,7 @@ function HomePage({ setTab, setTeamDetail }) {
                     <div style={{fontSize:16,color:"#111",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase"}}>{t.name}</div>
                     <div style={{fontSize:11,color:"rgba(0,0,0,0.38)"}}>{t.divName}</div>
                   </div>
-                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:700,color:"#111",flexShrink:0}}>{t.w}-{t.l}</span>
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:700,color:"#111",flexShrink:0}}>{t.w}-{t.l}{(t.t||0)>0?`-${t.t}`:""}</span>
                 </div>
               ))}
             </Card>
@@ -2825,6 +2825,11 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const [scheduleScores, setScheduleScores] = useState({});
   const [teamStats, setTeamStats] = useState({});   // player_name → aggregated batting stats
   const [recentGames, setRecentGames] = useState([]); // last 5 final games from Supabase
+  // Map of "ISODate|away|home" → {away_score, home_score, status} for every
+  // completed game this team has played. Used by the season-schedule card so
+  // games that have already happened display their final score inline instead
+  // of just the matchup.
+  const [gameResults, setGameResults] = useState({});
   const [boxGame, setBoxGame] = useState(null);
   const [boxBatting, setBoxBatting] = useState([]);
   const [boxPitching, setBoxPitching] = useState([]);
@@ -2910,10 +2915,24 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       if (isBoomers && !s) return;
       if (!isBoomers && !satIds.length) return;
       const [games, recentRaw] = await Promise.all([
-        sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score&${seasonFilter}&limit=200`),
+        sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&${seasonFilter}&limit=200`),
         sbFetch(`games?select=id,away_team,home_team,away_score,home_score,game_date,status&${seasonFilter}&or=(away_team.eq.${enc(teamName)},home_team.eq.${enc(teamName)})&status=eq.Final&order=game_date.desc&limit=20`),
       ]);
       setRecentGames(dedupGames(recentRaw || []).slice(0,5));
+      // Build {ISODate|away|home → {away_score, home_score, status}} for every
+      // game this team played so the schedule card can show final scores.
+      // Use dedupGames so a duplicate game record doesn't conflict.
+      const gameRows = dedupGames((games || []).filter(g =>
+        (g.away_team === teamName || g.home_team === teamName)
+        && g.away_score !== null && g.away_score !== undefined
+      ));
+      const resMap = {};
+      gameRows.forEach(g => {
+        if (!g.game_date) return;
+        const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
+        resMap[key] = { away_score: g.away_score, home_score: g.home_score, status: g.status };
+      });
+      setGameResults(resMap);
       if (!games || !games.length) return;
       // Line-level dedup by gameKey — handles duplicate game rows with scattered batting_lines
       const gameKeyById = {};
@@ -3250,8 +3269,23 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               const isPPD = g.status==="PPD" || (g.status||"").toLowerCase().startsWith("postpone");
               const isCAN = g.status==="CAN" || (g.status||"").toLowerCase().startsWith("cancel");
               const badge = isCAN ? "CANCELED" : isPPD ? "POSTPONED" : null;
+              // Look up final score (if game has been played). fullSchedule stores
+              // {date,isHome,opponent} but the game key needs ISO date + away/home,
+              // so reconstruct: away = me-or-opponent based on isHome.
+              const isoDate = toISODate(g.date);
+              const away = g.isHome ? g.opponent : teamName;
+              const home = g.isHome ? teamName : g.opponent;
+              const result = isoDate ? gameResults[`${isoDate}|${away}|${home}`] : null;
+              const myScore = result ? (g.isHome ? result.home_score : result.away_score) : null;
+              const oppScore = result ? (g.isHome ? result.away_score : result.home_score) : null;
+              const hasFinal = result && myScore !== null && myScore !== undefined && !badge;
+              const won  = hasFinal && myScore  >  oppScore;
+              const lost = hasFinal && myScore  <  oppScore;
+              const tied = hasFinal && myScore === oppScore;
+              const wlt = won ? "W" : lost ? "L" : tied ? "T" : "";
+              const wltColor = won ? "#16a34a" : lost ? "#dc2626" : tied ? "#b45309" : "#888";
               return (
-              <div key={i} style={{display:"grid",gridTemplateColumns:"52px 48px 1fr",alignItems:"center",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:badge?"rgba(200,16,46,0.04)":(i%2===0?"transparent":"rgba(0,0,0,0.01)"),opacity:badge?0.72:1}}>
+              <div key={i} style={{display:"grid",gridTemplateColumns:"52px 48px 1fr auto",alignItems:"center",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:badge?"rgba(200,16,46,0.04)":(i%2===0?"transparent":"rgba(0,0,0,0.01)"),opacity:badge?0.72:1}}>
                 <div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#111",lineHeight:1,textDecoration:badge?"line-through":"none"}}>{g.date}</div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2,textDecoration:badge?"line-through":"none"}}>{g.time}</div>
@@ -3276,6 +3310,12 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                     </div>
                   </div>
                 </div>
+                {hasFinal && (
+                  <div style={{display:"flex",alignItems:"center",gap:8,paddingLeft:6}}>
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:wltColor,minWidth:14,textAlign:"center"}}>{wlt}</span>
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",whiteSpace:"nowrap"}}>{myScore}–{oppScore}</span>
+                  </div>
+                )}
               </div>
               );
             })}
@@ -3388,7 +3428,7 @@ function TeamsPage({ setTab, setTeamDetail }) {
                         </div>
                       </div>
                       <div style={{textAlign:"right",flexShrink:0}}>
-                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:30,color,lineHeight:1}}>{rec.w}-{rec.l}</div>
+                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:30,color,lineHeight:1}}>{rec.w}-{rec.l}{(rec.t||0)>0?`-${rec.t}`:""}</div>
                         <div style={{fontSize:12,color:"rgba(0,0,0,0.4)",fontFamily:"'Barlow Condensed',sans-serif"}}>{rec.pct}</div>
                       </div>
                     </div>
@@ -11488,13 +11528,13 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
                     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
                       <TLogo name={g.away} size={26}/>
                       <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.away}</span>
-                      <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",fontWeight:600}}>{(()=>{const t=ALL_TEAMS.find(t=>t.name===g.away);return t&&(t.w||t.l)?`${t.w}-${t.l}`:""})()}</span>
+                      <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",fontWeight:600}}>{(()=>{const t=ALL_TEAMS.find(t=>t.name===g.away);return t&&(t.w||t.l||t.t)?`${t.w}-${t.l}${(t.t||0)>0?`-${t.t}`:""}`:""})()}</span>
                     </div>
                     {/* Home */}
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <TLogo name={g.home} size={26}/>
                       <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase"}}>{g.home}</span>
-                      <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",fontWeight:600}}>{(()=>{const t=ALL_TEAMS.find(t=>t.name===g.home);return t&&(t.w||t.l)?`${t.w}-${t.l}`:""})()}</span>
+                      <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",fontWeight:600}}>{(()=>{const t=ALL_TEAMS.find(t=>t.name===g.home);return t&&(t.w||t.l||t.t)?`${t.w}-${t.l}${(t.t||0)>0?`-${t.t}`:""}`:""})()}</span>
                     </div>
                   </div>
                   {/* Time / field */}
