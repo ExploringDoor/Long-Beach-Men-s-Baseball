@@ -9251,7 +9251,15 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           const existing = new Set(prev.map(p => cleanName(p.name).toLowerCase()));
           const toAdd = names.filter(n => !existing.has(n.toLowerCase()));
           if (!toAdd.length) return prev;
-          return [...prev, ...toAdd.map(blankBatter)];
+          // If the captain has already confirmed a lineup (signal: some
+          // batters are explicitly on:false), late-arriving merge players
+          // must NOT auto-include themselves in the lineup — that would
+          // pollute the carefully-set 9-batter order with the rest of the
+          // roster. Mark them on:false so they show up under "Add to
+          // lineup" instead.
+          const hasInactive = prev.some(p => p.on === false);
+          const newOn = !hasInactive;
+          return [...prev, ...toAdd.map(n => ({ ...blankBatter(n), on: newOn }))];
         });
       });
       setRosterFetched(true);
