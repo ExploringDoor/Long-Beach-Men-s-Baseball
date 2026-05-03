@@ -9528,11 +9528,16 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             </button>
             <button type="button" onClick={()=>{
               if(orderQueue.length===0){cancelOrder();return;}
-              // Apply whatever has been tapped so far, toggle off the rest
+              // Apply whatever has been tapped so far, toggle off the rest.
+              // Force on:true for tapped players so a stale flag can't make
+              // a tapped batter invisible.
               setter(prev => {
-                const tapped = orderQueue.map(qid => prev.find(p=>p._id===qid)).filter(Boolean);
+                const tapped = orderQueue
+                  .map(qid => prev.find(p=>p._id===qid))
+                  .filter(Boolean)
+                  .map(p => ({ ...p, on: true }));
                 const untapped = prev.filter(p=>p.on && !orderQueue.includes(p._id)).map(p=>({...p,on:false}));
-                const inactive = prev.filter(p=>!p.on);
+                const inactive = prev.filter(p=>!p.on && !orderQueue.includes(p._id));
                 return [...tapped,...untapped,...inactive];
               });
               setOrderMode(false); setOrderQueue([]);
@@ -9954,9 +9959,27 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
     const confirmLineup = () => {
       if (!lineupOrder.length) { alert("Add at least 1 player to the lineup."); return; }
-      const ordered = lineupOrder.map(name => teamBat.find(p => p.name === name) || blankBatter(name));
-      const rest = teamBat.filter(p => !lineupOrder.includes(p.name)).map(p => ({...p, on:false}));
-      setTeamBat([...ordered, ...rest]);
+      // Functional setter so we use the LATEST teamBat (the closure captured
+      // at handler creation can be stale if the lbdc_rosters merge resolved
+      // between the last render and this click). Also explicitly forces the
+      // on flag so a stale on:false from a previous confirm cycle can't
+      // leak through, and uses normalized name comparison so NBSP / case
+      // differences don't put a tapped batter in `rest`.
+      setTeamBat(latestTeamBat => {
+        const norm = (s) => cleanName(s || "").toLowerCase();
+        const orderSet = new Set(lineupOrder.map(n => norm(n)));
+        const ordered = lineupOrder.map(name => {
+          const k = norm(name);
+          const existing = latestTeamBat.find(p => norm(p.name) === k);
+          return existing
+            ? { ...existing, on: true }     // explicit on:true for the lineup
+            : blankBatter(name);             // new player typed mid-lineup
+        });
+        const rest = latestTeamBat
+          .filter(p => !orderSet.has(norm(p.name)))
+          .map(p => ({ ...p, on: false }));   // explicit on:false for everyone else
+        return [...ordered, ...rest];
+      });
       setTeamMode("full");
       setBsePhase("entry");
     };
