@@ -8905,6 +8905,76 @@ async function safeSave(label, fn) {
   }
 }
 
+// ── League anthem auto-play (per commissioner request) ───────────────────
+//
+// Plays /diamond-classics.mp3 ONCE per browser session. sessionStorage clears
+// when the tab/window closes, so a fresh visit replays; a refresh in the same
+// tab does not. (Use localStorage if you want truly once-ever-per-device.)
+//
+// Browsers (Chrome/Safari/Firefox/iOS) BLOCK audio with sound from autoplay
+// without prior user interaction. So the player tries .play() immediately,
+// and if that promise rejects (autoplay policy), it falls back to starting on
+// the visitor's first click/tap/keypress anywhere on the page. A small
+// floating "Mute" button lets visitors stop it.
+//
+// File must be at public/diamond-classics.mp3 (lowercase, no spaces — spaces
+// in filenames URL-encode to %20 and have caused issues on this codebase
+// before, see the qr-code.png rename earlier).
+function AutoplayAnthem() {
+  const [active, setActive] = useState(false);
+  const audioRef = useRef(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (sessionStorage.getItem('lbdc_anthem_played') === '1') return;
+    const audio = new Audio('/diamond-classics.mp3');
+    audio.volume = 0.5;     // not jarring on first hit
+    audio.preload = 'auto';
+    audioRef.current = audio;
+    let started = false;
+    const start = () => {
+      if (started) return;
+      audio.play()
+        .then(() => {
+          started = true;
+          sessionStorage.setItem('lbdc_anthem_played', '1');
+          setActive(true);
+        })
+        .catch(() => {/* autoplay blocked — wait for first interaction */});
+    };
+    start();
+    const onFirstInteraction = () => {
+      start();
+      cleanup();
+    };
+    const cleanup = () => {
+      ['click','touchstart','keydown'].forEach(e => document.removeEventListener(e, onFirstInteraction));
+    };
+    ['click','touchstart','keydown'].forEach(e =>
+      document.addEventListener(e, onFirstInteraction, { once: true, passive: true })
+    );
+    audio.addEventListener('ended', () => setActive(false));
+    return () => { cleanup(); try { audio.pause(); } catch(e){} };
+  }, []);
+  if (!active) return null;
+  return (
+    <button
+      onClick={() => { try { audioRef.current?.pause(); } catch(e){} setActive(false); }}
+      style={{
+        position:'fixed', bottom:16, right:16, zIndex:9999,
+        padding:'9px 14px', borderRadius:999,
+        background:'rgba(0,0,0,0.78)', color:'#fff',
+        border:'none', cursor:'pointer',
+        fontSize:13, fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700,
+        letterSpacing:'.04em', boxShadow:'0 4px 14px rgba(0,0,0,0.3)',
+        display:'flex', alignItems:'center', gap:8,
+      }}
+      aria-label="Mute league anthem"
+    >
+      🎵 Mute
+    </button>
+  );
+}
+
 // Fetch batting/pitching lines for a list of game IDs in batches of 100
 // More reliable than offset pagination — avoids PostgreSQL ordering issues
 async function sbFetchLinesByGameIds(table, selectCols, gameIds) {
@@ -12767,6 +12837,7 @@ export default function App() {
         }
       `}</style>
       <SaveStatusToast />
+      <AutoplayAnthem />
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
       <div style={{position:"sticky",top:0,zIndex:300,width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
