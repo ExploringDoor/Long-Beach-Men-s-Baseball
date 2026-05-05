@@ -888,7 +888,7 @@ function Ticker({ setTab }) {
   const openFinalBox = async (sc) => {
     const [bat, pit] = await Promise.all([
       // Try fetching with new columns; fall back to old set if columns don't exist in DB yet
-      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,sf,sac,fc,roe,cs&game_id=eq.${sc.id}&order=id.asc&limit=100`)
+      sbFetch(`batting_lines?select=player_name,team,slot,ab,r,h,rbi,bb,k,doubles,triples,hr,sb,sf,sac,fc,roe,cs&game_id=eq.${sc.id}&order=id.asc&limit=100`)
         .catch(() => sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${sc.id}&order=id.asc&limit=100`)),
       sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${sc.id}&order=id.asc&limit=50`),
     ]).catch(()=>[[], []]);
@@ -1316,8 +1316,11 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
             <tbody>
               {rows.map((r,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                  <td style={{padding:"5px 6px",maxWidth:120,overflow:"hidden"}}>
-                    <button type="button" onClick={()=>setSelectedPlayer(r.player_name)} style={{background:"none",border:"none",padding:0,fontWeight:600,cursor:"pointer",color:"#002d6e",textDecoration:"underline",textDecorationStyle:"dotted",fontSize:"inherit",fontFamily:"inherit",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:110,display:"block"}}>{r.player_name}</button>
+                  <td style={{padding:"5px 6px",maxWidth:130,overflow:"hidden"}}>
+                    {r.slot && (
+                      <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:11,color:"#b45309",marginRight:6,letterSpacing:".04em"}}>{r.slot}</span>
+                    )}
+                    <button type="button" onClick={()=>setSelectedPlayer(r.player_name)} style={{background:"none",border:"none",padding:0,fontWeight:600,cursor:"pointer",color:"#002d6e",textDecoration:"underline",textDecorationStyle:"dotted",fontSize:"inherit",fontFamily:"inherit",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:110}}>{r.player_name}</button>
                   </td>
                   {[r.ab,r.r,r.h,r.hr||0,r.rbi,r.bb,r.k,r.sb||0,r.sf||0,r.sac||0,r.fc||0,r.roe||0,r.cs||0].map((v,j)=>(
                     <td key={j} style={{padding:"5px 6px",textAlign:"center",
@@ -1528,7 +1531,7 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
   const loadBoxData = async () => {
     const enc = s => encodeURIComponent(s);
     let [bat, pit] = await Promise.all([
-      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${game.id}&order=id.asc&limit=100`),
+      sbFetch(`batting_lines?select=player_name,team,slot,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${game.id}&order=id.asc&limit=100`),
       sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${game.id}&order=id.asc&limit=50`),
     ]);
     const hasAway = bat.some(b => b.team === game.away_team);
@@ -1545,7 +1548,7 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
       if (sibIds.length) {
         const ids = sibIds.join(',');
         const [moreBat, morePit] = await Promise.all([
-          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&order=id.asc&limit=200`),
+          sbFetch(`batting_lines?select=player_name,team,slot,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&order=id.asc&limit=200`),
           sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&order=id.asc&limit=100`),
         ]);
         if (!hasAway) bat = [...bat, ...moreBat.filter(b => b.team === game.away_team)];
@@ -2840,7 +2843,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
     setBoxBatting([]); setBoxPitching([]);
     const enc = encodeURIComponent;
     let [bat, pit] = await Promise.all([
-      sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${g.id}&order=id.asc&limit=100`),
+      sbFetch(`batting_lines?select=player_name,team,slot,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=eq.${g.id}&order=id.asc&limit=100`),
       sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=eq.${g.id}&order=id.asc&limit=50`),
     ]);
     const hasAway = bat.some(b => b.team === g.away_team);
@@ -2857,7 +2860,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       if (sibIds.length) {
         const ids = sibIds.join(',');
         const [mb, mp] = await Promise.all([
-          sbFetch(`batting_lines?select=player_name,team,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&order=id.asc&limit=200`),
+          sbFetch(`batting_lines?select=player_name,team,slot,ab,r,h,rbi,bb,k,doubles,triples,hr,sb&game_id=in.(${ids})&order=id.asc&limit=200`),
           sbFetch(`pitching_lines?select=player_name,team,ip,h,r,er,bb,k,decision&game_id=in.(${ids})&order=id.asc&limit=100`),
         ]);
         if (!hasAway) bat = [...bat, ...mb.filter(b => b.team === g.away_team)];
@@ -9044,7 +9047,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const BAT_STATS = ["ab","r","singles","doubles","triples","hr","rbi","bb","hbp","k","sb","sf","sac","fc","roe","cs","e"];
   const BAT_LBLS  = ["AB","R","1B","2B","3B","HR","RBI","BB","HBP","K","SB","SF","SAC","FC","ROE","CS","E"];
 
-  const blankBatter = (name="") => ({ _id:Math.random(), name, on:true, ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,hbp:0,k:0,sb:0,sf:0,sac:0,fc:0,roe:0,cs:0,e:0, pos:"" });
+  // `slot` is the optional A/B shared-slot label (e.g. "1A", "1B"). When
+  // empty, the row's display falls back to its 1-based index. Two batters
+  // sharing one batting slot — either alternating turns or a mid-game
+  // substitution — both get the same number with different letters.
+  const blankBatter = (name="") => ({ _id:Math.random(), name, on:true, slot:"", ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,hbp:0,k:0,sb:0,sf:0,sac:0,fc:0,roe:0,cs:0,e:0, pos:"" });
   const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0,hr:0, decision:"ND" });
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).map(p => typeof p === "string" ? p : p.name).filter(p=>p!=="TBD").map(blankBatter);
 
@@ -9210,7 +9217,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const toB = (b,bid=Math.random()) => {
         const d=+b.doubles||0, t=+b.triples||0, hr=+b.hr||0;
         return {
-          _id:bid, name:b.player_name, on:true,
+          _id:bid, name:b.player_name, on:true, slot:b.slot||"",
           ab:+b.ab||0, r:+b.r||0,
           singles:Math.max(0,(+b.h||0)-d-t-hr), doubles:d, triples:t, hr,
           rbi:+b.rbi||0, bb:+b.bb||0, hbp:+b.hbp||0, k:+b.k||0, sb:+b.sb||0,
@@ -9467,8 +9474,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const batRows = [
         ...(awayStatMode==="full" ? awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
         ...(homeStatMode==="full" ? homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})) : []),
-      ].map(({name,_t,ab,r,singles,doubles,triples,hr,rbi,bb,hbp,k,sb,sf,sac,fc,roe,cs,e})=>({
+      ].map(({name,_t,slot,ab,r,singles,doubles,triples,hr,rbi,bb,hbp,k,sb,sf,sac,fc,roe,cs,e})=>({
         game_id:gid,player_name:cleanName(name),team:_t,
+        slot:(slot||"").trim()||null,
         ab:+ab||0,r:+r||0,
         h:(+singles||0)+(+doubles||0)+(+triples||0)+(+hr||0),
         doubles:+doubles||0,triples:+triples||0,
@@ -9778,13 +9786,16 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                     <div draggable onDragStart={e=>handleDragStart(e,side,i)} onDragEnd={handleDragEnd}
                       style={{fontSize:13,color:"#ccc",cursor:"grab",userSelect:"none",touchAction:"none",padding:"0 2px"}}>⠿</div>
                   </td>
-                  {/* order # inline with ▲▼ */}
+                  {/* order # inline with ▲▼; slot input below for A/B sharing */}
                   <td style={{padding:"2px 1px",textAlign:"center",whiteSpace:"nowrap"}}>
                     <div style={{display:"flex",alignItems:"center",gap:2,justifyContent:"center"}}>
                       <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,-1);}}
                         className="bs-order-btn"
                         style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:8,color:"#002d6e",padding:"2px 4px",fontWeight:900,lineHeight:1}}>▲</button>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:12,color:"#002d6e",minWidth:14,textAlign:"center"}}>{i+1}</div>
+                      <input type="text" value={p.slot||""} onChange={e=>updBat(setter,i,"slot",e.target.value)}
+                        placeholder={String(i+1)}
+                        title='Batting order — leave blank for default. Type "1A" / "1B" to share a slot (alternating turns or mid-game sub).'
+                        style={{width:32,padding:"2px 0",textAlign:"center",border:"1px solid #ddd",borderRadius:3,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:12,color:"#002d6e",lineHeight:1,background:p.slot?"#f0f4ff":"transparent"}}/>
                       <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,1);}}
                         className="bs-order-btn"
                         style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:8,color:"#002d6e",padding:"2px 4px",fontWeight:900,lineHeight:1}}>▼</button>
