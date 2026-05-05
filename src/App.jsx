@@ -9038,10 +9038,13 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const [extraTeams, setExtraTeams] = useState([]);
   const TEAMS = [...BASE_TEAMS, ...extraTeams];
   const POSITIONS = ["","P","C","1B","2B","3B","SS","LF","CF","RF","DH","PH","PR"];
-  const BAT_STATS = ["ab","r","singles","doubles","triples","hr","rbi","bb","k","sb","sf","sac","fc","roe","cs","e"];
-  const BAT_LBLS  = ["AB","R","1B","2B","3B","HR","RBI","BB","K","SB","SF","SAC","FC","ROE","CS","E"];
+  // HBP placed right after BB (standard box-score order — both are non-AB
+  // plate appearances). Captains were missing it before because it wasn't
+  // in the form at all even though the DB column + stats page both expect it.
+  const BAT_STATS = ["ab","r","singles","doubles","triples","hr","rbi","bb","hbp","k","sb","sf","sac","fc","roe","cs","e"];
+  const BAT_LBLS  = ["AB","R","1B","2B","3B","HR","RBI","BB","HBP","K","SB","SF","SAC","FC","ROE","CS","E"];
 
-  const blankBatter = (name="") => ({ _id:Math.random(), name, on:true, ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,sb:0,sf:0,sac:0,fc:0,roe:0,cs:0,e:0, pos:"" });
+  const blankBatter = (name="") => ({ _id:Math.random(), name, on:true, ab:0,r:0,singles:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,hbp:0,k:0,sb:0,sf:0,sac:0,fc:0,roe:0,cs:0,e:0, pos:"" });
   const blankPitcher = (name="") => ({ name, ip:"", h:0,r:0,er:0,bb:0,k:0,hr:0, decision:"ND" });
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).map(p => typeof p === "string" ? p : p.name).filter(p=>p!=="TBD").map(blankBatter);
 
@@ -9210,7 +9213,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           _id:bid, name:b.player_name, on:true,
           ab:+b.ab||0, r:+b.r||0,
           singles:Math.max(0,(+b.h||0)-d-t-hr), doubles:d, triples:t, hr,
-          rbi:+b.rbi||0, bb:+b.bb||0, k:+b.k||0, sb:+b.sb||0, e:0, pos:"",
+          rbi:+b.rbi||0, bb:+b.bb||0, hbp:+b.hbp||0, k:+b.k||0, sb:+b.sb||0,
+          sf:+b.sf||0, sac:+b.sac||0, fc:+b.fc||0, roe:+b.roe||0, cs:+b.cs||0,
+          e:0, pos:"",
         };
       };
       const toP = (p) => ({
@@ -9462,12 +9467,12 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const batRows = [
         ...(awayStatMode==="full" ? awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
         ...(homeStatMode==="full" ? homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})) : []),
-      ].map(({name,_t,ab,r,singles,doubles,triples,hr,rbi,bb,k,sb,sf,sac,fc,roe,cs,e})=>({
+      ].map(({name,_t,ab,r,singles,doubles,triples,hr,rbi,bb,hbp,k,sb,sf,sac,fc,roe,cs,e})=>({
         game_id:gid,player_name:cleanName(name),team:_t,
         ab:+ab||0,r:+r||0,
         h:(+singles||0)+(+doubles||0)+(+triples||0)+(+hr||0),
         doubles:+doubles||0,triples:+triples||0,
-        hr:+hr||0,rbi:+rbi||0,bb:+bb||0,k:+k||0,sb:+sb||0,hbp:0,
+        hr:+hr||0,rbi:+rbi||0,bb:+bb||0,k:+k||0,sb:+sb||0,hbp:+hbp||0,
         sf:+sf||0,sac:+sac||0,fc:+fc||0,roe:+roe||0,cs:+cs||0,
       }));
       let statsWarning = "";
