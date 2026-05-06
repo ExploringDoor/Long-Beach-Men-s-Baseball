@@ -1278,7 +1278,18 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
   const awayPit = pitching.filter(p => p.team === game.away_team);
   const homePit = pitching.filter(p => p.team === game.home_team);
   const BatTable = ({ rows: rawRows, team }) => {
-    const rows = rawRows.filter(r => !/^totals?$/i.test(r.player_name));
+    // Filter: drop "Totals" placeholder rows AND zero-stat rows (bench
+    // players whose row got persisted with all zeros — pollutes the
+    // public box score view). Defense in depth: the save path now skips
+    // these, but old submissions may still have them.
+    const rows = rawRows.filter(r => {
+      if (/^totals?$/i.test(r.player_name)) return false;
+      const any = (r.ab||0) || (r.r||0) || (r.h||0) || (r.rbi||0)
+        || (r.bb||0) || (r.k||0) || (r.hbp||0) || (r.sb||0)
+        || (r.sf||0) || (r.sac||0) || (r.fc||0) || (r.roe||0)
+        || (r.cs||0) || (r.hr||0) || (r.doubles||0) || (r.triples||0);
+      return any;
+    });
     if (rows.length === 0) return (
       <div style={{marginBottom:16}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#002d6e",marginBottom:6,padding:"6px 10px",background:"#f0f4ff",borderRadius:6}}>{team} — Batting</div>
@@ -9482,7 +9493,17 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         doubles:+doubles||0,triples:+triples||0,
         hr:+hr||0,rbi:+rbi||0,bb:+bb||0,k:+k||0,sb:+sb||0,hbp:+hbp||0,
         sf:+sf||0,sac:+sac||0,fc:+fc||0,roe:+roe||0,cs:+cs||0,
-      }));
+      })).filter(r => {
+        // Skip rows where the player didn't record ANY stat. Captains who
+        // don't manually X out their bench end up with the entire roster on
+        // the box score with all zeros — useless clutter and pollutes the
+        // box score view. Zero-stat rows contribute nothing to averages or
+        // totals, so dropping them is safe.
+        return (r.ab||0) || (r.r||0) || (r.h||0) || (r.rbi||0) || (r.bb||0)
+            || (r.k||0)  || (r.hbp||0) || (r.sb||0) || (r.sf||0) || (r.sac||0)
+            || (r.fc||0) || (r.roe||0) || (r.cs||0) || (r.hr||0)
+            || (r.doubles||0) || (r.triples||0);
+      });
       let statsWarning = "";
       try {
         if(batRows.length) await sbPost("batting_lines",batRows);
