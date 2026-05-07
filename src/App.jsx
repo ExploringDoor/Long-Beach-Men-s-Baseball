@@ -1167,6 +1167,38 @@ function HomePage({ setTab, setTeamDetail }) {
       <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
         <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" fetchpriority="high" loading="eager" style={{display:"block"}} />
       </div>
+      {/* SIGN-UP CTA — prominent banner directly under the hero so players
+          actually notice the sign-up form. The bottom-of-page nav link was
+          getting buried; this puts the call-to-action where eyes are. */}
+      <button onClick={() => setTab && setTab("signup")} style={{
+        display:"block", width:"100%", border:"none", cursor:"pointer", textAlign:"left",
+        background:"linear-gradient(90deg, #FFD700 0%, #f59e0b 100%)",
+        padding:"14px clamp(12px,3vw,40px)",
+        borderBottom:"3px solid #b45309",
+        boxShadow:"0 2px 8px rgba(245,158,11,0.25)",
+      }} className="signup-cta-banner">
+        <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,flex:"1 1 auto",minWidth:0}}>
+            <span style={{fontSize:34,flexShrink:0}}>📋</span>
+            <div style={{minWidth:0}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(18px,3vw,24px)",textTransform:"uppercase",letterSpacing:".04em",color:"#7c2d12",lineHeight:1.1}}>
+                📣 Players — Join the List!
+              </div>
+              <div style={{fontSize:"clamp(12px,1.6vw,14px)",color:"#7c2d12",marginTop:3,fontWeight:600,lineHeight:1.3}}>
+                Get game reminders, score alerts, playoff updates, and rainout notices. Takes 30 seconds.
+              </div>
+            </div>
+          </div>
+          <span style={{
+            fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,letterSpacing:".08em",
+            background:"#7c2d12",color:"#FFD700",padding:"10px 20px",borderRadius:8,
+            textTransform:"uppercase",whiteSpace:"nowrap",flexShrink:0,
+            boxShadow:"0 2px 6px rgba(0,0,0,0.2)",
+          }}>
+            Sign Up Now →
+          </span>
+        </div>
+      </button>
       {getPageContent("home_announcement") && <div style={{maxWidth:900,margin:"0 auto",padding:"0 clamp(12px,3vw,40px)"}} dangerouslySetInnerHTML={sanitizeHTML(getPageContent("home_announcement"))} />}
 
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px",width:"100%",boxSizing:"border-box"}}>
