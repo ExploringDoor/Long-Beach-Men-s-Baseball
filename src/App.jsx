@@ -6262,6 +6262,11 @@ function WeeklyEmailPage({ onBack }) {
       const tm = {};
       teamNames.forEach(t => { tm[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0,streak:0,lastResult:null}; });
       [...games].reverse().forEach(g => {
+        // Skip postponed/canceled games — they have score 0-0 which would
+        // otherwise be miscounted as a tie. Status comes through as either
+        // "PPD"/"CAN" (canonical) or as a longer string like "Postponed".
+        const stat = (g.status || "").toLowerCase();
+        if (stat === "ppd" || stat === "can" || stat.startsWith("postpon") || stat.startsWith("cancel")) return;
         const a=g.away_team,h=g.home_team,as=+g.away_score,hs=+g.home_score;
         if (!tm[a] || !tm[h]) return;
         tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
