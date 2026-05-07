@@ -6132,64 +6132,94 @@ function ManageSchedulePage({ onBack }) {
 function WeeklyEmailPage({ onBack }) {
   const [copied, setCopied] = useState(false);
   const [season, setSeason] = useState("Spring/Summer 2026");
-  const [liveGames, setLiveGames] = useState([]);
-  const [liveStandings, setLiveStandings] = useState([]);
+  const [satGames, setSatGames] = useState([]);
+  const [bomGames, setBomGames] = useState([]);
+  const [satStandings, setSatStandings] = useState([]);
+  const [bomStandings, setBomStandings] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      sbFetch("seasons?select=id,name&limit=50"),
-    ]).then(([seasons]) => {
-      const satIds = getSatSeasonFilter(seasons);
-      if(!satIds.length) { setLoading(false); return; }
-      setSeason("Spring/Summer 2026");
-      return sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`);
-    }).then(rawGames => {
-      if(!rawGames) return;
-      const games = dedupGames(rawGames);
-      setLiveGames(games);
-      // compute standings
+    // Compute one division's standings + ordered game list. Reused for SAT
+    // (50's Saturday league) and BOM (Boomers 60/70). The Weekly Email used
+    // to mix both together which buried the Boomers and showed Mashers /
+    // Magicians at the bottom of the Saturday standings with no record.
+    const computeDivStandings = (games, teamNames) => {
       const tm = {};
-      Object.keys(TEAM_ROSTERS).forEach(t=>{tm[t]={w:0,l:0,t:0,rs:0,ra:0,gp:0,streak:0,lastResult:null};});
-      [...games].reverse().forEach(g=>{
+      teamNames.forEach(t => { tm[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0,streak:0,lastResult:null}; });
+      [...games].reverse().forEach(g => {
         const a=g.away_team,h=g.home_team,as=+g.away_score,hs=+g.home_score;
-        if(!tm[a]||!tm[h]) return;
-        tm[a].rs+=as;tm[a].ra+=hs;tm[a].gp++;
-        tm[h].rs+=hs;tm[h].ra+=as;tm[h].gp++;
-        if(as>hs){
-          tm[a].w++;tm[h].l++;
-          tm[a].streak=tm[a].lastResult==="W"?tm[a].streak+1:1; tm[a].lastResult="W";
-          tm[h].streak=tm[h].lastResult==="L"?tm[h].streak+1:1; tm[h].lastResult="L";
-        } else if(hs>as){
-          tm[h].w++;tm[a].l++;
-          tm[h].streak=tm[h].lastResult==="W"?tm[h].streak+1:1; tm[h].lastResult="W";
-          tm[a].streak=tm[a].lastResult==="L"?tm[a].streak+1:1; tm[a].lastResult="L";
+        if (!tm[a] || !tm[h]) return;
+        tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
+        tm[h].rs+=hs; tm[h].ra+=as; tm[h].gp++;
+        if (as>hs) {
+          tm[a].w++; tm[h].l++;
+          tm[a].streak = tm[a].lastResult==="W"?tm[a].streak+1:1; tm[a].lastResult="W";
+          tm[h].streak = tm[h].lastResult==="L"?tm[h].streak+1:1; tm[h].lastResult="L";
+        } else if (hs>as) {
+          tm[h].w++; tm[a].l++;
+          tm[h].streak = tm[h].lastResult==="W"?tm[h].streak+1:1; tm[h].lastResult="W";
+          tm[a].streak = tm[a].lastResult==="L"?tm[a].streak+1:1; tm[a].lastResult="L";
         } else {
-          tm[a].t++;tm[h].t++;tm[a].lastResult="T";tm[h].lastResult="T";tm[a].streak=0;tm[h].streak=0;
+          tm[a].t++; tm[h].t++;
+          tm[a].lastResult="T"; tm[h].lastResult="T";
+          tm[a].streak=0; tm[h].streak=0;
         }
       });
-      const rows=Object.entries(tm).map(([name,s])=>{
-        const pts=s.w*2+s.t,max=(s.gp||1)*2;
+      return Object.entries(tm).map(([name,s]) => {
+        const pts=s.w*2+s.t, max=(s.gp||1)*2;
         const pct=s.gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"");
         const d=s.rs-s.ra;
         const streakStr=s.gp===0?"—":s.lastResult==="W"?`W${s.streak}`:s.lastResult==="L"?`L${s.streak}`:"T";
         return {name,w:s.w,l:s.l,t:s.t,pct,gp:s.gp,rs:s.rs,ra:s.ra,diff:d>=0?`+${d}`:`${d}`,streak:streakStr,seed:0};
-      }).sort((a,b)=>{
-        const ag=a.gp||1,bg=b.gp||1;
-        const ar=(a.w*2+a.t)/ag,br=(b.w*2+b.t)/bg;
+      }).sort((a,b) => {
+        const ag=a.gp||1, bg=b.gp||1;
+        const ar=(a.w*2+a.t)/ag, br=(b.w*2+b.t)/bg;
         return br!==ar?br-ar:(b.rs-b.ra)-(a.rs-a.ra);
-      }).map((t,i)=>({...t,seed:i+1}));
-      setLiveStandings(rows);
+      }).map((t,i) => ({...t, seed:i+1}));
+    };
+
+    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+      const satIds = getSatSeasonFilter(seasons || []);
+      const bomS = (seasons || []).find(x => x.name.toLowerCase().includes("boomers"));
+      setSeason("Spring/Summer 2026");
+      return Promise.all([
+        satIds.length
+          ? sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`)
+          : Promise.resolve([]),
+        bomS
+          ? sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&season_id=eq.${bomS.id}&away_score=not.is.null&order=game_date.desc&limit=50`)
+          : Promise.resolve([]),
+      ]);
+    }).then(([rawSat, rawBom]) => {
+      const sat = dedupGames(rawSat || []);
+      const bom = dedupGames(rawBom || []);
+      setSatGames(sat);
+      setBomGames(bom);
+      setSatStandings(computeDivStandings(sat, DIV.SAT.teams.map(t=>t.name)));
+      setBomStandings(computeDivStandings(bom, DIV.BOM.teams.map(t=>t.name)));
       setLoading(false);
-    }).catch(()=>setLoading(false));
+    }).catch(() => setLoading(false));
   },[]);
 
-  // Group games by date, take the most recent date
-  const byDate = {};
-  liveGames.forEach(g=>{ if(!byDate[g.game_date]) byDate[g.game_date]=[]; byDate[g.game_date].push(g); });
-  const dates = Object.keys(byDate).sort((a,b)=>b.localeCompare(a));
-  const latestDate = dates[0];
-  const latestGames = byDate[latestDate] || [];
+  // Group each division's games by date and grab the most recent date for
+  // both. We surface the most recent SAT-game date as the "header" date but
+  // include any BOM games from that same date in the BOM section.
+  const groupByDate = (games) => {
+    const m = {};
+    games.forEach(g => { if (!m[g.game_date]) m[g.game_date] = []; m[g.game_date].push(g); });
+    return m;
+  };
+  const satByDate = groupByDate(satGames);
+  const bomByDate = groupByDate(bomGames);
+  const satDates = Object.keys(satByDate).sort((a,b)=>b.localeCompare(a));
+  const bomDates = Object.keys(bomByDate).sort((a,b)=>b.localeCompare(a));
+  const latestSatDate = satDates[0];
+  const latestBomDate = bomDates[0];
+  // Header date prefers the most recent SAT date if any (it's the larger
+  // league), otherwise falls back to the most recent BOM date.
+  const headerDate = latestSatDate || latestBomDate;
+  const latestSatGames = satByDate[latestSatDate] || [];
+  const latestBomGames = bomByDate[latestBomDate] || [];
 
   const fmtDate = (d) => d ? new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}) : "";
 
@@ -6204,31 +6234,46 @@ function WeeklyEmailPage({ onBack }) {
     return `${winner} topped ${loser} by a score of ${ws}–${ls}.`;
   };
 
+  // Render one division's section: subheader + games + standings.
+  const sectionLines = (label, games, gamesDate, standings) => {
+    const lines = [];
+    lines.push(`═══════════════════════════════════════════`);
+    lines.push(`  ${label.toUpperCase()}`);
+    lines.push(`═══════════════════════════════════════════`);
+    if (games.length > 0) {
+      lines.push(``);
+      lines.push(`  Results — ${fmtDate(gamesDate)}`);
+      games.forEach(g => {
+        lines.push(``);
+        lines.push(`  ${g.away_team.toUpperCase()}  ${g.away_score}  —  ${g.home_team.toUpperCase()}  ${g.home_score}  (${g.status||"Final"})`);
+        lines.push(`  ${autoRecap(g)}`);
+      });
+    } else {
+      lines.push(``);
+      lines.push(`  No games played this week.`);
+    }
+    lines.push(``);
+    lines.push(`  Standings`);
+    lines.push(`  #   TEAM              W    L    T    PCT   STREAK`);
+    lines.push(`  ${"─".repeat(52)}`);
+    standings.forEach(t => {
+      lines.push(`  ${String(t.seed).padEnd(4)}${t.name.padEnd(18)}${String(t.w).padEnd(5)}${String(t.l).padEnd(5)}${String(t.t).padEnd(5)}${t.pct.padEnd(7)}${t.streak}`);
+    });
+    const winStreaks = standings.filter(t=>t.streak.startsWith("W") && parseInt(t.streak.slice(1))>=2);
+    if (winStreaks.length > 0) {
+      lines.push(``);
+      lines.push(`  🔥 WIN STREAKS: ${winStreaks.map(t=>`${t.name} (${t.streak})`).join(", ")}`);
+    }
+    lines.push(``);
+    return lines;
+  };
+
   const emailText = loading ? "Loading..." : [
     `LONG BEACH DIAMOND CLASSICS — WEEK IN REVIEW`,
-    `${fmtDate(latestDate)}`,
+    `${fmtDate(headerDate)}`,
     ``,
-    `═══════════════════════════════════════════`,
-    `  GAME RESULTS`,
-    `═══════════════════════════════════════════`,
-    ...latestGames.map(g=>[
-      ``,
-      `  ${g.away_team.toUpperCase()}  ${g.away_score}  —  ${g.home_team.toUpperCase()}  ${g.home_score}  (${g.status||"Final"})`,
-      `  ${autoRecap(g)}`,
-    ].join("\n")),
-    ``,
-    `═══════════════════════════════════════════`,
-    `  STANDINGS`,
-    `═══════════════════════════════════════════`,
-    ``,
-    `  #   TEAM              W    L    T    PCT   STREAK`,
-    `  ${"─".repeat(52)}`,
-    ...liveStandings.map(t=>`  ${String(t.seed).padEnd(4)}${t.name.padEnd(18)}${String(t.w).padEnd(5)}${String(t.l).padEnd(5)}${String(t.t).padEnd(5)}${t.pct.padEnd(7)}${t.streak}`),
-    ``,
-    liveStandings.filter(t=>t.streak.startsWith("W")&&parseInt(t.streak.slice(1))>=2).length>0
-      ? `🔥 WIN STREAKS: ${liveStandings.filter(t=>t.streak.startsWith("W")&&parseInt(t.streak.slice(1))>=2).map(t=>`${t.name} (${t.streak})`).join(", ")}`
-      : ``,
-    ``,
+    ...sectionLines("Saturday Division (50's)", latestSatGames, latestSatDate, satStandings),
+    ...sectionLines("Boomers 60/70", latestBomGames, latestBomDate, bomStandings),
     `═══════════════════════════════════════════`,
     `View full box scores & stats: https://long-beach-men-s-baseball.vercel.app`,
     `Long Beach Diamond Classics Baseball — Spring/Summer 2026`,
