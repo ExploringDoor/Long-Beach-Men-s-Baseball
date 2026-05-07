@@ -6956,6 +6956,204 @@ function AdminContactEditor({ onBack }) {
   );
 }
 
+/* ─── MANAGE DIVISIONS ───────────────────────────────────────────────────── */
+//
+// Phase 1 of the Manage Divisions feature: lets the admin create / rename /
+// reorder / delete divisions and assign teams to each. Backed by the
+// `lbdc_divisions` Supabase table (single row id="main", data is the JSON
+// array of divisions). Once read sites (Standings, Weekly Email, Teams page,
+// etc.) are migrated to consume this in Phase 2, dynamic divisions will flow
+// through the public UI.
+//
+// Default starter set (used if the DB row doesn't exist yet) mirrors the
+// hardcoded DIV constant — Saturday + Boomers — so nothing ever looks empty.
+const DEFAULT_DIVISIONS = [
+  { id: "sat", name: "Saturday Division (50's)", accent: "#002d6e", season: "Spring/Summer 2026", active: true,
+    teams: ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"] },
+  { id: "bom", name: "Boomers 60/70", accent: "#7c3aed", season: "Boomers 2026", active: true,
+    teams: ["Eddie Murray Mashers '56","Greg Maddux Magicians '66"] },
+];
+
+function AdminDivisionsEditor({ onBack }) {
+  const [divisions, setDivisions] = useState(DEFAULT_DIVISIONS);
+  const [allTeams, setAllTeams] = useState([]); // distinct team names from lbdc_rosters
+  const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      sbFetch("lbdc_divisions?id=eq.main&select=data").catch(() => null),
+      sbFetch("lbdc_rosters?select=team&limit=2000").catch(() => []),
+    ]).then(([divRows, rosterRows]) => {
+      if (divRows && divRows[0] && Array.isArray(divRows[0].data)) {
+        setDivisions(divRows[0].data);
+      }
+      // Build the master team list. Combine: hardcoded TEAM_ROSTERS keys,
+      // distinct lbdc_rosters teams, plus any teams already referenced in
+      // an existing division (so we don't lose them if their roster was
+      // wiped). Filter junk.
+      const seen = new Set();
+      Object.keys(TEAM_ROSTERS).forEach(t => seen.add(t));
+      (rosterRows || []).forEach(r => { if (r && r.team) seen.add(r.team); });
+      if (divRows && divRows[0] && Array.isArray(divRows[0].data)) {
+        divRows[0].data.forEach(d => (d.teams || []).forEach(t => seen.add(t)));
+      }
+      ["Test", ""].forEach(j => seen.delete(j));
+      setAllTeams([...seen].sort());
+      setLoading(false);
+    });
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    setSaveError("");
+    try {
+      await sbUpsert("lbdc_divisions", { id: "main", data: divisions });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setSaveError(err.message || "Save failed");
+    }
+    setSaving(false);
+  };
+
+  const reset = async () => {
+    if (!window.confirm("Reset divisions back to the Saturday + Boomers default? Any custom tournament divisions will be lost.")) return;
+    setDivisions(DEFAULT_DIVISIONS);
+  };
+
+  const updDiv = (di, field, value) => setDivisions(p => p.map((d,i) => i===di ? { ...d, [field]: value } : d));
+  const moveDiv = (di, dir) => setDivisions(p => {
+    const n = [...p]; const j = di + dir;
+    if (j < 0 || j >= n.length) return p;
+    [n[di], n[j]] = [n[j], n[di]]; return n;
+  });
+  const delDiv = (di) => {
+    if (!window.confirm(`Delete division "${divisions[di].name}"? This won't remove the teams themselves, just the division grouping.`)) return;
+    setDivisions(p => p.filter((_,i) => i !== di));
+  };
+  const addDiv = () => {
+    const nextId = `div-${Date.now()}`;
+    setDivisions(p => [...p, {
+      id: nextId, name: "New Division", accent: "#16a34a", season: "", active: true, teams: [],
+    }]);
+  };
+  const addTeam = (di, team) => {
+    if (!team) return;
+    setDivisions(p => p.map((d,i) => {
+      if (i !== di) return d;
+      if ((d.teams || []).includes(team)) return d;
+      return { ...d, teams: [...(d.teams || []), team] };
+    }));
+  };
+  const removeTeam = (di, team) => {
+    setDivisions(p => p.map((d,i) => i === di ? { ...d, teams: (d.teams || []).filter(t => t !== team) } : d));
+  };
+
+  const COLOR_CHOICES = ["#002d6e","#1d4ed8","#7c3aed","#c8102e","#b45309","#16a34a","#0891b2","#db2777","#111"];
+  const btn = (bg, color="#fff") => ({ background: bg, color, border: "none", borderRadius: 8, padding: "9px 18px", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 15, cursor: "pointer" });
+  const inp = { fontFamily: "inherit", fontSize: 14, border: "1px solid #ddd", borderRadius: 6, padding: "8px 12px", width: "100%", boxSizing: "border-box" };
+  const lbl = { fontSize: 10, fontWeight: 700, color: "#888", textTransform: "uppercase", display: "block", marginBottom: 2 };
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
+      <PageHero label="Admin" title="Manage Divisions" subtitle="Define which teams group into which division (Saturday, Boomers, tournaments, etc.)" />
+      <div style={{maxWidth:760,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
+        <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"center"}}>
+          <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
+          <button onClick={save} disabled={saving} style={btn(saving?"#6b7280":saved?"#16a34a":"#002d6e")}>{saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}</button>
+          <button onClick={reset} style={btn("rgba(220,38,38,0.09)","#dc2626")}>Reset to Default</button>
+        </div>
+        {saveError && (
+          <div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#991b1b",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13}}>
+            <strong>Save failed:</strong> {saveError}<br/>
+            <span style={{fontSize:12}}>If this is the first save, make sure you've run <code>CREATE TABLE lbdc_divisions (id text primary key, data jsonb);</code> in Supabase SQL Editor.</span>
+          </div>
+        )}
+        <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#78350f"}}>
+          <strong>Phase 1 only:</strong> this admin lets you define divisions, but the public Standings / Teams pages still use the hardcoded Saturday & Boomers grouping. The Weekly Email and other pages will start reading from this list in the next update. You can sketch out tournament divisions here now and they'll go live then.
+        </div>
+        {loading ? <div style={{textAlign:"center",padding:40,color:"#aaa"}}>Loading…</div> : divisions.map((div, di) => (
+          <div key={div.id || di} style={{background:"#fff",borderRadius:12,marginBottom:18,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${div.accent || "#002d6e"}`}}>
+            <div style={{padding:"14px 18px",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"rgba(0,0,0,0.02)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:4}}>
+                  <button type="button" onClick={()=>moveDiv(di,-1)} disabled={di===0} style={{padding:"4px 8px",background:"rgba(0,0,0,0.05)",border:"1px solid rgba(0,0,0,0.1)",borderRadius:5,cursor:di===0?"default":"pointer",fontSize:12,opacity:di===0?0.3:1}}>↑</button>
+                  <button type="button" onClick={()=>moveDiv(di,1)} disabled={di===divisions.length-1} style={{padding:"4px 8px",background:"rgba(0,0,0,0.05)",border:"1px solid rgba(0,0,0,0.1)",borderRadius:5,cursor:di===divisions.length-1?"default":"pointer",fontSize:12,opacity:di===divisions.length-1?0.3:1}}>↓</button>
+                </div>
+                <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,color:div.active?"#16a34a":"#888",cursor:"pointer"}}>
+                  <input type="checkbox" checked={!!div.active} onChange={e=>updDiv(di,"active",e.target.checked)} />
+                  {div.active ? "ACTIVE" : "Hidden"}
+                </label>
+                <button type="button" onClick={()=>delDiv(di)} style={{padding:"5px 12px",background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:"pointer"}}>Delete</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8,marginBottom:8}}>
+                <div>
+                  <label style={lbl}>Division Name</label>
+                  <input value={div.name||""} onChange={e=>updDiv(di,"name",e.target.value)} placeholder="e.g. Saturday Division (50's)" style={{...inp,fontWeight:700}} />
+                </div>
+                <div>
+                  <label style={lbl}>Season Label</label>
+                  <input value={div.season||""} onChange={e=>updDiv(di,"season",e.target.value)} placeholder="e.g. Spring/Summer 2026" style={inp} />
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Accent Color</label>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  {COLOR_CHOICES.map(c => (
+                    <button key={c} type="button" onClick={()=>updDiv(di,"accent",c)} title={c} style={{width:26,height:26,borderRadius:"50%",background:c,border:div.accent===c?"3px solid #111":"2px solid rgba(0,0,0,0.1)",cursor:"pointer",padding:0}} />
+                  ))}
+                  <input value={div.accent||""} onChange={e=>updDiv(di,"accent",e.target.value)} placeholder="#rrggbb" style={{...inp,width:110,padding:"6px 8px",fontSize:12}} />
+                </div>
+              </div>
+            </div>
+            <div style={{padding:"14px 18px"}}>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".08em",color:"rgba(0,0,0,0.4)",marginBottom:8}}>Teams in this division ({(div.teams||[]).length})</div>
+              {(div.teams||[]).length === 0 ? (
+                <div style={{fontSize:13,color:"#aaa",fontStyle:"italic",marginBottom:8}}>No teams added yet.</div>
+              ) : (
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+                  {(div.teams||[]).map(t => (
+                    <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",background:`${div.accent||"#002d6e"}18`,border:`1px solid ${div.accent||"#002d6e"}40`,borderRadius:18,fontSize:13,color:"#111"}}>
+                      {t}
+                      <button onClick={()=>removeTeam(di,t)} title={`Remove ${t} from this division`} style={{background:"none",border:"none",color:"#dc2626",cursor:"pointer",padding:0,fontSize:14,lineHeight:1,fontWeight:700}}>✕</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                <select onChange={e=>{ const v = e.target.value; if (v) { addTeam(di, v); e.target.value = ""; } }} defaultValue=""
+                  style={{...inp,maxWidth:280,padding:"7px 10px",fontSize:13}}>
+                  <option value="">+ Add a team to this division…</option>
+                  {allTeams.filter(t => !(div.teams||[]).includes(t)).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input placeholder="Or type a new team name…" onKeyDown={e=>{
+                  if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                    addTeam(di, e.currentTarget.value.trim());
+                    e.currentTarget.value = "";
+                  }
+                }} style={{...inp,maxWidth:240,padding:"7px 10px",fontSize:13}} />
+              </div>
+            </div>
+          </div>
+        ))}
+        {!loading && (
+          <button type="button" onClick={addDiv} style={{width:"100%",background:"#fff",border:"2px dashed #002d6e",borderRadius:12,padding:"18px",color:"#002d6e",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",letterSpacing:".06em",cursor:"pointer",marginBottom:16}}>
+            + Add New Division
+          </button>
+        )}
+        <div style={{position:"sticky",bottom:20,marginTop:8,textAlign:"center"}}>
+          <button onClick={save} disabled={saving} style={{...btn(saving?"#6b7280":saved?"#16a34a":"#002d6e"),padding:"13px 40px",fontSize:17,boxShadow:"0 4px 20px rgba(0,45,110,0.35)"}}>
+            {saving?"Saving…":saved?"✓ Saved!":"💾 Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── MANAGE TEAMS PAGE ──────────────────────────────────────────────────── */
 function ManageTeamsPage({ onBack }) {
   const builtIn = Object.keys(TEAM_ROSTERS);
@@ -8097,6 +8295,7 @@ function AdminPage({ onAlertChange }) {
   if (screen === "admin_sponsors") return <AdminSponsorsEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_fields")  return <AdminFieldsEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_contact") return <AdminContactEditor onBack={() => setScreen("admin")} />;
+  if (screen === "admin_divisions") return <AdminDivisionsEditor onBack={() => setScreen("admin")} />;
   if (screen === "admin_signups") return <AdminSignupsViewer onBack={() => setScreen("admin")} />;
 
   // ── ADMIN ROSTERS SCREEN ──
@@ -8729,6 +8928,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"📜",title:"Edit Rules",desc:"Update Field Guide rules & sections",accent:"#002d6e",action:()=>setScreen("admin_rules")},
                   {icon:"📸",title:"Photos & Videos",desc:"Add or remove gallery items",accent:"#002d6e",action:()=>setScreen("admin_photos")},
                   {icon:"⚾",title:"Manage Teams",desc:"Add tournament or custom teams",accent:"#b45309",action:()=>setQuickView("teams")},
+                  {icon:"🏆",title:"Manage Divisions",desc:"Group teams into Saturday, Boomers, tournaments",accent:"#7c3aed",action:()=>setScreen("admin_divisions")},
                   {icon:"🤝",title:"Edit Sponsors",desc:"Add or remove sponsor cards",accent:"#002d6e",action:()=>setScreen("admin_sponsors")},
                   {icon:"🏟️",title:"Field Directions",desc:"Edit field notes and addresses",accent:"#002d6e",action:()=>setScreen("admin_fields")},
                   {icon:"📞",title:"Contact Info",desc:"Email, phone, Venmo, QR, credits",accent:"#002d6e",action:()=>setScreen("admin_contact")},
