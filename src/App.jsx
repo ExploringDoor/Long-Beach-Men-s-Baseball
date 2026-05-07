@@ -1167,33 +1167,34 @@ function HomePage({ setTab, setTeamDetail }) {
       <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
         <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" fetchpriority="high" loading="eager" style={{display:"block"}} />
       </div>
-      {/* SIGN-UP CTA — prominent banner directly under the hero so players
-          actually notice the sign-up form. The bottom-of-page nav link was
-          getting buried; this puts the call-to-action where eyes are. */}
+      {/* SIGN-UP CTA — bold red/white/navy banner directly under the hero
+          so players actually notice the sign-up form. Matches the site's
+          patriotic palette: navy → red gradient with a white CTA pill. */}
       <button onClick={() => setTab && setTab("signup")} style={{
         display:"block", width:"100%", border:"none", cursor:"pointer", textAlign:"left",
-        background:"linear-gradient(90deg, #FFD700 0%, #f59e0b 100%)",
+        background:"linear-gradient(90deg, #002d6e 0%, #002d6e 55%, #c8102e 100%)",
         padding:"14px clamp(12px,3vw,40px)",
-        borderBottom:"3px solid #b45309",
-        boxShadow:"0 2px 8px rgba(245,158,11,0.25)",
+        borderBottom:"3px solid #FFD700",
+        boxShadow:"0 2px 8px rgba(0,45,110,0.35)",
       }} className="signup-cta-banner">
         <div style={{maxWidth:1400,margin:"0 auto",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:14,flex:"1 1 auto",minWidth:0}}>
-            <span style={{fontSize:34,flexShrink:0}}>📋</span>
+            <span style={{fontSize:34,flexShrink:0}}>⚾</span>
             <div style={{minWidth:0}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(18px,3vw,24px)",textTransform:"uppercase",letterSpacing:".04em",color:"#7c2d12",lineHeight:1.1}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(18px,3vw,24px)",textTransform:"uppercase",letterSpacing:".04em",color:"#fff",lineHeight:1.1,textShadow:"0 1px 2px rgba(0,0,0,0.3)"}}>
                 📣 Players — Join the List!
               </div>
-              <div style={{fontSize:"clamp(12px,1.6vw,14px)",color:"#7c2d12",marginTop:3,fontWeight:600,lineHeight:1.3}}>
+              <div style={{fontSize:"clamp(12px,1.6vw,14px)",color:"rgba(255,255,255,0.92)",marginTop:3,fontWeight:600,lineHeight:1.3}}>
                 Get game reminders, score alerts, playoff updates, and rainout notices. Takes 30 seconds.
               </div>
             </div>
           </div>
           <span style={{
             fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,letterSpacing:".08em",
-            background:"#7c2d12",color:"#FFD700",padding:"10px 20px",borderRadius:8,
+            background:"#fff",color:"#c8102e",padding:"10px 20px",borderRadius:8,
             textTransform:"uppercase",whiteSpace:"nowrap",flexShrink:0,
-            boxShadow:"0 2px 6px rgba(0,0,0,0.2)",
+            border:"2px solid #fff",
+            boxShadow:"0 2px 8px rgba(0,0,0,0.25)",
           }}>
             Sign Up Now →
           </span>
