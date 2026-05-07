@@ -7636,6 +7636,48 @@ function AdminSignupsViewer({ onBack }) {
   const [deleting, setDeleting] = useState(null);
   const [copyKind, setCopyKind] = useState(null); // "bcc" | "csv" | null
   const [exportFilter, setExportFilter] = useState("all"); // "all" | "reminders" | "scores" | "playoffs" | "rainouts"
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+
+  const startEdit = (s) => {
+    setEditId(s.id);
+    setEditForm({
+      name: s.name || "", team: s.team || "", email: s.email || "", phone: s.phone || "",
+      notes: s.notes || "",
+      reminders: !!s.reminders, scores: !!s.scores,
+      playoffs: !!s.playoffs, rainouts: !!s.rainouts,
+    });
+  };
+  const cancelEdit = () => { setEditId(null); setEditForm({}); };
+  const saveEdit = async (s) => {
+    setEditSaving(true);
+    const r = await safeSave(`Sign-up (${editForm.name || s.name})`, () =>
+      sbPatch(`lbdc_signups?id=eq.${s.id}`, {
+        name: cleanName(editForm.name) || s.name,
+        team: editForm.team,
+        email: (editForm.email || "").trim(),
+        phone: (editForm.phone || "").trim(),
+        notes: editForm.notes || "",
+        reminders: !!editForm.reminders,
+        scores: !!editForm.scores,
+        playoffs: !!editForm.playoffs,
+        rainouts: !!editForm.rainouts,
+      })
+    );
+    if (r.ok) {
+      setSignups(prev => prev.map(x => x.id === s.id ? {
+        ...x,
+        name: cleanName(editForm.name) || s.name,
+        team: editForm.team, email: (editForm.email||"").trim(), phone: (editForm.phone||"").trim(),
+        notes: editForm.notes || "",
+        reminders: !!editForm.reminders, scores: !!editForm.scores,
+        playoffs: !!editForm.playoffs, rainouts: !!editForm.rainouts,
+      } : x));
+      setEditId(null); setEditForm({});
+    }
+    setEditSaving(false);
+  };
 
   useEffect(() => {
     sbFetch("lbdc_signups?select=*&order=created_at.desc")
@@ -7796,36 +7838,92 @@ function AdminSignupsViewer({ onBack }) {
           <div style={{textAlign:"center",padding:40,color:"#aaa",fontSize:15}}>No sign-ups yet.</div>
         ) : (
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            {filtered.map((s,i) => (
-              <div key={s.id||i} style={{background:"#fff",borderRadius:12,border:"1px solid rgba(0,0,0,0.08)",borderLeft:"4px solid #002d6e",padding:"16px 20px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:8}}>
-                  <div>
-                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase"}}>{s.name}</div>
-                    <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:1}}>{s.team}</div>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>
-                      {s.created_at ? new Date(s.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}) : ""}
+            {filtered.map((s,i) => {
+              const isEditing = editId === s.id;
+              const inp = {fontSize:13,padding:"6px 10px",border:"1px solid #ccc",borderRadius:6,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
+              if (isEditing) {
+                const setField = (k,v) => setEditForm(p => ({...p, [k]: v}));
+                const teamOptions = Array.from(new Set([...teams.filter(t=>t!=="All"), ...Object.keys(TEAM_ROSTERS), "Free Agent"])).sort();
+                return (
+                  <div key={s.id||i} style={{background:"#fffbeb",borderRadius:12,border:"1px solid rgba(180,83,9,0.3)",borderLeft:"4px solid #b45309",padding:"16px 20px"}}>
+                    <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",color:"#b45309",marginBottom:10}}>✏️ Editing</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                      <div>
+                        <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Name</label>
+                        <input value={editForm.name||""} onChange={e=>setField("name",e.target.value)} style={inp} />
+                      </div>
+                      <div>
+                        <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Team</label>
+                        <select value={editForm.team||""} onChange={e=>setField("team",e.target.value)} style={inp}>
+                          {!teamOptions.includes(editForm.team||"") && editForm.team && <option value={editForm.team}>{editForm.team}</option>}
+                          {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
                     </div>
-                    <button onClick={()=>deleteSignup(s)} disabled={deleting===s.id}
-                      style={{background:"#fee2e2",border:"none",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,padding:"4px 10px",cursor:"pointer",whiteSpace:"nowrap"}}>
-                      {deleting===s.id ? "…" : "✕ Remove"}
-                    </button>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                      <div>
+                        <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Email</label>
+                        <input type="email" value={editForm.email||""} onChange={e=>setField("email",e.target.value)} style={inp} />
+                      </div>
+                      <div>
+                        <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Phone</label>
+                        <input type="tel" value={editForm.phone||""} onChange={e=>setField("phone",e.target.value)} style={inp} />
+                      </div>
+                    </div>
+                    <div style={{marginBottom:10}}>
+                      <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Notes</label>
+                      <input value={editForm.notes||""} onChange={e=>setField("notes",e.target.value)} placeholder="(optional)" style={inp} />
+                    </div>
+                    <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12,fontSize:13}}>
+                      {[["reminders","Reminders"],["scores","Score Alerts"],["playoffs","Playoff Updates"],["rainouts","Rainout Notices"]].map(([k,lbl]) => (
+                        <label key={k} style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer"}}>
+                          <input type="checkbox" checked={!!editForm[k]} onChange={e=>setField(k,e.target.checked)} />
+                          {lbl}
+                        </label>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={()=>saveEdit(s)} disabled={editSaving} style={{padding:"7px 16px",background:editSaving?"#94a3b8":"#16a34a",border:"none",borderRadius:6,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:editSaving?"wait":"pointer"}}>{editSaving?"Saving…":"💾 Save"}</button>
+                      <button onClick={cancelEdit} disabled={editSaving} style={{padding:"7px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                    </div>
                   </div>
+                );
+              }
+              return (
+                <div key={s.id||i} style={{background:"#fff",borderRadius:12,border:"1px solid rgba(0,0,0,0.08)",borderLeft:"4px solid #002d6e",padding:"16px 20px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:8}}>
+                    <div>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase"}}>{s.name}</div>
+                      <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:1}}>{s.team}</div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{fontSize:11,color:"rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>
+                        {s.created_at ? new Date(s.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : ""}
+                      </div>
+                      <button onClick={()=>startEdit(s)}
+                        style={{background:"rgba(0,45,110,0.08)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,padding:"4px 10px",cursor:"pointer",whiteSpace:"nowrap"}}>
+                        ✏️ Edit
+                      </button>
+                      <button onClick={()=>deleteSignup(s)} disabled={deleting===s.id}
+                        style={{background:"#fee2e2",border:"none",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,padding:"4px 10px",cursor:"pointer",whiteSpace:"nowrap"}}>
+                        {deleting===s.id ? "…" : "✕ Remove"}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:13,color:"rgba(0,0,0,0.6)",marginBottom:8}}>
+                    <span>📧 <a href={`mailto:${s.email}`} style={{color:"#002d6e",textDecoration:"none"}}>{s.email}</a></span>
+                    {s.phone && <span>📱 <a href={`tel:${s.phone}`} style={{color:"#002d6e",textDecoration:"none"}}>{s.phone}</a></span>}
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom: s.notes ? 8 : 0}}>
+                    {badge("Reminders", s.reminders)}
+                    {badge("Score Alerts", s.scores)}
+                    {badge("Playoff Updates", s.playoffs)}
+                    {badge("Rainout Notices", s.rainouts)}
+                  </div>
+                  {s.notes && <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",fontStyle:"italic",borderTop:"1px solid rgba(0,0,0,0.06)",paddingTop:8,marginTop:4}}>"{s.notes}"</div>}
                 </div>
-                <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:13,color:"rgba(0,0,0,0.6)",marginBottom:8}}>
-                  <span>📧 <a href={`mailto:${s.email}`} style={{color:"#002d6e",textDecoration:"none"}}>{s.email}</a></span>
-                  <span>📱 <a href={`tel:${s.phone}`} style={{color:"#002d6e",textDecoration:"none"}}>{s.phone}</a></span>
-                </div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom: s.notes ? 8 : 0}}>
-                  {badge("Reminders", s.reminders)}
-                  {badge("Score Alerts", s.scores)}
-                  {badge("Playoff Updates", s.playoffs)}
-                  {badge("Rainout Notices", s.rainouts)}
-                </div>
-                {s.notes && <div style={{fontSize:13,color:"rgba(0,0,0,0.55)",fontStyle:"italic",borderTop:"1px solid rgba(0,0,0,0.06)",paddingTop:8,marginTop:4}}>"{s.notes}"</div>}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
