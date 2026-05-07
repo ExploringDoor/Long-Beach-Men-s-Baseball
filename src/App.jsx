@@ -4652,7 +4652,41 @@ function PlayerSignUpPage() {
   const [form, setForm] = useState({name:"",team:"",email:"",phone:"",notes:""});
   const [prefs, setPrefs] = useState({reminders:false,scores:false,playoffs:false,rainouts:false});
   const [status, setStatus] = useState(null); // null | "saving" | "done" | "error"
-  const set = (k,v) => setForm(p=>({...p,[k]:v}));
+  // Live roster lookup: rosters[team] = [{name, number}, ...]
+  // We pull on mount so the player can pick their name from a dropdown
+  // instead of typing it (the typed-name flow created duplicate roster
+  // entries — typo "Joe Barret" vs existing "Joe Barrett" → split player).
+  const [rosters, setRosters] = useState(null);
+  const [nameMode, setNameMode] = useState("pick"); // "pick" | "custom"
+  useEffect(() => {
+    sbFetch("lbdc_rosters?select=name,team&limit=2000")
+      .then(rows => {
+        const byTeam = {};
+        (rows || []).forEach(r => {
+          if (!r.team || !r.name) return;
+          if (!byTeam[r.team]) byTeam[r.team] = [];
+          byTeam[r.team].push({ name: cleanName(r.name) });
+        });
+        // Dedupe + sort each team's roster
+        Object.keys(byTeam).forEach(t => {
+          const seen = new Set();
+          byTeam[t] = byTeam[t]
+            .filter(p => { const k = p.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+            .sort((a,b) => a.name.localeCompare(b.name));
+        });
+        setRosters(byTeam);
+      })
+      .catch(() => setRosters({}));
+  }, []);
+  const set = (k,v) => setForm(p => {
+    // When the team changes, reset the name field and snap back to "pick"
+    // mode so the player picks from THIS team's roster, not the previous one's.
+    if (k === "team" && v !== p.team) {
+      setNameMode("pick");
+      return { ...p, team: v, name: "" };
+    }
+    return { ...p, [k]: v };
+  });
   const togglePref = (k) => setPrefs(p=>({...p,[k]:!p[k]}));
 
   const submit = async (e) => {
@@ -4755,18 +4789,70 @@ function PlayerSignUpPage() {
             Fill out this form to register for the Spring/Summer 2026 season and receive game reminders, score alerts & rainout notices. Your info will only be used for Diamond Classics league communications.
           </p>
           <form onSubmit={submit}>
-            <div style={{marginBottom:18}}>
-              <label style={labelStyle}>Full Name <span style={{color:"#dc2626"}}>*</span></label>
-              <input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="John Smith" style={inputStyle} />
-            </div>
+            {/* Team first — picking the team filters the name dropdown.
+                The team list is built from lbdc_rosters so tournament
+                teams (Memorial Weekend, Firecracker, etc.) appear too,
+                plus "Free Agent" for anyone not on a team yet. */}
             <div style={{marginBottom:18}}>
               <label style={labelStyle}>Team Name <span style={{color:"#dc2626"}}>*</span></label>
               <select value={form.team} onChange={e=>set("team",e.target.value)} style={inputStyle}>
                 <option value="">— Select your team —</option>
-                {Object.keys(TEAM_ROSTERS).map(t=><option key={t} value={t}>{t}</option>)}
-                <option disabled style={{color:"#ccc"}}>──────────────</option>
-                <option value="Free Agent">Free Agent</option>
+                {(() => {
+                  const seen = new Set();
+                  Object.keys(TEAM_ROSTERS).forEach(t => seen.add(t));
+                  if (rosters) Object.keys(rosters).forEach(t => seen.add(t));
+                  ["Test", ""].forEach(j => seen.delete(j));
+                  // Put hardcoded teams (Saturday + Boomers) first in
+                  // their canonical order, then anything else (tournament
+                  // teams, Free Agent, etc.) alphabetically.
+                  const PRIMARY = Object.keys(TEAM_ROSTERS);
+                  const primary = PRIMARY.filter(t => seen.has(t));
+                  primary.forEach(t => seen.delete(t));
+                  const rest = [...seen].sort();
+                  return [...primary, ...rest].map(t => <option key={t} value={t}>{t}</option>);
+                })()}
+                {!Object.keys(TEAM_ROSTERS).some(t => t === "Free Agent")
+                  && (!rosters || !rosters["Free Agent"]) && <option value="Free Agent">Free Agent</option>}
               </select>
+            </div>
+            {/* Name field — dropdown of the selected team's roster.
+                "Not on the list" reveals a free-text input for new players /
+                tournament-team additions / typo-name-on-roster cases. The
+                dropdown prevents the duplicate-Joe-Barrett-vs-Joe-Barret
+                problem of the previous typed-name version. */}
+            <div style={{marginBottom:18}}>
+              <label style={labelStyle}>Your Name <span style={{color:"#dc2626"}}>*</span></label>
+              {!form.team ? (
+                <div style={{...inputStyle,color:"rgba(0,0,0,0.4)",fontStyle:"italic",cursor:"not-allowed",background:"#f8f9fb"}}>
+                  ← Pick your team first
+                </div>
+              ) : nameMode === "pick" && rosters && (rosters[form.team] || []).length > 0 ? (
+                <>
+                  <select value={form.name} onChange={e => {
+                    if (e.target.value === "__custom__") { setNameMode("custom"); set("name",""); }
+                    else { set("name", e.target.value); }
+                  }} style={inputStyle}>
+                    <option value="">— Select your name —</option>
+                    {(rosters[form.team] || []).map(p => (
+                      <option key={p.name} value={p.name}>{p.name}</option>
+                    ))}
+                    <option value="__custom__">⊕ Not on the list — type my name</option>
+                  </select>
+                  <div style={{fontSize:11,color:"rgba(0,0,0,0.45)",marginTop:6,lineHeight:1.4}}>
+                    Pick yourself from the roster so we link this signup to your existing player profile (don't create a duplicate).
+                  </div>
+                </>
+              ) : (
+                <>
+                  <input value={form.name} onChange={e=>set("name",e.target.value)} placeholder="First Last" style={inputStyle} />
+                  {rosters && (rosters[form.team] || []).length > 0 && (
+                    <button type="button" onClick={()=>{setNameMode("pick"); set("name","");}}
+                      style={{marginTop:8,background:"none",border:"none",color:"#002d6e",fontSize:13,fontWeight:700,cursor:"pointer",padding:0,textDecoration:"underline"}}>
+                      ← Pick from roster instead
+                    </button>
+                  )}
+                </>
+              )}
             </div>
             <div style={{marginBottom:18}}>
               <label style={labelStyle}>Email Address <span style={{color:"#dc2626"}}>*</span></label>
