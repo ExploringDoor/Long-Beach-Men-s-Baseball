@@ -6132,17 +6132,13 @@ function ManageSchedulePage({ onBack }) {
 function WeeklyEmailPage({ onBack }) {
   const [copied, setCopied] = useState(false);
   const [season, setSeason] = useState("Spring/Summer 2026");
-  const [satGames, setSatGames] = useState([]);
-  const [bomGames, setBomGames] = useState([]);
-  const [satStandings, setSatStandings] = useState([]);
-  const [bomStandings, setBomStandings] = useState([]);
+  // Per-division data: { [divisionId]: { games: [...], standings: [...] } }
+  const [divData, setDivData] = useState({});
   const [loading, setLoading] = useState(true);
+  const divisions = useDivisions(); // null while loading; array of active divisions
 
   useEffect(() => {
-    // Compute one division's standings + ordered game list. Reused for SAT
-    // (50's Saturday league) and BOM (Boomers 60/70). The Weekly Email used
-    // to mix both together which buried the Boomers and showed Mashers /
-    // Magicians at the bottom of the Saturday standings with no record.
+    // Compute one division's standings + ordered game list.
     const computeDivStandings = (games, teamNames) => {
       const tm = {};
       teamNames.forEach(t => { tm[t] = {w:0,l:0,t:0,rs:0,ra:0,gp:0,streak:0,lastResult:null}; });
@@ -6178,48 +6174,57 @@ function WeeklyEmailPage({ onBack }) {
       }).map((t,i) => ({...t, seed:i+1}));
     };
 
-    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
-      const satIds = getSatSeasonFilter(seasons || []);
-      const bomS = (seasons || []).find(x => x.name.toLowerCase().includes("boomers"));
-      setSeason("Spring/Summer 2026");
-      return Promise.all([
-        satIds.length
-          ? sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`)
-          : Promise.resolve([]),
-        bomS
-          ? sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&season_id=eq.${bomS.id}&away_score=not.is.null&order=game_date.desc&limit=50`)
-          : Promise.resolve([]),
-      ]);
-    }).then(([rawSat, rawBom]) => {
-      const sat = dedupGames(rawSat || []);
-      const bom = dedupGames(rawBom || []);
-      setSatGames(sat);
-      setBomGames(bom);
-      setSatStandings(computeDivStandings(sat, DIV.SAT.teams.map(t=>t.name)));
-      setBomStandings(computeDivStandings(bom, DIV.BOM.teams.map(t=>t.name)));
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  },[]);
+    if (!divisions) return; // wait for divisions to load
+    setSeason("Spring/Summer 2026");
+    // One sweep of all CURRENT-SEASON final games — we filter per-division
+    // by team membership rather than season_id, so a tournament team's
+    // games end up under that tournament's division automatically without
+    // us needing to map division → season_id. The 2026-04-01 floor scopes
+    // to the current spring season; old 2024/2025 games of the same teams
+    // (Brooklyn, Titans, etc. existed in prior leagues) don't bleed in.
+    sbFetch(`games?select=id,game_date,home_team,away_team,home_score,away_score,status,headline&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc&limit=500`)
+      .then(rawGames => {
+        const all = dedupGames(rawGames || []);
+        const next = {};
+        divisions.forEach(div => {
+          const teams = div.teams || [];
+          const teamSet = new Set(teams);
+          const games = all.filter(g => teamSet.has(g.away_team) && teamSet.has(g.home_team));
+          next[div.id] = {
+            games,
+            standings: computeDivStandings(games, teams),
+          };
+        });
+        setDivData(next);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [divisions]);
 
-  // Group each division's games by date and grab the most recent date for
-  // both. We surface the most recent SAT-game date as the "header" date but
-  // include any BOM games from that same date in the BOM section.
+  // For each division, find the most recent date with games and that
+  // date's games. Returns { id, label, accent, latestDate, latestGames,
+  // standings }.
   const groupByDate = (games) => {
     const m = {};
-    games.forEach(g => { if (!m[g.game_date]) m[g.game_date] = []; m[g.game_date].push(g); });
+    (games || []).forEach(g => { if (!m[g.game_date]) m[g.game_date] = []; m[g.game_date].push(g); });
     return m;
   };
-  const satByDate = groupByDate(satGames);
-  const bomByDate = groupByDate(bomGames);
-  const satDates = Object.keys(satByDate).sort((a,b)=>b.localeCompare(a));
-  const bomDates = Object.keys(bomByDate).sort((a,b)=>b.localeCompare(a));
-  const latestSatDate = satDates[0];
-  const latestBomDate = bomDates[0];
-  // Header date prefers the most recent SAT date if any (it's the larger
-  // league), otherwise falls back to the most recent BOM date.
-  const headerDate = latestSatDate || latestBomDate;
-  const latestSatGames = satByDate[latestSatDate] || [];
-  const latestBomGames = bomByDate[latestBomDate] || [];
+  const perDiv = (divisions || []).map(div => {
+    const data = divData[div.id] || { games: [], standings: [] };
+    const byDate = groupByDate(data.games);
+    const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+    const latestDate = dates[0];
+    return {
+      id: div.id,
+      label: div.name,
+      accent: div.accent,
+      latestDate,
+      latestGames: byDate[latestDate] || [],
+      standings: data.standings,
+    };
+  });
+  // Header date: most recent date across ANY division's games.
+  const headerDate = perDiv.map(d => d.latestDate).filter(Boolean).sort().reverse()[0];
 
   const fmtDate = (d) => d ? new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}) : "";
 
@@ -6268,12 +6273,12 @@ function WeeklyEmailPage({ onBack }) {
     return lines;
   };
 
-  const emailText = loading ? "Loading..." : [
+  const emailText = (loading || !divisions) ? "Loading..." : [
     `LONG BEACH DIAMOND CLASSICS — WEEK IN REVIEW`,
     `${fmtDate(headerDate)}`,
     ``,
-    ...sectionLines("Saturday Division (50's)", latestSatGames, latestSatDate, satStandings),
-    ...sectionLines("Boomers 60/70", latestBomGames, latestBomDate, bomStandings),
+    // One section per active division, in the order set in Manage Divisions.
+    ...perDiv.flatMap(d => sectionLines(d.label, d.latestGames, d.latestDate, d.standings)),
     `═══════════════════════════════════════════`,
     `View full box scores & stats: https://long-beach-men-s-baseball.vercel.app`,
     `Long Beach Diamond Classics Baseball — Spring/Summer 2026`,
@@ -6288,21 +6293,26 @@ function WeeklyEmailPage({ onBack }) {
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Weekly Email</div>
       </div>
       <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,padding:"20px"}}>
-        {loading ? (
-          <div style={{textAlign:"center",padding:40,color:"#888"}}>Loading latest results from database…</div>
-        ) : latestGames.length===0 ? (
-          <div style={{textAlign:"center",padding:40,color:"#888"}}>No games recorded yet. Enter box scores first.</div>
-        ) : (
-          <>
+        {(() => {
+          // Aggregate stats across all active divisions for the header line
+          // and the "no games yet" empty state.
+          const totalLatestGames = perDiv.reduce((n, d) => n + d.latestGames.length, 0);
+          if (loading) return (
+            <div style={{textAlign:"center",padding:40,color:"#888"}}>Loading latest results from database…</div>
+          );
+          if (totalLatestGames === 0) return (
+            <div style={{textAlign:"center",padding:40,color:"#888"}}>No games recorded yet. Enter box scores first.</div>
+          );
+          return (<>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-              <div style={{fontSize:13,color:"#555"}}>Auto-generated from latest results — <strong>{fmtDate(latestDate)}</strong> · {latestGames.length} game{latestGames.length!==1?"s":""}</div>
+              <div style={{fontSize:13,color:"#555"}}>Auto-generated from latest results — <strong>{fmtDate(headerDate)}</strong> · {totalLatestGames} game{totalLatestGames!==1?"s":""} across {perDiv.filter(d=>d.latestGames.length>0).length} division{perDiv.filter(d=>d.latestGames.length>0).length!==1?"s":""}</div>
               <button type="button" onClick={copy} style={{padding:"10px 22px",background:copied?"#22c55e":"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,textTransform:"uppercase",cursor:"pointer",transition:"background .2s",flexShrink:0}}>
                 {copied?"✓ Copied!":"Copy to Clipboard"}
               </button>
             </div>
             <pre style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.1)",borderRadius:8,padding:"16px",fontSize:12,fontFamily:"'Courier New',monospace",whiteSpace:"pre-wrap",lineHeight:1.8,maxHeight:500,overflowY:"auto"}}>{emailText}</pre>
-          </>
-        )}
+          </>);
+        })()}
       </div>
     </div>
   );
@@ -6974,6 +6984,46 @@ const DEFAULT_DIVISIONS = [
     teams: ["Eddie Murray Mashers '56","Greg Maddux Magicians '66"] },
 ];
 
+// ── Live divisions (Phase 2 read-side wiring) ────────────────────────────
+//
+// Module-level cache + listener pattern so any consumer (Weekly Email,
+// Standings, Home sidebar, Teams Directory, etc.) gets the same data and
+// only one HTTP request fires per page load. AdminDivisionsEditor calls
+// _setDivisionsCache(...) after a successful save so consumers update
+// without a refresh.
+let _DIVISIONS_CACHE = null;            // null = not yet loaded
+let _DIVISIONS_LOAD_PROMISE = null;
+const _DIVISIONS_LISTENERS = new Set();
+function _setDivisionsCache(arr) {
+  _DIVISIONS_CACHE = Array.isArray(arr) ? arr : DEFAULT_DIVISIONS;
+  _DIVISIONS_LISTENERS.forEach(fn => { try { fn(_DIVISIONS_CACHE); } catch(e){} });
+}
+function _loadDivisions() {
+  if (_DIVISIONS_CACHE) return Promise.resolve(_DIVISIONS_CACHE);
+  if (_DIVISIONS_LOAD_PROMISE) return _DIVISIONS_LOAD_PROMISE;
+  _DIVISIONS_LOAD_PROMISE = sbFetch("lbdc_divisions?id=eq.main&select=data")
+    .then(rows => {
+      const data = rows && rows[0] && Array.isArray(rows[0].data) ? rows[0].data : DEFAULT_DIVISIONS;
+      _setDivisionsCache(data);
+      return data;
+    })
+    .catch(() => {
+      _setDivisionsCache(DEFAULT_DIVISIONS);
+      return DEFAULT_DIVISIONS;
+    });
+  return _DIVISIONS_LOAD_PROMISE;
+}
+function useDivisions({ activeOnly = true } = {}) {
+  const [divs, setDivs] = useState(_DIVISIONS_CACHE);
+  useEffect(() => {
+    _DIVISIONS_LISTENERS.add(setDivs);
+    if (!_DIVISIONS_CACHE) _loadDivisions();
+    return () => { _DIVISIONS_LISTENERS.delete(setDivs); };
+  }, []);
+  if (!divs) return null; // null while loading
+  return activeOnly ? divs.filter(d => d.active !== false) : divs;
+}
+
 function AdminDivisionsEditor({ onBack }) {
   const [divisions, setDivisions] = useState(DEFAULT_DIVISIONS);
   const [allTeams, setAllTeams] = useState([]); // distinct team names from lbdc_rosters
@@ -7011,6 +7061,7 @@ function AdminDivisionsEditor({ onBack }) {
     setSaveError("");
     try {
       await sbUpsert("lbdc_divisions", { id: "main", data: divisions });
+      _setDivisionsCache(divisions); // propagate to all consumers without page refresh
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -7072,8 +7123,8 @@ function AdminDivisionsEditor({ onBack }) {
             <span style={{fontSize:12}}>If this is the first save, make sure you've run <code>CREATE TABLE lbdc_divisions (id text primary key, data jsonb);</code> in Supabase SQL Editor.</span>
           </div>
         )}
-        <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#78350f"}}>
-          <strong>Phase 1 only:</strong> this admin lets you define divisions, but the public Standings / Teams pages still use the hardcoded Saturday & Boomers grouping. The Weekly Email and other pages will start reading from this list in the next update. You can sketch out tournament divisions here now and they'll go live then.
+        <div style={{background:"#ecfdf5",border:"1px solid #6ee7b7",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#065f46"}}>
+          <strong>✓ Live in: Weekly Email.</strong> Add a tournament division here, mark it active, and it'll appear as its own section in the next Weekly Email (with games + standings). Standings, Teams Directory, and the Home sidebar still use the hardcoded Saturday/Boomers grouping for now — those will migrate next.
         </div>
         {loading ? <div style={{textAlign:"center",padding:40,color:"#aaa"}}>Loading…</div> : divisions.map((div, di) => (
           <div key={div.id || di} style={{background:"#fff",borderRadius:12,marginBottom:18,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${div.accent || "#002d6e"}`}}>
