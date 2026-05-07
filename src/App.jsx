@@ -7510,6 +7510,8 @@ function AdminSignupsViewer({ onBack }) {
   const [loading, setLoading] = useState(true);
   const [activeTeam, setActiveTeam] = useState("All");
   const [deleting, setDeleting] = useState(null);
+  const [copyKind, setCopyKind] = useState(null); // "bcc" | "csv" | null
+  const [exportFilter, setExportFilter] = useState("all"); // "all" | "reminders" | "scores" | "playoffs" | "rainouts"
 
   useEffect(() => {
     sbFetch("lbdc_signups?select=*&order=created_at.desc")
@@ -7539,6 +7541,52 @@ function AdminSignupsViewer({ onBack }) {
 
   const teams = ["All", ...Array.from(new Set(signups.map(s=>s.team).filter(Boolean))).sort()];
   const filtered = activeTeam === "All" ? signups : signups.filter(s => s.team === activeTeam);
+
+  // Build the export list. Drops obvious junk addresses ("none@none.com",
+  // "test@..."), de-duplicates, applies the team filter currently shown
+  // and the notification-preference filter (so you can email JUST the
+  // people who opted in for "Score Alerts," etc.).
+  const realEmail = (e) => {
+    if (!e || typeof e !== "string") return false;
+    const v = e.trim().toLowerCase();
+    if (!v.includes("@") || !v.includes(".")) return false;
+    if (v.includes("none@none")) return false;
+    if (/^(test|asdf|fake|x@x|noreply)/.test(v)) return false;
+    return true;
+  };
+  const exportList = (() => {
+    const seen = new Set();
+    const rows = [];
+    filtered.forEach(s => {
+      if (!realEmail(s.email)) return;
+      if (exportFilter !== "all" && !s[exportFilter]) return;
+      const key = s.email.trim().toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      rows.push(s);
+    });
+    return rows;
+  })();
+  const copyEmails = (kind) => {
+    let text;
+    if (kind === "csv") {
+      text = "Name,Team,Email,Phone,GameReminders,ScoreAlerts,PlayoffUpdates,RainoutNotices\n" +
+        exportList.map(s => [
+          s.name || "", s.team || "", s.email || "", s.phone || "",
+          s.reminders ? "yes" : "no",
+          s.scores ? "yes" : "no",
+          s.playoffs ? "yes" : "no",
+          s.rainouts ? "yes" : "no",
+        ].map(f => `"${String(f).replace(/"/g,'""')}"`).join(",")).join("\n");
+    } else {
+      // BCC-style: comma-separated emails. Paste into Gmail BCC field.
+      text = exportList.map(s => s.email.trim()).join(", ");
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      setCopyKind(kind);
+      setTimeout(() => setCopyKind(null), 2500);
+    });
+  };
 
   const badge = (label, val) => val ? (
     <span style={{background:"#e0f2fe",color:"#0369a1",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:20,whiteSpace:"nowrap"}}>{label}</span>
@@ -7570,6 +7618,54 @@ function AdminSignupsViewer({ onBack }) {
             })}
           </div>
         </div>
+        {/* Export emails panel */}
+        {!loading && filtered.length > 0 && (
+          <div style={{background:"#fff",borderRadius:12,border:"1px solid rgba(0,0,0,0.08)",borderLeft:"4px solid #16a34a",padding:"14px 18px",marginBottom:18}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",marginBottom:10}}>
+              <div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#15803d",letterSpacing:".04em"}}>📧 Export Email List</div>
+                <div style={{fontSize:12,color:"#555",marginTop:2}}>Paste the BCC list into Gmail → BCC field, then send your weekly email.</div>
+              </div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#15803d"}}>{exportList.length} email{exportList.length!==1?"s":""}</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:10}}>
+              <span style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",letterSpacing:".06em"}}>Filter:</span>
+              {[
+                ["all","Everyone (with email)"],
+                ["reminders","📅 Game Reminders"],
+                ["scores","📊 Score Alerts"],
+                ["playoffs","🏆 Playoff Updates"],
+                ["rainouts","🌧 Rainout Notices"],
+              ].map(([k,lbl]) => (
+                <button key={k} onClick={()=>setExportFilter(k)} style={{
+                  padding:"5px 12px",borderRadius:14,cursor:"pointer",border:"none",
+                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,
+                  background: exportFilter===k ? "#16a34a" : "rgba(0,0,0,0.06)",
+                  color: exportFilter===k ? "#fff" : "#555",
+                }}>{lbl}</button>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button onClick={()=>copyEmails("bcc")} disabled={exportList.length===0} style={{
+                padding:"9px 18px",border:"none",borderRadius:8,cursor:exportList.length===0?"default":"pointer",
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,letterSpacing:".04em",
+                background: exportList.length===0 ? "#d1d5db" : (copyKind==="bcc" ? "#22c55e" : "#15803d"),
+                color: "#fff",
+              }}>{copyKind==="bcc" ? "✓ Copied!" : "📋 Copy BCC List"}</button>
+              <button onClick={()=>copyEmails("csv")} disabled={exportList.length===0} style={{
+                padding:"9px 18px",border:`1px solid ${exportList.length===0?"#d1d5db":"#15803d"}`,borderRadius:8,cursor:exportList.length===0?"default":"pointer",
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,letterSpacing:".04em",
+                background: copyKind==="csv" ? "#dcfce7" : "#fff",
+                color: "#15803d",
+              }}>{copyKind==="csv" ? "✓ Copied CSV!" : "⬇ Copy CSV (full data)"}</button>
+            </div>
+            {exportList.length === 0 && (
+              <div style={{fontSize:12,color:"#888",marginTop:8,fontStyle:"italic"}}>
+                No real email addresses match this filter (placeholder addresses like none@none.com are excluded).
+              </div>
+            )}
+          </div>
+        )}
         {loading ? (
           <div style={{textAlign:"center",padding:40,color:"#aaa"}}>Loading…</div>
         ) : filtered.length === 0 ? (
