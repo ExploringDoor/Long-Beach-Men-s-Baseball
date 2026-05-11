@@ -10052,9 +10052,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         };
         if (seasonE) patchData.season_id = seasonE.id;
         await sbPatch(`games?id=eq.${editGameId}`, patchData);
-        // Delete old lines then reinsert fresh
-        await sbDelete(`batting_lines?game_id=eq.${editGameId}`);
-        await sbDelete(`pitching_lines?game_id=eq.${editGameId}`);
+        // NOTE: deletion of existing batting/pitching lines is deferred to
+        // the section below so it only happens IF we have new rows to
+        // insert. Otherwise a Score-Only resave (or a save where the new
+        // INSERT later fails) would silently wipe stats that someone
+        // already entered. See _replaceStats below.
         gid = editGameId;
       } else {
         // INSERT new game — detect which season based on teams
@@ -10082,9 +10084,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
             headline:headlineVal, status:gameStatus,
           });
-          // Clear old lines — they'll be reinserted fresh below
-          await sbDelete(`batting_lines?game_id=eq.${gid}`);
-          await sbDelete(`pitching_lines?game_id=eq.${gid}`);
+          // (deletion of stats deferred to the replace step below — only
+          // fires when new INSERT has rows to write, so a re-submit in
+          // Score Only mode can't wipe a prior full-stats submission)
         } else {
           const gameRes = await sbPost("games",[{
             season_id:season.id, game_date:_hsISODate, game_time:game.time, field:game.field,
@@ -10118,22 +10120,49 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             || (r.fc||0) || (r.roe||0) || (r.cs||0) || (r.hr||0)
             || (r.doubles||0) || (r.triples||0);
       });
+      const pitRows = [
+        ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
+        ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
+      ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
+        game_id:gid,player_name:cleanName(name),team:_t,
+        ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
+        decision:decision==="ND"?null:decision,
+      }));
+      // ── Atomic-ish replace: only delete existing stats if we have new
+      // rows to insert. Earlier behavior was unconditional DELETE then
+      // conditional INSERT, which silently wiped stats whenever a re-save
+      // happened in Score Only mode (no batRows) or whenever the INSERT
+      // failed for any reason (RLS, network, validation). Now a Score-Only
+      // resave preserves whatever was previously entered.
       let statsWarning = "";
+      let statsLost = false;
       try {
-        if(batRows.length) await sbPost("batting_lines",batRows);
-        const pitRows = [
-          ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
-          ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
-        ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
-          game_id:gid,player_name:cleanName(name),team:_t,
-          ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
-          decision:decision==="ND"?null:decision,
-        }));
-        if(pitRows.length) await sbPost("pitching_lines",pitRows);
+        if (batRows.length > 0) {
+          await sbDelete(`batting_lines?game_id=eq.${gid}`);
+          await sbPost("batting_lines", batRows);
+        }
+        if (pitRows.length > 0) {
+          await sbDelete(`pitching_lines?game_id=eq.${gid}`);
+          await sbPost("pitching_lines", pitRows);
+        }
       } catch(statsErr) {
-        statsWarning = " (game saved but player stats failed — re-open and save again to retry)";
+        statsLost = true;
+        statsWarning = ` — PLAYER STATS DID NOT SAVE: ${statsErr.message || statsErr}. Re-open this game and save again.`;
+        // Loud red toast at top of page so the admin can't miss it.
+        flashSaveErr(`Game saved but PLAYER STATS FAILED to save. ${statsErr.message || ""}`.slice(0, 200));
       }
-      setSaveMsg({ok:true,text:`✅ Box score ${editGameId?"updated":"saved"} for ${game.away} vs ${game.home}!${statsWarning}`});
+      if (statsLost) {
+        setSaveMsg({ok:false,text:`⚠️ Game record saved for ${game.away} vs ${game.home} but stats did NOT save.${statsWarning}`});
+      } else {
+        // If user submitted in Score Only mode AND existing batting_lines
+        // already existed on the DB record, let them know we preserved
+        // those stats rather than wiping them (the old behavior).
+        const scoreOnlySubmit = batRows.length === 0 && pitRows.length === 0;
+        const preservedNote = scoreOnlySubmit && editGameId
+          ? " · Player stats from previous submission preserved (you submitted in Score Only mode)."
+          : "";
+        setSaveMsg({ok:true,text:`✅ Box score ${editGameId?"updated":"saved"} for ${game.away} vs ${game.home}!${preservedNote}`});
+      }
       // Clear localStorage draft after successful submit
       const draftKey = bseDraftKey(game);
       if (draftKey) { try { localStorage.removeItem(draftKey); } catch(e) {} }
