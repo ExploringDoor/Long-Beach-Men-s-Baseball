@@ -10447,12 +10447,17 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         </div>
       )}
       {statMode==="full" && (
+        <div style={{marginBottom:8,padding:"7px 10px",background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:6,fontSize:12,color:"#78350f",lineHeight:1.4}}>
+          <strong>💡 A/B shared slot:</strong> in the <strong>ORDER</strong> column next to ▲▼ you can type <code style={{background:"#fff",padding:"1px 5px",borderRadius:3,fontWeight:700}}>1A</code> / <code style={{background:"#fff",padding:"1px 5px",borderRadius:3,fontWeight:700}}>1B</code> when two players share one batting spot (alternating turns or mid-game sub). Leave blank for default numbering.
+        </div>
+      )}
+      {statMode==="full" && (
         <div style={{overflowX:"auto",marginBottom:4}}>
           <table style={{borderCollapse:"collapse",fontSize:13,minWidth:"100%"}}>
             <thead>
               <tr style={{background:"#001a3e"}}>
                 <th style={{padding:"4px 2px",width:16}}/>
-                <th style={{padding:"4px 2px",width:32,textAlign:"center",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700}}>#</th>
+                <th style={{padding:"4px 4px",width:60,textAlign:"center",color:"rgba(255,255,255,0.6)",fontSize:10,fontWeight:700}} title="Batting order — type 1A/1B to share a slot">ORDER</th>
                 <th style={{padding:"4px 8px",textAlign:"left",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700,minWidth:120}}>PLAYER</th>
                 <th style={{padding:"4px 2px",width:46,textAlign:"center",color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:700}}>POS</th>
                 {BAT_LBLS.map(lbl=>(
@@ -10484,7 +10489,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                       <input type="text" value={p.slot||""} onChange={e=>updBat(setter,i,"slot",e.target.value)}
                         placeholder={String(i+1)}
                         title='Batting order — leave blank for default. Type "1A" / "1B" to share a slot (alternating turns or mid-game sub).'
-                        style={{width:32,padding:"2px 0",textAlign:"center",border:"1px solid #ddd",borderRadius:3,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:12,color:"#002d6e",lineHeight:1,background:p.slot?"#f0f4ff":"transparent"}}/>
+                        style={{width:42,padding:"4px 2px",textAlign:"center",border:`1.5px solid ${p.slot?"#b45309":"#cbd5e1"}`,borderRadius:5,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"#002d6e",lineHeight:1,background:p.slot?"#fef3c7":"#fff"}}/>
                       <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,1);}}
                         className="bs-order-btn"
                         style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:8,color:"#002d6e",padding:"2px 4px",fontWeight:900,lineHeight:1}}>▼</button>
