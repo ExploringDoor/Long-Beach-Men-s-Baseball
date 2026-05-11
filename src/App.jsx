@@ -1253,7 +1253,7 @@ function HomePage({ setTab, setTeamDetail }) {
               </div>
               {recentGames.length > 0
                 ? <div className="scores-grid" style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10,gridAutoRows:"1fr"}}>
-                    {recentGames.map((g,i) => <LiveBoxScoreFinalCard key={i} game={g} onTeamClick={goTeam} />)}
+                    {recentGames.map((g,i) => <LiveBoxScoreFinalCard key={g.id ?? i} game={g} onTeamClick={goTeam} />)}
                   </div>
                 : <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.08)",borderRadius:14,padding:"32px 24px",textAlign:"center"}}>
                     <div style={{fontSize:36,marginBottom:12}}>⚾</div>
@@ -1578,6 +1578,16 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
   const [batting, setBatting] = useState([]);
   const [pitching, setPitching] = useState([]);
   const [boxLoaded, setBoxLoaded] = useState(false);
+  // Defensive: if the parent re-uses this component for a different game
+  // (e.g. when the parent's list keys are unstable like key={i} across
+  // re-renders), reset the cached load so the next click re-fetches for
+  // the new game instead of showing the previous game's batting/pitching.
+  useEffect(() => {
+    setBoxLoaded(false);
+    setBatting([]);
+    setPitching([]);
+    setShowBox(false);
+  }, [game?.id]);
   const aWin = game.away_score > game.home_score, hWin = game.home_score > game.away_score;
   // Fetch box score, falling back to sibling game records if a team's rows are missing
   const loadBoxData = async () => {
@@ -1815,7 +1825,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
                 {fwWeek && (
                   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:12}}>
                     {fwWeek.games.map((g,i) => (
-                      <LiveBoxScoreFinalCard key={i} game={g} onTeamClick={goTeam} />
+                      <LiveBoxScoreFinalCard key={g.id ?? i} game={g} onTeamClick={goTeam} />
                     ))}
                   </div>
                 )}
@@ -1983,9 +1993,9 @@ function SchedulePage({ setTab, setTeamDetail }) {
             {games.map((g,i) => {
               const sc = schedScores[`${g.away}|${g.home}`];
               if (sc && sc.status === 'Final') {
-                return <LiveBoxScoreFinalCard key={i} game={sc} onTeamClick={goTeam} />;
+                return <LiveBoxScoreFinalCard key={sc.id ?? `${g.away}|${g.home}|${dateStr}`} game={sc} onTeamClick={goTeam} />;
               }
-              return <div key={i} style={{width:"100%"}}><UpcomingCard away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} /></div>;
+              return <div key={`${g.away}|${g.home}|${dateStr}|${i}`} style={{width:"100%"}}><UpcomingCard away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} /></div>;
             })}
           </div>
           {byeTeams.length > 0 && (
