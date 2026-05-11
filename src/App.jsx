@@ -10866,6 +10866,68 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           </div>
         </div>
 
+        {/* Already-submitted shortcut — looks up the saved game and jumps
+            straight to the editable stats table. Saves the captain from
+            redoing the lineup when the game was already submitted before. */}
+        <button type="button" onClick={async () => {
+          // Try to find an existing saved game for this matchup+date
+          try {
+            const seasons = await sbFetch("seasons?select=id,name&limit=50");
+            const isBoomer = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
+            const season = isBoomer
+              ? seasons.find(s => s.name.toLowerCase().includes("boomers"))
+              : (seasons.find(s => s.name.includes("Diamond Classics Saturdays")) || seasons.find(s => s.name.includes("Spring") && s.name.includes("2026")));
+            if (!season) { alert("Couldn't find a season for this game."); return; }
+            const iso = toISODate(game.date);
+            const dateFilter = iso ? `&game_date=eq.${iso}` : "";
+            const existing = await sbFetch(`games?select=*&away_team=eq.${encodeURIComponent(game.away)}&home_team=eq.${encodeURIComponent(game.home)}&season_id=eq.${season.id}${dateFilter}&order=id.desc&limit=1`);
+            if (!existing || !existing.length) {
+              // No saved game yet — just open the edit table empty in Full Stats
+              setAwayStatMode("full"); setHomeStatMode("full");
+              setBsePhase("entry");
+              return;
+            }
+            const g = existing[0];
+            const [batLines, pitLines] = await Promise.all([
+              sbFetch(`batting_lines?select=*&game_id=eq.${g.id}&order=id.asc&limit=100`),
+              sbFetch(`pitching_lines?select=*&game_id=eq.${g.id}&order=id.asc&limit=50`),
+            ]);
+            const fromIP_ = (ip) => ip ? String(ip) : "";
+            const toBLocal = (b,bid=Math.random()) => {
+              const d=+b.doubles||0, t=+b.triples||0, hr=+b.hr||0;
+              return { _id:bid, name:b.player_name, on:true, slot:b.slot||"",
+                ab:+b.ab||0, r:+b.r||0, singles:Math.max(0,(+b.h||0)-d-t-hr), doubles:d, triples:t, hr,
+                rbi:+b.rbi||0, bb:+b.bb||0, hbp:+b.hbp||0, k:+b.k||0, sb:+b.sb||0,
+                sf:+b.sf||0, sac:+b.sac||0, fc:+b.fc||0, roe:+b.roe||0, cs:+b.cs||0, e:0, pos:"" };
+            };
+            const toPLocal = (p) => ({ name:p.player_name, ip:fromIP_(p.ip), h:+p.h||0, r:+p.r||0, er:+p.er||0, bb:+p.bb||0, k:+p.k||0, hr:+p.hr||0, decision:p.decision||"ND" });
+            const awayB = batLines.filter(b => b.team === g.away_team);
+            const homeB = batLines.filter(b => b.team === g.home_team);
+            const awayP = pitLines.filter(p => p.team === g.away_team);
+            const homeP = pitLines.filter(p => p.team === g.home_team);
+            setEditGameId(g.id);
+            setAwayScore(String(g.away_score ?? ""));
+            setHomeScore(String(g.home_score ?? ""));
+            const submittedMatch = (g.headline||"").match(/\s*\[submitted:[^\]]*\]/);
+            setEditSubmittedTag(submittedMatch ? submittedMatch[0] : "");
+            setHeadline((g.headline||"").replace(/\s*\[submitted:[^\]]*\]/,"").trim());
+            setGameStatus(g.status || "Final");
+            setAwayBat(awayB.length ? awayB.map(toBLocal) : initBatters(g.away_team));
+            setHomeBat(homeB.length ? homeB.map(toBLocal) : initBatters(g.home_team));
+            setAwayPit(awayP.length ? awayP.map(toPLocal) : [blankPitcher()]);
+            setHomePit(homeP.length ? homeP.map(toPLocal) : [blankPitcher()]);
+            setAwayStatMode("full"); setHomeStatMode("full");
+            setBsePhase("entry");
+          } catch (err) {
+            // Fall back to plain entry if the lookup fails
+            setAwayStatMode("full"); setHomeStatMode("full");
+            setBsePhase("entry");
+          }
+        }}
+          style={{width:"100%",padding:"10px 14px",marginBottom:10,background:"#fff",border:"2px dashed #b45309",borderRadius:10,color:"#b45309",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,textTransform:"uppercase",letterSpacing:".06em",cursor:"pointer"}}>
+          ⚡ Game Already Submitted? Skip Lineup → Edit Stats
+        </button>
+
         {/* Skip / Confirm buttons */}
         <div style={{display:"flex",gap:10}}>
           <button onClick={()=>{ setTeamMode("simple"); setBsePhase("entry"); setScoreOnlyMode(true); }}
