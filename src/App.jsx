@@ -1396,7 +1396,15 @@ function BoxScoreModal({ game, batting, pitching, onClose }) {
     );
   };
   const PitTable = ({ rows: rawPitRows, team }) => {
-    const rows = rawPitRows.filter(r => !/^totals?$/i.test(r.player_name));
+    // Filter: drop "Totals" placeholder rows AND zero-stat pitcher rows
+    // (captains who typed a name into the pitcher list but didn't enter
+    // IP/H/etc). Matches the same defense-in-depth as the batting table.
+    const rows = rawPitRows.filter(r => {
+      if (/^totals?$/i.test(r.player_name)) return false;
+      const any = (parseFloat(r.ip)||0) || (r.h||0) || (r.r||0) || (r.er||0)
+        || (r.bb||0) || (r.k||0) || !!r.decision;
+      return any;
+    });
     if(rows.length === 0) return null;
     const winner = rows.find(r=>r.decision==="W");
     const loser  = rows.find(r=>r.decision==="L");
@@ -10127,7 +10135,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         game_id:gid,player_name:cleanName(name),team:_t,
         ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
         decision:decision==="ND"?null:decision,
-      }));
+      })).filter(r => {
+        // Same defense-in-depth as batting: drop pitcher rows where every
+        // stat is zero AND no decision (W/L/S) is set. Captains who type
+        // a pitcher's name but don't fill IP/H/etc create rows that
+        // pollute the public box score view with all-zero pitching lines.
+        return (r.ip||0) || (r.h||0) || (r.r||0) || (r.er||0)
+            || (r.bb||0) || (r.k||0) || !!r.decision;
+      });
       // ── Atomic-ish replace: only delete existing stats if we have new
       // rows to insert. Earlier behavior was unconditional DELETE then
       // conditional INSERT, which silently wiped stats whenever a re-save
