@@ -2486,30 +2486,90 @@ function PlayerStatsModal({ playerName, onClose }) {
         if (!Array.isArray(lines) || lines.length === 0) { setAllSeasons([]); return; }
 
         const gameIds = [...new Set(lines.map(l => l.game_id))];
-        const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc`);
-        // Dedupe duplicate game records (same date + teams) from captains double-submitting box scores
-        const dedupedGames = dedupGames(games);
-        const validGameIds = new Set(dedupedGames.map(g => g.id));
-        const dedupedLines = lines.filter(l => validGameIds.has(l.game_id));
+        const gamesRaw = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc`);
+
+        // Pull sibling games on the same date+matchup so the canonical record
+        // surfaces even when the player's line is attached to an orphan
+        // duplicate (e.g. lines saved to season 36 instead of season 2). The
+        // game log used to drop these entirely. See the StatsPage loadPlayer
+        // fix for the same pattern.
+        let games = [...gamesRaw];
+        const dates = [...new Set(gamesRaw.map(g => g.game_date).filter(Boolean))];
+        if (dates.length) {
+          const dateList = dates.map(d => `"${d}"`).join(",");
+          const matchups = new Set(gamesRaw.filter(g => g.game_date).map(g => `${g.game_date}|${g.away_team}|${g.home_team}`));
+          const sibs = await sbFetch(`games?select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&game_date=in.(${dateList})&limit=500`);
+          const existing = new Set(gamesRaw.map(g => g.id));
+          (sibs || []).forEach(g => {
+            if (existing.has(g.id) || !g.game_date) return;
+            const k = `${g.game_date}|${g.away_team}|${g.home_team}`;
+            if (matchups.has(k)) { games.push(g); existing.add(g.id); }
+          });
+        }
+
+        // Identify current-Saturday season IDs across the entire seasons table
+        // (not just seasons seen on this player's lines) so we know to prefer
+        // them as canonical.
+        const allSeasonList = await sbFetch(`seasons?select=id,name,year&limit=100`);
+        const isCurSat = s => s.name && (
+          s.name.includes("Diamond Classics Saturdays")
+          || (s.name.includes("Spring") && s.name.includes("2026") && !s.name.toLowerCase().includes("boomers"))
+        );
+        const curSatIds = new Set(allSeasonList.filter(isCurSat).map(s => s.id));
+        const curSatPrimary = allSeasonList.find(s => s.name === "Spring/Summer 2026") || allSeasonList.find(s => isCurSat(s));
+        if (curSatPrimary) setCurSeasonSid(curSatPrimary.id);
+        const curSatPrimaryName = curSatPrimary?.name || "Spring/Summer 2026";
+
+        // Canonical-game-per-gameKey, preferring current-Saturday over orphans.
+        const canonicalByKey = {};
+        games.forEach(g => {
+          if (!g.game_date) return;
+          const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
+          const cur = canonicalByKey[key];
+          const isCur = curSatIds.has(g.season_id);
+          if (!cur) { canonicalByKey[key] = g; return; }
+          const curIsCur = curSatIds.has(cur.season_id);
+          if (isCur && !curIsCur) { canonicalByKey[key] = g; return; }
+          if (!isCur && curIsCur) return;
+          const score = (g.away_score||0)+(g.home_score||0);
+          const curScore = (cur.away_score||0)+(cur.home_score||0);
+          if (score > curScore) canonicalByKey[key] = g;
+        });
+        const gameIdToCanonical = {};
+        games.forEach(g => {
+          if (!g.game_date) return;
+          const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
+          const canonical = canonicalByKey[key];
+          if (canonical) gameIdToCanonical[g.id] = canonical.id;
+        });
+        const dedupedGames = Object.values(canonicalByKey);
+
+        // Dedup lines per (canonicalId, team) by best PA score.
+        const linesBest = {};
+        lines.forEach(l => {
+          const canonicalId = gameIdToCanonical[l.game_id];
+          if (!canonicalId) return;
+          const k = `${canonicalId}||${l.team||""}`;
+          const pa = (l.ab||0)+(l.bb||0)+(l.hbp||0)+(l.sf||0);
+          const sc = pa*100 + (l.h||0) + (l.rbi||0);
+          if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...l, game_id: canonicalId, __s: sc };
+        });
+        const dedupedLines = Object.values(linesBest);
+
         const seasonIds = [...new Set(dedupedGames.map(g => g.season_id))];
-        const seasonList = await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.asc`);
-
-        // All sat season IDs (same logic as getSatSeasonFilter)
-        const satSidSet = new Set(seasonList.filter(s => s.name.includes("Diamond Classics Saturdays") || (s.name.includes("Spring") && s.name.includes("2026"))).map(s => s.id));
-        const curSat = seasonList.find(s => s.name.includes("Diamond Classics Saturdays")) || seasonList.find(s => s.name.includes("Spring") && s.name.includes("2026")) || seasonList[seasonList.length - 1];
-        if (curSat) setCurSeasonSid(curSat.id);
-
+        const seasonList = seasonIds.length
+          ? await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.asc`)
+          : [];
         const seasonNameMap = Object.fromEntries(seasonList.map(s => [s.id, s.name]));
         const gameMap = Object.fromEntries(dedupedGames.map(g => [g.id, g]));
 
-        // Group lines by season — merge all sat season IDs into one "current season" bucket
+        // Group lines by season — collapse all current-Saturday IDs into one bucket
         const bySeasonId = {};
         for (const l of dedupedLines) {
           const g = gameMap[l.game_id];
           if (!g) continue;
-          // Normalize: treat all sat season IDs as the same bucket
-          const sid = (satSidSet.size > 0 && satSidSet.has(g.season_id)) ? (curSat?.id || g.season_id) : g.season_id;
-          const name = satSidSet.has(g.season_id) ? (seasonList.find(s => s.name.includes("Diamond Classics Saturdays"))?.name || seasonList.find(s => s.name.includes("Spring") && s.name.includes("2026"))?.name || "Spring/Summer 2026") : (seasonNameMap[g.season_id]||"?");
+          const sid = curSatIds.has(g.season_id) ? (curSatPrimary?.id || g.season_id) : g.season_id;
+          const name = curSatIds.has(g.season_id) ? curSatPrimaryName : (seasonNameMap[g.season_id]||"?");
           if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
           const s = bySeasonId[sid];
           s.games.add(l.game_id);
@@ -2524,13 +2584,16 @@ function PlayerStatsModal({ playerName, onClose }) {
         }));
         setAllSeasons(result);
 
-        // Build game log for current season (all sat season IDs)
+        // Game log — every current-Saturday game the player has a line on.
+        // Dropped the `status === "Final"` check because some games store
+        // status as "F" instead, which silently filtered them out.
         const linesByGameId = {};
         for (const l of dedupedLines) {
           if (!linesByGameId[l.game_id]) linesByGameId[l.game_id] = l;
         }
         const log = dedupedGames
-          .filter(g => (satSidSet.size > 0 ? satSidSet.has(g.season_id) : curSat && g.season_id === curSat.id) && g.status === "Final")
+          .filter(g => curSatIds.has(g.season_id))
+          .sort((a, b) => (b.game_date||"").localeCompare(a.game_date||""))
           .map(g => {
             const l = linesByGameId[g.id];
             if (!l) return null;
