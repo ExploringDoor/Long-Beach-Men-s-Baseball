@@ -2555,7 +2555,10 @@ function PlayerStatsModal({ playerName, onClose }) {
         // Fetch pitching
         try {
           const pitEnc = encodeURIComponent(`*${playerName}*`);
-          const pitLines = await sbFetch(`pitching_lines?player_name=ilike.${pitEnc}&select=game_id,ip,h,r,er,bb,k,hr,decision&order=game_id.asc&limit=500`);
+          // pitching_lines schema has no `hr` column — including it caused
+          // PostgREST 400s that were swallowed by the try/catch below, so
+          // Career Pitching never rendered on the player modal.
+          const pitLines = await sbFetch(`pitching_lines?player_name=ilike.${pitEnc}&select=game_id,ip,h,r,er,bb,k,decision&order=game_id.asc&limit=500`);
           if (Array.isArray(pitLines) && pitLines.length > 0) {
             const pitGameIds = [...new Set(pitLines.map(l => l.game_id))];
             const pitGames = await sbFetch(`games?id=in.(${pitGameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score&order=id.asc`);
@@ -2571,10 +2574,10 @@ function PlayerStatsModal({ playerName, onClose }) {
             for (const l of dedupedPitLines) {
               const sid = pitGameSeasonMap[l.game_id];
               if (!sid) continue;
-              if (!pitBySeason[sid]) pitBySeason[sid] = {name:pitSeasonNameMap[sid]||"?",app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,hr:0,w:0,l:0,sv:0};
+              if (!pitBySeason[sid]) pitBySeason[sid] = {name:pitSeasonNameMap[sid]||"?",app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,w:0,l:0,sv:0};
               const s = pitBySeason[sid];
               s.app++; s.ip+=parseFloat(l.ip)||0; s.h+=l.h||0; s.r+=l.r||0; s.er+=l.er||0;
-              s.bb+=l.bb||0; s.k+=l.k||0; s.hr+=l.hr||0;
+              s.bb+=l.bb||0; s.k+=l.k||0;
               if(l.decision==="W") s.w++; if(l.decision==="L") s.l++; if(l.decision==="S") s.sv++;
             }
             const pitResult = Object.entries(pitBySeason).map(([sid,s])=>({
@@ -2750,12 +2753,13 @@ function PlayerStatsModal({ playerName, onClose }) {
             {pitSeasons && pitSeasons.length > 0 && (() => {
               const pitCareer = pitSeasons.reduce((a,s)=>({
                 app:a.app+s.app, ip:a.ip+s.ip, h:a.h+s.h, r:a.r+s.r, er:a.er+s.er,
-                bb:a.bb+s.bb, k:a.k+s.k, hr:a.hr+s.hr, w:a.w+s.w, l:a.l+s.l, sv:a.sv+s.sv,
-              }),{app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,hr:0,w:0,l:0,sv:0});
+                bb:a.bb+s.bb, k:a.k+s.k, w:a.w+s.w, l:a.l+s.l, sv:a.sv+s.sv,
+              }),{app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,w:0,l:0,sv:0});
               const fmtIp = ip=>`${Math.floor(ip)}.${Math.round((ip%1)*3)}`;
               const fmtEra = (er,ip)=>ip>0?((er/ip)*9).toFixed(2):"---";
               const fmtWhip = (h,bb,ip)=>ip>0?((h+bb)/ip).toFixed(2):"---";
-              const pitCols=["SEASON","APP","IP","W","L","SV","ERA","WHIP","H","R","ER","BB","K","HR"];
+              // pitching_lines table has no HR column — table dropped to match.
+              const pitCols=["SEASON","APP","IP","W","L","SV","ERA","WHIP","H","R","ER","BB","K"];
               return (
                 <div>
                   <div style={{padding:"16px 20px 8px",fontWeight:700,fontSize:17,color:"#111"}}>Career Pitching</div>
@@ -2784,7 +2788,6 @@ function PlayerStatsModal({ playerName, onClose }) {
                             <td style={{padding:"9px 8px",textAlign:"center"}}>{s.er}</td>
                             <td style={{padding:"9px 8px",textAlign:"center"}}>{s.bb}</td>
                             <td style={{padding:"9px 8px",textAlign:"center"}}>{s.k}</td>
-                            <td style={{padding:"9px 8px",textAlign:"center",color:s.hr>0?"#c8102e":"inherit"}}>{s.hr}</td>
                           </tr>
                         ))}
                         <tr style={{borderTop:"2px solid #002d6e",background:"#fff",fontWeight:700}}>
@@ -2801,7 +2804,6 @@ function PlayerStatsModal({ playerName, onClose }) {
                           <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.er}</td>
                           <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.bb}</td>
                           <td style={{padding:"9px 8px",textAlign:"center"}}>{pitCareer.k}</td>
-                          <td style={{padding:"9px 8px",textAlign:"center",color:"#c8102e"}}>{pitCareer.hr}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -3058,7 +3060,11 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       const gameKeyById = {};
       games.forEach(g => { gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`; });
       const allIds = games.map(g => g.id).join(",");
-      const rawLines = await sbFetch(`pitching_lines?select=game_id,player_name,ip,h,r,er,bb,k,hr,decision&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`);
+      // NOTE: pitching_lines does NOT have an `hr` column in the schema —
+      // selecting it causes a 400 from PostgREST and silently wipes the
+      // whole query. (PlayerStatsModal had this same bug for ages, which
+      // is why Career Pitching never rendered on the player modal.)
+      const rawLines = await sbFetch(`pitching_lines?select=game_id,player_name,ip,h,r,er,bb,k,decision&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`);
       // Dedup pitching lines at game-key + player level. If a player appears in
       // a duplicated game record, keep the row with the most innings.
       const linesBest = {};
@@ -3076,12 +3082,12 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         const any = (parseFloat(l.ip)||0) || (l.h||0) || (l.r||0) || (l.er||0)
                  || (l.bb||0) || (l.k||0) || !!l.decision;
         if (!any) return;
-        if (!map[l.player_name]) map[l.player_name] = {app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,hr:0,w:0,l:0,sv:0};
+        if (!map[l.player_name]) map[l.player_name] = {app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,w:0,l:0,sv:0};
         const p = map[l.player_name];
         p.app++;
         p.ip += parseIP(l.ip);
         p.h += l.h||0; p.r += l.r||0; p.er += l.er||0;
-        p.bb += l.bb||0; p.k += l.k||0; p.hr += l.hr||0;
+        p.bb += l.bb||0; p.k += l.k||0;
         if (l.decision === "W") p.w++;
         if (l.decision === "L") p.l++;
         if (l.decision === "S") p.sv++;
@@ -3356,7 +3362,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                     <thead>
                       <tr style={{background:"#f8f9fb",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>
                         <th style={{padding:"9px 10px 9px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Player</th>
-                        {["APP","IP","W","L","SV","ERA","WHIP","H","R","ER","BB","K","HR"].map(c => (
+                        {["APP","IP","W","L","SV","ERA","WHIP","H","R","ER","BB","K"].map(c => (
                           <th key={c} style={{padding:"9px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",color:(c==="ERA"||c==="WHIP")?"rgba(0,45,110,0.6)":"rgba(0,0,0,0.4)"}}>{c}</th>
                         ))}
                       </tr>
@@ -3385,7 +3391,6 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                             <td style={{padding:"9px 8px",textAlign:"center"}}>{p.er}</td>
                             <td style={{padding:"9px 8px",textAlign:"center"}}>{p.bb}</td>
                             <td style={{padding:"9px 8px",textAlign:"center"}}>{p.k}</td>
-                            <td style={{padding:"9px 8px",textAlign:"center",color:p.hr>0?"#c8102e":"inherit"}}>{p.hr}</td>
                           </tr>
                       ))}
                     </tbody>
