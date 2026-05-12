@@ -2889,6 +2889,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   // display the final if the game has already been played.
   const [scheduleScores, setScheduleScores] = useState({});
   const [teamStats, setTeamStats] = useState({});   // player_name → aggregated batting stats
+  const [teamPitching, setTeamPitching] = useState({}); // player_name → aggregated pitching stats
   const [recentGames, setRecentGames] = useState([]); // last 5 final games from Supabase
   // Map of "ISODate|away|home" → {away_score, home_score, status} for every
   // completed game this team has played. Used by the season-schedule card so
@@ -3035,6 +3036,66 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         p.opsN = obpN+slgN;
       });
       setTeamStats(map);
+    }).catch(() => {});
+  }, [teamName]);
+  // Fetch and aggregate pitching stats for this team. Mirrors the batting
+  // aggregation pattern above: pull all games, then all pitching_lines for the
+  // team, dedupe by gameKey (in case of duplicate game rows), and sum per
+  // player. Drives the "Pitching" stats card below the roster.
+  useEffect(() => {
+    const isBoomers = BOOMERS_TEAMS.has(teamName);
+    const enc = encodeURIComponent;
+    sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
+      const satIds = getSatSeasonFilter(seasons);
+      const s = isBoomers
+        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
+        : null;
+      const seasonFilter = isBoomers ? `season_id=eq.${s?.id}` : `season_id=in.(${satIds.join(",")})`;
+      if (isBoomers && !s) return;
+      if (!isBoomers && !satIds.length) return;
+      const games = await sbFetch(`games?select=id,game_date,away_team,home_team&${seasonFilter}&limit=200`);
+      if (!games || !games.length) return;
+      const gameKeyById = {};
+      games.forEach(g => { gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`; });
+      const allIds = games.map(g => g.id).join(",");
+      const rawLines = await sbFetch(`pitching_lines?select=game_id,player_name,ip,h,r,er,bb,k,hr,decision&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`);
+      // Dedup pitching lines at game-key + player level. If a player appears in
+      // a duplicated game record, keep the row with the most innings.
+      const linesBest = {};
+      (rawLines || []).forEach(r => {
+        if (!r.player_name) return;
+        const gk = gameKeyById[r.game_id]; if (!gk) return;
+        const k = `${r.player_name}||${gk}`;
+        const ip = parseFloat(r.ip)||0;
+        if (!linesBest[k] || ip > (parseFloat(linesBest[k].ip)||0)) linesBest[k] = r;
+      });
+      const lines = Object.values(linesBest);
+      const map = {};
+      lines.forEach(l => {
+        // Skip phantom rows (no IP and no other counting stats and no decision)
+        const any = (parseFloat(l.ip)||0) || (l.h||0) || (l.r||0) || (l.er||0)
+                 || (l.bb||0) || (l.k||0) || !!l.decision;
+        if (!any) return;
+        if (!map[l.player_name]) map[l.player_name] = {app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,hr:0,w:0,l:0,sv:0};
+        const p = map[l.player_name];
+        p.app++;
+        p.ip += parseIP(l.ip);
+        p.h += l.h||0; p.r += l.r||0; p.er += l.er||0;
+        p.bb += l.bb||0; p.k += l.k||0; p.hr += l.hr||0;
+        if (l.decision === "W") p.w++;
+        if (l.decision === "L") p.l++;
+        if (l.decision === "S") p.sv++;
+      });
+      Object.values(map).forEach(p => {
+        // Pre-compute numeric + display values so the table can sort by raw
+        // numbers but show formatted strings.
+        p.ipDisplay = `${Math.floor(p.ip)}.${Math.round((p.ip%1)*3)}`;
+        p.eraN = p.ip > 0 ? (p.er/p.ip)*9 : 99;
+        p.whipN = p.ip > 0 ? (p.h+p.bb)/p.ip : 99;
+        p.era = p.ip > 0 ? p.eraN.toFixed(2) : "—";
+        p.whip = p.ip > 0 ? p.whipN.toFixed(2) : "—";
+      });
+      setTeamPitching(map);
     }).catch(() => {});
   }, [teamName]);
   useEffect(() => {
@@ -3282,6 +3343,57 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               })()}
             </Card>
           </div>
+          {/* Pitching stats — separate card below batting. Only renders if at
+              least one player on this team has logged pitching innings. A
+              manager pointed out the team page was batting-only; this fixes
+              that. Columns mirror the PlayerStatsModal career pitching table. */}
+          {Object.keys(teamPitching).length > 0 && (
+            <div style={{marginBottom:28}}>
+              <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Pitching</h2>
+              <Card style={{padding:0}}>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                    <thead>
+                      <tr style={{background:"#f8f9fb",borderBottom:"2px solid rgba(0,0,0,0.08)"}}>
+                        <th style={{padding:"9px 10px 9px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Player</th>
+                        {["APP","IP","W","L","SV","ERA","WHIP","H","R","ER","BB","K","HR"].map(c => (
+                          <th key={c} style={{padding:"9px 8px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",color:(c==="ERA"||c==="WHIP")?"rgba(0,45,110,0.6)":"rgba(0,0,0,0.4)"}}>{c}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(teamPitching)
+                        // Sort by IP descending so the workhorses surface first.
+                        .sort((a,b) => b[1].ip - a[1].ip)
+                        .map(([name, p], i) => (
+                          <tr key={name} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa",cursor:"pointer",transition:"background .1s"}}
+                            onClick={() => setSelectedPlayer(name)}
+                            onMouseEnter={e=>e.currentTarget.style.background=`${color}0d`}
+                            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}>
+                            <td style={{padding:"9px 10px 9px 16px",fontWeight:600,whiteSpace:"nowrap"}}>
+                              <span style={{color:color,textDecoration:"underline",textDecorationStyle:"dotted"}}>{name}</span>
+                            </td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{p.app}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",fontWeight:700}}>{p.ipDisplay}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",color:p.w>0?"#16a34a":"inherit",fontWeight:p.w>0?700:400}}>{p.w}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",color:p.l>0?"#dc2626":"inherit"}}>{p.l}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{p.sv}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",fontWeight:700,color:color}}>{p.era}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",fontWeight:600,color:color}}>{p.whip}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{p.h}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{p.r}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{p.er}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{p.bb}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center"}}>{p.k}</td>
+                            <td style={{padding:"9px 8px",textAlign:"center",color:p.hr>0?"#c8102e":"inherit"}}>{p.hr}</td>
+                          </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
           {boxGame && <BoxScoreModal game={{...boxGame, away_team:boxGame.away_team, home_team:boxGame.home_team}} batting={boxBatting} pitching={boxPitching} onClose={()=>setBoxGame(null)} />}
           {recentGames.length > 0 && (
             <div>
