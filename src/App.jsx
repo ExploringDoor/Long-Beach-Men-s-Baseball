@@ -10401,12 +10401,36 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           gid = gameRes[0].id;
         }
       }
+      // Resolve auto-numbered slots so the saved batting_lines match what
+      // the captain saw in the editor. If they left a row's ORDER input
+      // blank, the placeholder showed (e.g.) "9" when 8 had A/B sharing —
+      // mirror that calculation here so the saved slot is "9" too, not null.
+      // Walks the lineup the same way the UI placeholder logic does:
+      // typed slots (e.g. "8A") claim their leading number, empty active
+      // rows fill the lowest unused number.
+      const resolveSlots = (batters) => {
+        const used = new Set();
+        return batters.map(p => {
+          if (!p.on) return { ...p, _slot: null };
+          const typed = (p.slot || "").trim();
+          if (typed) {
+            const m = typed.match(/^(\d+)/);
+            if (m) used.add(+m[1]);
+            return { ...p, _slot: typed };
+          }
+          let n = 1; while (used.has(n)) n++;
+          used.add(n);
+          return { ...p, _slot: String(n) };
+        });
+      };
+      const awayBatResolved = resolveSlots(awayBat);
+      const homeBatResolved = resolveSlots(homeBat);
       const batRows = [
-        ...(awayStatMode==="full" ? awayBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
-        ...(homeStatMode==="full" ? homeBat.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})) : []),
-      ].map(({name,_t,slot,ab,r,singles,doubles,triples,hr,rbi,bb,hbp,k,sb,sf,sac,fc,roe,cs,e})=>({
+        ...(awayStatMode==="full" ? awayBatResolved.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
+        ...(homeStatMode==="full" ? homeBatResolved.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})) : []),
+      ].map(({name,_t,_slot,ab,r,singles,doubles,triples,hr,rbi,bb,hbp,k,sb,sf,sac,fc,roe,cs,e})=>({
         game_id:gid,player_name:cleanName(name),team:_t,
-        slot:(slot||"").trim()||null,
+        slot:_slot || null,
         ab:+ab||0,r:+r||0,
         h:(+singles||0)+(+doubles||0)+(+triples||0)+(+hr||0),
         doubles:+doubles||0,triples:+triples||0,
