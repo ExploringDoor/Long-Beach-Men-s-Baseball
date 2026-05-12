@@ -3350,7 +3350,12 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               const wlt = won ? "W" : lost ? "L" : tied ? "T" : "";
               const wltColor = won ? "#16a34a" : lost ? "#dc2626" : tied ? "#b45309" : "#888";
               return (
-              <div key={i} style={{display:"grid",gridTemplateColumns:"52px 48px 1fr auto",alignItems:"center",gap:8,padding:"10px 16px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:badge?"rgba(200,16,46,0.04)":(i%2===0?"transparent":"rgba(0,0,0,0.01)"),opacity:badge?0.72:1}}>
+              // minmax(0,1fr) on the opponent column lets it shrink below its
+              // natural width when team names are long (e.g. "Greg Maddux
+              // Magicians '66"). Without this, the opponent column hogs space
+              // and the "auto" score column at the right edge gets clipped —
+              // user saw "L 6-1" with the 2 missing on long-name rows.
+              <div key={i} style={{display:"grid",gridTemplateColumns:"52px 48px minmax(0,1fr) auto",alignItems:"center",gap:8,padding:"10px 14px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:badge?"rgba(200,16,46,0.04)":(i%2===0?"transparent":"rgba(0,0,0,0.01)"),opacity:badge?0.72:1}}>
                 <div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#111",lineHeight:1,textDecoration:badge?"line-through":"none"}}>{g.date}</div>
                   <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2,textDecoration:badge?"line-through":"none"}}>{g.time}</div>
@@ -3365,20 +3370,20 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                 }}>
                   {badge ? (isCAN?"CAN":"PPD") : (g.isHome?"HOME":"AWAY")}
                 </div>
-                <div>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
                     <TLogo name={g.opponent} size={44} />
-                    <div>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,color:badge?"#888":"#111",textTransform:"uppercase",lineHeight:1,textDecoration:badge?"line-through":"none"}}>{g.isHome?"vs":"@"} {g.opponent}</div>
-                      <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.field.replace("Clark Field — Long Beach","Clark Field").replace("Fromhold Field — San Pedro","Fromhold Field").replace("St Pius X — Downey","St Pius X")}</div>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,color:badge?"#888":"#111",textTransform:"uppercase",lineHeight:1.1,textDecoration:badge?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis"}}>{g.isHome?"vs":"@"} {g.opponent}</div>
+                      <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.field.replace("Clark Field — Long Beach","Clark Field").replace("Fromhold Field — San Pedro","Fromhold Field").replace("St Pius X — Downey","St Pius X")}</div>
                       {g.notes && <div style={{fontSize:10,color:"#c8102e",marginTop:2,fontWeight:700}}>📝 {g.notes}</div>}
                     </div>
                   </div>
                 </div>
                 {hasFinal && (
-                  <div style={{display:"flex",alignItems:"center",gap:8,paddingLeft:6}}>
-                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:wltColor,minWidth:14,textAlign:"center"}}>{wlt}</span>
-                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",whiteSpace:"nowrap"}}>{myScore}–{oppScore}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:6,paddingLeft:4,flexShrink:0}}>
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:wltColor,minWidth:12,textAlign:"center"}}>{wlt}</span>
+                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#111",whiteSpace:"nowrap"}}>{myScore}–{oppScore}</span>
                   </div>
                 )}
               </div>
