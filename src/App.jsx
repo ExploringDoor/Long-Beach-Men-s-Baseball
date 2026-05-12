@@ -10278,8 +10278,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // ── Helpers ──
   const updBat = (setter,i,f,v) => setter(p=>p.map((r,j)=>{
     if(j!==i) return r;
-    // pos and name are strings — skip numeric coercion
-    if(f==="pos" || f==="name") return {...r,[f]:v};
+    // pos, name, and slot are strings — skip numeric coercion.
+    // Without `slot` in this list, typing "8A" coerced to NaN → 0, which
+    // is why captains couldn't enter A/B shared-slot labels.
+    if(f==="pos" || f==="name" || f==="slot") return {...r,[f]:v};
     const vn = Math.max(0, +v||0);
     const u = {...r, [f]:vn};
 
