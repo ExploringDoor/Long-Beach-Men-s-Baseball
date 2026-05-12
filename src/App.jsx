@@ -2482,10 +2482,23 @@ function PlayerStatsModal({ playerName, onClose }) {
     async function load() {
       try {
         const enc = encodeURIComponent(`*${playerName}*`);
-        const lines = await sbFetch(`batting_lines?player_name=ilike.${enc}&select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&order=game_id.asc&limit=1000`);
-        if (!Array.isArray(lines) || lines.length === 0) { setAllSeasons([]); return; }
+        // Fetch batting + pitching lines together so we have the full appearance
+        // picture upfront. GP must include games where the player only pitched
+        // (e.g. a relief pitcher who never bats) — per user request. The
+        // batting + pitching lines may reference different game_ids, so union
+        // them before the games fetch.
+        const [lines, pitLinesRaw] = await Promise.all([
+          sbFetch(`batting_lines?player_name=ilike.${enc}&select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&order=game_id.asc&limit=1000`),
+          sbFetch(`pitching_lines?player_name=ilike.${enc}&select=game_id,team,ip,h,r,er,bb,k,decision&order=game_id.asc&limit=500`),
+        ]);
+        const safeBat = Array.isArray(lines) ? lines : [];
+        const safePit = Array.isArray(pitLinesRaw) ? pitLinesRaw : [];
+        if (safeBat.length === 0 && safePit.length === 0) { setAllSeasons([]); setPitSeasons([]); return; }
 
-        const gameIds = [...new Set(lines.map(l => l.game_id))];
+        const gameIds = [...new Set([
+          ...safeBat.map(l => l.game_id),
+          ...safePit.map(l => l.game_id),
+        ])];
         const gamesRaw = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc`);
 
         // Pull sibling games on the same date+matchup so the canonical record
@@ -2544,9 +2557,9 @@ function PlayerStatsModal({ playerName, onClose }) {
         });
         const dedupedGames = Object.values(canonicalByKey);
 
-        // Dedup lines per (canonicalId, team) by best PA score.
+        // Dedup batting lines per (canonicalId, team) by best PA score.
         const linesBest = {};
-        lines.forEach(l => {
+        safeBat.forEach(l => {
           const canonicalId = gameIdToCanonical[l.game_id];
           if (!canonicalId) return;
           const k = `${canonicalId}||${l.team||""}`;
@@ -2556,6 +2569,18 @@ function PlayerStatsModal({ playerName, onClose }) {
         });
         const dedupedLines = Object.values(linesBest);
 
+        // Dedup pitching lines per canonicalId (keep most innings).
+        const pitLinesBest = {};
+        safePit.forEach(l => {
+          const canonicalId = gameIdToCanonical[l.game_id];
+          if (!canonicalId) return;
+          const ipNum = parseFloat(l.ip)||0;
+          if (!pitLinesBest[canonicalId] || ipNum > (parseFloat(pitLinesBest[canonicalId].ip)||0)) {
+            pitLinesBest[canonicalId] = { ...l, game_id: canonicalId };
+          }
+        });
+        const dedupedPitLines = Object.values(pitLinesBest);
+
         const seasonIds = [...new Set(dedupedGames.map(g => g.season_id))];
         const seasonList = seasonIds.length
           ? await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.asc`)
@@ -2563,13 +2588,22 @@ function PlayerStatsModal({ playerName, onClose }) {
         const seasonNameMap = Object.fromEntries(seasonList.map(s => [s.id, s.name]));
         const gameMap = Object.fromEntries(dedupedGames.map(g => [g.id, g]));
 
-        // Group lines by season — collapse all current-Saturday IDs into one bucket
+        // Helper: resolve a game's season to its display bucket (collapsing
+        // all current-Saturday season IDs into one named bucket).
+        const seasonBucket = (g) => {
+          const sid = curSatIds.has(g.season_id) ? (curSatPrimary?.id || g.season_id) : g.season_id;
+          const name = curSatIds.has(g.season_id) ? curSatPrimaryName : (seasonNameMap[g.season_id]||"?");
+          return { sid, name };
+        };
+
+        // Batting season buckets. `games` is a Set of canonical game IDs the
+        // player APPEARED in (this season) — combines batting + pitching so a
+        // pure relief pitcher still counts the game toward GP.
         const bySeasonId = {};
         for (const l of dedupedLines) {
           const g = gameMap[l.game_id];
           if (!g) continue;
-          const sid = curSatIds.has(g.season_id) ? (curSatPrimary?.id || g.season_id) : g.season_id;
-          const name = curSatIds.has(g.season_id) ? curSatPrimaryName : (seasonNameMap[g.season_id]||"?");
+          const { sid, name } = seasonBucket(g);
           if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
           const s = bySeasonId[sid];
           s.games.add(l.game_id);
@@ -2577,12 +2611,47 @@ function PlayerStatsModal({ playerName, onClose }) {
           s.t+=(l.triples||0); s.hr+=(l.hr||0); s.rbi+=(l.rbi||0); s.bb+=(l.bb||0);
           s.k+=(l.k||0); s.hbp+=(l.hbp||0); s.sf+=(l.sf||0); s.sb+=(l.sb||0);
         }
+        // Now fold pitching appearances into the same season's `games` Set so
+        // GP counts a pitched game even when the player didn't bat that game.
+        // Creates the season bucket if the player only pitched there (no
+        // batting at all in that season).
+        for (const l of dedupedPitLines) {
+          const g = gameMap[l.game_id];
+          if (!g) continue;
+          const { sid, name } = seasonBucket(g);
+          if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
+          bySeasonId[sid].games.add(l.game_id);
+        }
 
         const result = Object.values(bySeasonId).map(s => ({
           sid: s.sid, name: s.name, gp: s.games.size,
           ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb,
         }));
         setAllSeasons(result);
+
+        // Build pitching season buckets (display: APP = pitching games only).
+        const pitBySeason = {};
+        for (const l of dedupedPitLines) {
+          const g = gameMap[l.game_id];
+          if (!g) continue;
+          const { sid, name } = seasonBucket(g);
+          if (!pitBySeason[sid]) pitBySeason[sid] = { sid, name, app:0, ip:0, h:0, r:0, er:0, bb:0, k:0, w:0, l:0, sv:0 };
+          const p = pitBySeason[sid];
+          p.app++;
+          p.ip += parseFloat(l.ip)||0;
+          p.h += l.h||0; p.r += l.r||0; p.er += l.er||0;
+          p.bb += l.bb||0; p.k += l.k||0;
+          if (l.decision === "W") p.w++;
+          if (l.decision === "L") p.l++;
+          if (l.decision === "S") p.sv++;
+        }
+        const pitResult = Object.values(pitBySeason).map(s => ({
+          ...s,
+          ipDisplay: `${Math.floor(s.ip)}.${Math.round((s.ip%1)*3)}`,
+          era: s.ip > 0 ? ((s.er/s.ip)*9).toFixed(2) : "---",
+          whip: s.ip > 0 ? ((s.h+s.bb)/s.ip).toFixed(2) : "---",
+        }));
+        setPitSeasons(pitResult);
 
         // Game log — every current-Saturday game the player has a line on.
         // Dropped the `status === "Final"` check because some games store
@@ -2614,46 +2683,8 @@ function PlayerStatsModal({ playerName, onClose }) {
           })
           .filter(Boolean);
         setGameLog(log);
-
-        // Fetch pitching
-        try {
-          const pitEnc = encodeURIComponent(`*${playerName}*`);
-          // pitching_lines schema has no `hr` column — including it caused
-          // PostgREST 400s that were swallowed by the try/catch below, so
-          // Career Pitching never rendered on the player modal.
-          const pitLines = await sbFetch(`pitching_lines?player_name=ilike.${pitEnc}&select=game_id,ip,h,r,er,bb,k,decision&order=game_id.asc&limit=500`);
-          if (Array.isArray(pitLines) && pitLines.length > 0) {
-            const pitGameIds = [...new Set(pitLines.map(l => l.game_id))];
-            const pitGames = await sbFetch(`games?id=in.(${pitGameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score&order=id.asc`);
-            // Dedupe duplicate game records — keep only one record per real game
-            const pitDedupedGames = dedupGames(pitGames);
-            const pitValidIds = new Set(pitDedupedGames.map(g => g.id));
-            const dedupedPitLines = pitLines.filter(l => pitValidIds.has(l.game_id));
-            const pitSeasonIds = [...new Set(pitDedupedGames.map(g => g.season_id))];
-            const pitSeasonList = await sbFetch(`seasons?id=in.(${pitSeasonIds.join(",")})&select=id,name&order=id.asc`);
-            const pitSeasonNameMap = Object.fromEntries(pitSeasonList.map(s=>[s.id,s.name]));
-            const pitGameSeasonMap = Object.fromEntries(pitDedupedGames.map(g=>[g.id,g.season_id]));
-            const pitBySeason = {};
-            for (const l of dedupedPitLines) {
-              const sid = pitGameSeasonMap[l.game_id];
-              if (!sid) continue;
-              if (!pitBySeason[sid]) pitBySeason[sid] = {name:pitSeasonNameMap[sid]||"?",app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,w:0,l:0,sv:0};
-              const s = pitBySeason[sid];
-              s.app++; s.ip+=parseFloat(l.ip)||0; s.h+=l.h||0; s.r+=l.r||0; s.er+=l.er||0;
-              s.bb+=l.bb||0; s.k+=l.k||0;
-              if(l.decision==="W") s.w++; if(l.decision==="L") s.l++; if(l.decision==="S") s.sv++;
-            }
-            const pitResult = Object.entries(pitBySeason).map(([sid,s])=>({
-              ...s, sid,
-              ipDisplay:`${Math.floor(s.ip)}.${Math.round((s.ip%1)*3)}`,
-              era: s.ip>0?((s.er/s.ip)*9).toFixed(2):"---",
-              whip: s.ip>0?((s.h+s.bb)/s.ip).toFixed(2):"---",
-            }));
-            setPitSeasons(pitResult);
-          } else {
-            setPitSeasons([]);
-          }
-        } catch(e) { setPitSeasons([]); }
+        // (Pitching season aggregation already done above using the unified
+        // canonical-game mapping — no separate fetch needed.)
       } catch(e) { console.error(e); setAllSeasons([]); setPitSeasons([]); }
     }
     load();
@@ -3091,7 +3122,12 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       const gameKeyById = {};
       augmentedGames.forEach(g => { gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`; });
       const allIds = augmentedGames.map(g => g.id).join(",");
-      const rawLines = await sbFetch(`batting_lines?select=game_id,player_name,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`);
+      // Fetch batting AND pitching lines for this team. Pitching appearances
+      // also count toward GP (a relief pitcher who doesn't bat still played).
+      const [rawLines, rawPitLines] = await Promise.all([
+        sbFetch(`batting_lines?select=game_id,player_name,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`),
+        sbFetch(`pitching_lines?select=game_id,player_name,ip,h,r,er,bb,k,decision&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`),
+      ]);
       const linesBest = {};
       (rawLines || []).forEach(r => {
         if (!r.player_name) return;
@@ -3103,14 +3139,35 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       });
       const lines = Object.values(linesBest);
       const map = {};
+      // Track unique (player, gameKey) pairs so GP is a true game-appearance
+      // count: a player batting AND pitching in the same game = 1 GP.
+      const gpSet = {};
       lines.forEach(l => {
         if (!map[l.player_name]) map[l.player_name] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
         const p = map[l.player_name];
-        p.gp++; p.ab+=l.ab||0; p.r+=l.r||0; p.h+=l.h||0;
+        p.ab+=l.ab||0; p.r+=l.r||0; p.h+=l.h||0;
         p.doubles+=l.doubles||0; p.triples+=l.triples||0; p.hr+=l.hr||0;
         p.rbi+=l.rbi||0; p.bb+=l.bb||0; p.k+=l.k||0;
         p.hbp+=l.hbp||0; p.sf+=l.sf||0; p.sb+=l.sb||0;
+        const gk = gameKeyById[l.game_id];
+        if (gk) {
+          if (!gpSet[l.player_name]) gpSet[l.player_name] = new Set();
+          gpSet[l.player_name].add(gk);
+        }
       });
+      // Fold in pitching appearances. Captain may have entered a phantom line
+      // with no stats — skip those (matches the team pitching card filter).
+      (rawPitLines || []).forEach(l => {
+        if (!l.player_name) return;
+        const gk = gameKeyById[l.game_id]; if (!gk) return;
+        const any = (parseFloat(l.ip)||0) || (l.h||0) || (l.r||0) || (l.er||0)
+                 || (l.bb||0) || (l.k||0) || !!l.decision;
+        if (!any) return;
+        if (!map[l.player_name]) map[l.player_name] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
+        if (!gpSet[l.player_name]) gpSet[l.player_name] = new Set();
+        gpSet[l.player_name].add(gk);
+      });
+      Object.entries(gpSet).forEach(([name, set]) => { if (map[name]) map[name].gp = set.size; });
       Object.values(map).forEach(p => {
         p.tb = (p.h-p.doubles-p.triples-p.hr)+p.doubles*2+p.triples*3+p.hr*4;
         p.avg = p.ab > 0 ? (p.h/p.ab).toFixed(3).replace(/^0/,"") : "—";
@@ -11705,9 +11762,20 @@ function StatsPage() {
 
     async function fetchSeasonStats() {
       const enc = encodeURIComponent(`*${playerName}*`);
-      const lines = await sbFetch(`batting_lines?select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&player_name=ilike.${enc}&limit=1000`);
-      if (!Array.isArray(lines) || lines.length === 0) return { seasons: [], gameLog: [], curSatSid: null };
-      const gameIds = [...new Set(lines.map(l => l.game_id))];
+      // Fetch batting + pitching lines together so GP can include games where
+      // the player only pitched (relief outings, etc.) — per design choice
+      // documented in PlayerStatsModal.
+      const [linesRaw, pitLinesRaw] = await Promise.all([
+        sbFetch(`batting_lines?select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&player_name=ilike.${enc}&limit=1000`),
+        sbFetch(`pitching_lines?select=game_id,team,ip&player_name=ilike.${enc}&limit=500`),
+      ]);
+      const lines = Array.isArray(linesRaw) ? linesRaw : [];
+      const pitLines = Array.isArray(pitLinesRaw) ? pitLinesRaw : [];
+      if (lines.length === 0 && pitLines.length === 0) return { seasons: [], gameLog: [], curSatSid: null };
+      const gameIds = [...new Set([
+        ...lines.map(l => l.game_id),
+        ...pitLines.map(l => l.game_id),
+      ])];
       const gamesRaw = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc&limit=500`);
 
       // Also fetch sibling game records sharing the same date+matchup. If the
@@ -11803,20 +11871,31 @@ function StatsPage() {
       // Group lines by season
       const bySeasonId = {};
       const linesByGameId = {};
+      const ensureSeason = (rawSid) => {
+        const sid = curSatIds.has(rawSid) && curSatPrimarySid ? curSatPrimarySid : rawSid;
+        const sname = curSatIds.has(rawSid) ? curSatPrimaryName : (seasonNameMap[rawSid]||"?");
+        if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name: sname, year: seasonYearMap[rawSid]||0, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
+        return bySeasonId[sid];
+      };
       for (const l of dedupedLines) {
         linesByGameId[l.game_id] = l;
         const g = gameMap[l.game_id];
         if (!g) continue;
-        // Collapse all current-Saturday season IDs into the primary one.
-        const rawSid = g.season_id;
-        const sid = curSatIds.has(rawSid) && curSatPrimarySid ? curSatPrimarySid : rawSid;
-        const sname = curSatIds.has(rawSid) ? curSatPrimaryName : (seasonNameMap[rawSid]||"?");
-        if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name: sname, year: seasonYearMap[rawSid]||0, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
-        const s = bySeasonId[sid];
+        const s = ensureSeason(g.season_id);
         s.games.add(l.game_id);
         s.ab+=(l.ab||0); s.r+=(l.r||0); s.h+=(l.h||0); s.d+=(l.doubles||0);
         s.t+=(l.triples||0); s.hr+=(l.hr||0); s.rbi+=(l.rbi||0); s.bb+=(l.bb||0);
         s.k+=(l.k||0); s.hbp+=(l.hbp||0); s.sf+=(l.sf||0); s.sb+=(l.sb||0);
+      }
+      // Add pitching-only appearances so GP includes games where the player
+      // only pitched (no batting line). Maps pitching line game_ids through
+      // the same canonical mapping built above.
+      for (const l of pitLines) {
+        const canonicalId = gameIdToCanonical[l.game_id];
+        if (!canonicalId) continue;
+        const g = gameMap[canonicalId];
+        if (!g) continue;
+        ensureSeason(g.season_id).games.add(canonicalId);
       }
       const seasons = Object.entries(bySeasonId)
         .map(([, s]) => ({ sid: s.sid, name: s.name, year: s.year, gp: s.games.size, ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb }))
