@@ -10752,7 +10752,27 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               </tr>
             </thead>
             <tbody>
-              {batters.map((p,i)=>{
+              {(() => {
+                // Pre-compute per-row placeholder so that A/B shared slots
+                // don't waste a number. E.g. with rows typed 8A / 8B, the
+                // next empty row's placeholder should be 9, not 10. Walks the
+                // lineup once tracking which slot numbers are consumed.
+                const placeholders = [];
+                const used = new Set();
+                const nextFree = () => { let n=1; while (used.has(n)) n++; return n; };
+                batters.forEach((p, idx) => {
+                  if (!p.on) { placeholders[idx] = ""; return; }
+                  if (p.slot) {
+                    placeholders[idx] = "";          // user-typed, no placeholder needed
+                    const m = String(p.slot).match(/^(\d+)/);
+                    if (m) used.add(+m[1]);          // mark that slot number as taken
+                  } else {
+                    const n = nextFree();
+                    placeholders[idx] = String(n);
+                    used.add(n);
+                  }
+                });
+                return batters.map((p,i)=>{
                 if(!p.on) return null; // only show players in the lineup
                 return (
                 <tr key={p._id||i}
@@ -10772,7 +10792,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                         className="bs-order-btn"
                         style={{border:"none",background:"rgba(0,45,110,0.10)",borderRadius:3,cursor:"pointer",fontSize:8,color:"#002d6e",padding:"2px 4px",fontWeight:900,lineHeight:1}}>▲</button>
                       <input type="text" value={p.slot||""} onChange={e=>updBat(setter,i,"slot",e.target.value)}
-                        placeholder={String(i+1)}
+                        placeholder={placeholders[i]}
                         title='Batting order — leave blank for default. Type "1A" / "1B" to share a slot (alternating turns or mid-game sub).'
                         style={{width:42,padding:"4px 2px",textAlign:"center",border:`1.5px solid ${p.slot?"#b45309":"#cbd5e1"}`,borderRadius:5,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,color:"#002d6e",lineHeight:1,background:p.slot?"#fef3c7":"#fff"}}/>
                       <button type="button" onPointerDown={e=>{e.preventDefault();moveBat(setter,i,1);}}
@@ -10811,7 +10831,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                   </td>
                 </tr>
                 );
-              })}
+              });
+              })()}
             </tbody>
           </table>
         </div>
