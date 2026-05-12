@@ -10156,10 +10156,23 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         h:+p.h||0, r:+p.r||0, er:+p.er||0, bb:+p.bb||0, k:+p.k||0, hr:+p.hr||0,
         decision:p.decision||"ND",
       });
-      const awayB=batLines.filter(b=>b.team===g.away_team);
-      const homeB=batLines.filter(b=>b.team===g.home_team);
-      const awayP=pitLines.filter(p=>p.team===g.away_team);
-      const homeP=pitLines.filter(p=>p.team===g.home_team);
+      // Filter out fully-empty batting_lines on load — same filter used at
+      // save time, applied here too so legacy junk rows saved before the
+      // filter existed don't pollute the editor. Next save (delete-insert)
+      // wipes them from the DB permanently. Pinch-runners with only SB
+      // still pass; only true all-zeros are dropped.
+      const batHasStat = (b) =>
+        (+b.ab||0) || (+b.r||0) || (+b.h||0) || (+b.doubles||0) || (+b.triples||0)
+        || (+b.hr||0) || (+b.rbi||0) || (+b.bb||0) || (+b.k||0) || (+b.hbp||0)
+        || (+b.sf||0) || (+b.sac||0) || (+b.fc||0) || (+b.roe||0) || (+b.cs||0)
+        || (+b.sb||0);
+      const pitHasStat = (p) =>
+        (parseFloat(p.ip)||0) || (+p.h||0) || (+p.r||0) || (+p.er||0)
+        || (+p.bb||0) || (+p.k||0) || !!p.decision;
+      const awayB=batLines.filter(b=>b.team===g.away_team && batHasStat(b));
+      const homeB=batLines.filter(b=>b.team===g.home_team && batHasStat(b));
+      const awayP=pitLines.filter(p=>p.team===g.away_team && pitHasStat(p));
+      const homeP=pitLines.filter(p=>p.team===g.home_team && pitHasStat(p));
       setEditGameId(g.id);
       setGame({date:g.game_date, time:g.game_time||"", field:g.field||"", away:g.away_team, home:g.home_team});
       setAwayScore(String(g.away_score??"")); setHomeScore(String(g.home_score??""));
@@ -11231,10 +11244,21 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                 sf:+b.sf||0, sac:+b.sac||0, fc:+b.fc||0, roe:+b.roe||0, cs:+b.cs||0, e:0, pos:"" };
             };
             const toPLocal = (p) => ({ name:p.player_name, ip:fromIP_(p.ip), h:+p.h||0, r:+p.r||0, er:+p.er||0, bb:+p.bb||0, k:+p.k||0, hr:+p.hr||0, decision:p.decision||"ND" });
-            const awayB = batLines.filter(b => b.team === g.away_team);
-            const homeB = batLines.filter(b => b.team === g.home_team);
-            const awayP = pitLines.filter(p => p.team === g.away_team);
-            const homeP = pitLines.filter(p => p.team === g.home_team);
+            // Same load-time filter as selectSavedGame: skip empty rows so the
+            // editor matches the public box score. Legacy all-zeros junk
+            // saved before the save-time filter gets wiped on next save.
+            const _batHasStat = (b) =>
+              (+b.ab||0) || (+b.r||0) || (+b.h||0) || (+b.doubles||0) || (+b.triples||0)
+              || (+b.hr||0) || (+b.rbi||0) || (+b.bb||0) || (+b.k||0) || (+b.hbp||0)
+              || (+b.sf||0) || (+b.sac||0) || (+b.fc||0) || (+b.roe||0) || (+b.cs||0)
+              || (+b.sb||0);
+            const _pitHasStat = (p) =>
+              (parseFloat(p.ip)||0) || (+p.h||0) || (+p.r||0) || (+p.er||0)
+              || (+p.bb||0) || (+p.k||0) || !!p.decision;
+            const awayB = batLines.filter(b => b.team === g.away_team && _batHasStat(b));
+            const homeB = batLines.filter(b => b.team === g.home_team && _batHasStat(b));
+            const awayP = pitLines.filter(p => p.team === g.away_team && _pitHasStat(p));
+            const homeP = pitLines.filter(p => p.team === g.home_team && _pitHasStat(p));
             setEditGameId(g.id);
             setAwayScore(String(g.away_score ?? ""));
             setHomeScore(String(g.home_score ?? ""));
