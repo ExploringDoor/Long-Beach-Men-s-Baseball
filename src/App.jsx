@@ -2558,6 +2558,8 @@ function PlayerStatsModal({ playerName, onClose }) {
         const dedupedGames = Object.values(canonicalByKey);
 
         // Dedup batting lines per (canonicalId, team) by best PA score.
+        // Normalize player_name through cleanName so NBSP / extra-whitespace
+        // variants of the same name don't show up as separate rows downstream.
         const linesBest = {};
         safeBat.forEach(l => {
           const canonicalId = gameIdToCanonical[l.game_id];
@@ -2565,7 +2567,7 @@ function PlayerStatsModal({ playerName, onClose }) {
           const k = `${canonicalId}||${l.team||""}`;
           const pa = (l.ab||0)+(l.bb||0)+(l.hbp||0)+(l.sf||0);
           const sc = pa*100 + (l.h||0) + (l.rbi||0);
-          if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...l, game_id: canonicalId, __s: sc };
+          if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...l, player_name: cleanName(l.player_name||""), game_id: canonicalId, __s: sc };
         });
         const dedupedLines = Object.values(linesBest);
 
@@ -3128,14 +3130,17 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         sbFetch(`batting_lines?select=game_id,player_name,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`),
         sbFetch(`pitching_lines?select=game_id,player_name,ip,h,r,er,bb,k,decision&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`),
       ]);
+      // Normalize player_name through cleanName when keying so NBSP-corrupted
+      // names ("Dennis\xa0Donnels") merge with the canonical-space version.
       const linesBest = {};
       (rawLines || []).forEach(r => {
         if (!r.player_name) return;
         const gk = gameKeyById[r.game_id]; if (!gk) return;
-        const k = `${r.player_name}||${gk}`;
+        const cleanedName = cleanName(r.player_name);
+        const k = `${cleanedName}||${gk}`;
         const pa = (r.ab||0)+(r.bb||0)+(r.hbp||0)+(r.sf||0);
         const sc = pa*100 + (r.h||0) + (r.rbi||0);
-        if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...r, __s: sc };
+        if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...r, player_name: cleanedName, __s: sc };
       });
       const lines = Object.values(linesBest);
       const map = {};
@@ -3163,9 +3168,10 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         const any = (parseFloat(l.ip)||0) || (l.h||0) || (l.r||0) || (l.er||0)
                  || (l.bb||0) || (l.k||0) || !!l.decision;
         if (!any) return;
-        if (!map[l.player_name]) map[l.player_name] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
-        if (!gpSet[l.player_name]) gpSet[l.player_name] = new Set();
-        gpSet[l.player_name].add(gk);
+        const cleanedName = cleanName(l.player_name);
+        if (!map[cleanedName]) map[cleanedName] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
+        if (!gpSet[cleanedName]) gpSet[cleanedName] = new Set();
+        gpSet[cleanedName].add(gk);
       });
       Object.entries(gpSet).forEach(([name, set]) => { if (map[name]) map[name].gp = set.size; });
       Object.values(map).forEach(p => {
@@ -3228,13 +3234,20 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       const rawLines = await sbFetch(`pitching_lines?select=game_id,player_name,ip,h,r,er,bb,k,decision&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`);
       // Dedup pitching lines at game-key + player level. If a player appears in
       // a duplicated game record, keep the row with the most innings.
+      // IMPORTANT: normalize player_name via cleanName before keying. Some rows
+      // have NBSP (U+00A0) instead of regular space in the name — visually
+      // identical but JS-distinct, which is why captains saw "Dennis Donnels"
+      // listed twice on the same team's pitching card.
       const linesBest = {};
       (rawLines || []).forEach(r => {
         if (!r.player_name) return;
         const gk = gameKeyById[r.game_id]; if (!gk) return;
-        const k = `${r.player_name}||${gk}`;
+        const cleanedName = cleanName(r.player_name);
+        const k = `${cleanedName}||${gk}`;
         const ip = parseFloat(r.ip)||0;
-        if (!linesBest[k] || ip > (parseFloat(linesBest[k].ip)||0)) linesBest[k] = r;
+        if (!linesBest[k] || ip > (parseFloat(linesBest[k].ip)||0)) {
+          linesBest[k] = { ...r, player_name: cleanedName };
+        }
       });
       const lines = Object.values(linesBest);
       const map = {};
@@ -11737,14 +11750,17 @@ function StatsPage() {
       // Dedup batting lines: one row per (player, team, gameKey). Keep the line
       // with the most plate appearances (AB+BB+HBP+SF) so partial submissions
       // lose to the most complete one — regardless of which duplicate game id it lives on.
+      // cleanName normalizes NBSP and other invisible whitespace so "Dennis
+      // Donnels" and "Dennis\xa0Donnels" collapse to one row.
       const batBest = {};
       (bat || []).forEach(r => {
         if (!r.player_name) return;
         const gk = gameKeyById[r.game_id] || `gid${r.game_id}`;
-        const k = `${r.player_name}||${r.team}||${gk}`;
+        const cleanedName = cleanName(r.player_name);
+        const k = `${cleanedName}||${r.team}||${gk}`;
         const pa = (r.ab||0) + (r.bb||0) + (r.hbp||0) + (r.sf||0);
         const score = pa * 100 + (r.h||0) + (r.rbi||0);
-        if (!batBest[k] || score > batBest[k].__s) batBest[k] = { ...r, __s: score };
+        if (!batBest[k] || score > batBest[k].__s) batBest[k] = { ...r, player_name: cleanedName, __s: score };
       });
       const batDedup = Object.values(batBest);
       // Aggregate batting
@@ -11770,13 +11786,15 @@ function StatsPage() {
       }));
       // Dedup pitching rows: one row per (player, team, gameKey). Keep the row
       // with the most IP (partial submissions lose to complete ones).
+      // Normalize player_name via cleanName so NBSP-corrupted names merge.
       const pitBest = {};
       (pit || []).forEach(r => {
         if (!r.player_name) return;
         const gk = gameKeyById[r.game_id] || `gid${r.game_id}`;
-        const k = `${r.player_name}||${r.team}||${gk}`;
+        const cleanedName = cleanName(r.player_name);
+        const k = `${cleanedName}||${r.team}||${gk}`;
         const ipNum = parseFloat(r.ip)||0;
-        if (!pitBest[k] || ipNum > pitBest[k].__ip) pitBest[k] = { ...r, __ip: ipNum };
+        if (!pitBest[k] || ipNum > pitBest[k].__ip) pitBest[k] = { ...r, player_name: cleanedName, __ip: ipNum };
       });
       const pitDedup = Object.values(pitBest);
       // Aggregate pitching
@@ -11918,6 +11936,7 @@ function StatsPage() {
 
       // Dedupe lines per (canonical game_id, team) by best PA score — handles
       // the case where the same player has lines on BOTH duplicate game rows.
+      // cleanName normalizes player_name (NBSP → space, collapse multi-space).
       const linesBest = {};
       lines.forEach(l => {
         const canonicalId = gameIdToCanonical[l.game_id];
@@ -11925,7 +11944,7 @@ function StatsPage() {
         const k = `${canonicalId}||${l.team||""}`;
         const pa = (l.ab||0)+(l.bb||0)+(l.hbp||0)+(l.sf||0);
         const sc = pa*100 + (l.h||0) + (l.rbi||0);
-        if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...l, game_id: canonicalId, __s: sc };
+        if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...l, player_name: cleanName(l.player_name||""), game_id: canonicalId, __s: sc };
       });
       const dedupedLines = Object.values(linesBest);
 
