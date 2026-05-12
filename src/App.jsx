@@ -54,6 +54,29 @@ const cleanName = (n) =>
     .replace(/\s+/g, " ")
     .trim();
 
+// Match key for deduping / aggregating players. Strips trailing asterisks
+// in addition to whitespace — the asterisk is the league's "under-21"
+// marker, not part of the player's identity. "Pete Pirante" and
+// "Pete Pirante*" must dedupe to one player, but the asterisk should
+// still appear in display (use cleanName for that). Use matchKey when
+// you're keying a Map/object and want both variants to collide.
+const matchKey = (n) =>
+  cleanName(n)
+    .replace(/\*+\s*$/, "")
+    .trim()
+    .toLowerCase();
+
+// Picks the better display variant between two cleaned names for the
+// same matchKey: keep whichever has the under-21 asterisk so the
+// marker isn't dropped if any captain typed it.
+const preferStarred = (a, b) => {
+  const aHas = /\*+\s*$/.test(a || "");
+  const bHas = /\*+\s*$/.test(b || "");
+  if (aHas && !bHas) return a;
+  if (bHas && !aHas) return b;
+  return a || b;
+};
+
 // ── Strip internal "[submitted: X]" submission-tracking metadata before
 //    rendering a game.headline to the public. Multiple display sites
 //    have re-introduced raw `{game.headline}` over time and leaked the
@@ -3130,34 +3153,47 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         sbFetch(`batting_lines?select=game_id,player_name,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`),
         sbFetch(`pitching_lines?select=game_id,player_name,ip,h,r,er,bb,k,decision&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`),
       ]);
-      // Normalize player_name through cleanName when keying so NBSP-corrupted
-      // names ("Dennis\xa0Donnels") merge with the canonical-space version.
+      // Normalize player_name through cleanName + matchKey when keying so:
+      //  - NBSP-corrupted names ("Dennis\xa0Donnels") merge with normal-space.
+      //  - The under-21 asterisk marker doesn't create duplicate aggregation
+      //    entries ("Pete Pirante" / "Pete Pirante*" → one row, display
+      //    keeps the asterisk).
       const linesBest = {};
       (rawLines || []).forEach(r => {
         if (!r.player_name) return;
         const gk = gameKeyById[r.game_id]; if (!gk) return;
-        const cleanedName = cleanName(r.player_name);
-        const k = `${cleanedName}||${gk}`;
+        const cleaned = cleanName(r.player_name);
+        const mk = matchKey(r.player_name);
+        const k = `${mk}||${gk}`;
         const pa = (r.ab||0)+(r.bb||0)+(r.hbp||0)+(r.sf||0);
         const sc = pa*100 + (r.h||0) + (r.rbi||0);
-        if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...r, player_name: cleanedName, __s: sc };
+        if (!linesBest[k] || sc > linesBest[k].__s) {
+          linesBest[k] = { ...r, player_name: cleaned, __mk: mk, __s: sc };
+        }
+        linesBest[k].player_name = preferStarred(linesBest[k].player_name, cleaned);
       });
       const lines = Object.values(linesBest);
+      // Compute canonical display name per matchKey (asterisk wins).
+      const displayByMk = {};
+      lines.forEach(l => {
+        displayByMk[l.__mk] = preferStarred(displayByMk[l.__mk], l.player_name);
+      });
       const map = {};
-      // Track unique (player, gameKey) pairs so GP is a true game-appearance
+      // Track unique (matchKey, gameKey) pairs so GP is a true game-appearance
       // count: a player batting AND pitching in the same game = 1 GP.
       const gpSet = {};
       lines.forEach(l => {
-        if (!map[l.player_name]) map[l.player_name] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
-        const p = map[l.player_name];
+        const display = displayByMk[l.__mk];
+        if (!map[display]) map[display] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
+        const p = map[display];
         p.ab+=l.ab||0; p.r+=l.r||0; p.h+=l.h||0;
         p.doubles+=l.doubles||0; p.triples+=l.triples||0; p.hr+=l.hr||0;
         p.rbi+=l.rbi||0; p.bb+=l.bb||0; p.k+=l.k||0;
         p.hbp+=l.hbp||0; p.sf+=l.sf||0; p.sb+=l.sb||0;
         const gk = gameKeyById[l.game_id];
         if (gk) {
-          if (!gpSet[l.player_name]) gpSet[l.player_name] = new Set();
-          gpSet[l.player_name].add(gk);
+          if (!gpSet[display]) gpSet[display] = new Set();
+          gpSet[display].add(gk);
         }
       });
       // Fold in pitching appearances. Captain may have entered a phantom line
@@ -3168,10 +3204,14 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         const any = (parseFloat(l.ip)||0) || (l.h||0) || (l.r||0) || (l.er||0)
                  || (l.bb||0) || (l.k||0) || !!l.decision;
         if (!any) return;
-        const cleanedName = cleanName(l.player_name);
-        if (!map[cleanedName]) map[cleanedName] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
-        if (!gpSet[cleanedName]) gpSet[cleanedName] = new Set();
-        gpSet[cleanedName].add(gk);
+        const mk = matchKey(l.player_name);
+        const cleaned = cleanName(l.player_name);
+        // Update display preference if pitching has the asterisk variant.
+        displayByMk[mk] = preferStarred(displayByMk[mk], cleaned);
+        const display = displayByMk[mk];
+        if (!map[display]) map[display] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
+        if (!gpSet[display]) gpSet[display] = new Set();
+        gpSet[display].add(gk);
       });
       Object.entries(gpSet).forEach(([name, set]) => { if (map[name]) map[name].gp = set.size; });
       Object.values(map).forEach(p => {
@@ -3232,32 +3272,38 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       // whole query. (PlayerStatsModal had this same bug for ages, which
       // is why Career Pitching never rendered on the player modal.)
       const rawLines = await sbFetch(`pitching_lines?select=game_id,player_name,ip,h,r,er,bb,k,decision&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`);
-      // Dedup pitching lines at game-key + player level. If a player appears in
-      // a duplicated game record, keep the row with the most innings.
-      // IMPORTANT: normalize player_name via cleanName before keying. Some rows
-      // have NBSP (U+00A0) instead of regular space in the name — visually
-      // identical but JS-distinct, which is why captains saw "Dennis Donnels"
-      // listed twice on the same team's pitching card.
+      // Dedup pitching lines at game-key + matchKey level. matchKey ignores
+      // trailing asterisks (under-21 marker) and normalizes whitespace so
+      // "Dennis Donnels" / "Dennis\xa0Donnels" / "Dennis Donnels*" all
+      // collapse to one row. Display name still preserves the asterisk.
       const linesBest = {};
       (rawLines || []).forEach(r => {
         if (!r.player_name) return;
         const gk = gameKeyById[r.game_id]; if (!gk) return;
-        const cleanedName = cleanName(r.player_name);
-        const k = `${cleanedName}||${gk}`;
+        const cleaned = cleanName(r.player_name);
+        const mk = matchKey(r.player_name);
+        const k = `${mk}||${gk}`;
         const ip = parseFloat(r.ip)||0;
         if (!linesBest[k] || ip > (parseFloat(linesBest[k].ip)||0)) {
-          linesBest[k] = { ...r, player_name: cleanedName };
+          linesBest[k] = { ...r, player_name: cleaned, __mk: mk };
         }
+        linesBest[k].player_name = preferStarred(linesBest[k].player_name, cleaned);
       });
       const lines = Object.values(linesBest);
+      // Canonical display name per matchKey (asterisk wins).
+      const displayByMk = {};
+      lines.forEach(l => {
+        displayByMk[l.__mk] = preferStarred(displayByMk[l.__mk], l.player_name);
+      });
       const map = {};
       lines.forEach(l => {
         // Skip phantom rows (no IP and no other counting stats and no decision)
         const any = (parseFloat(l.ip)||0) || (l.h||0) || (l.r||0) || (l.er||0)
                  || (l.bb||0) || (l.k||0) || !!l.decision;
         if (!any) return;
-        if (!map[l.player_name]) map[l.player_name] = {app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,w:0,l:0,sv:0};
-        const p = map[l.player_name];
+        const display = displayByMk[l.__mk];
+        if (!map[display]) map[display] = {app:0,ip:0,h:0,r:0,er:0,bb:0,k:0,w:0,l:0,sv:0};
+        const p = map[display];
         p.app++;
         p.ip += parseIP(l.ip);
         p.h += l.h||0; p.r += l.r||0; p.er += l.er||0;
@@ -9709,6 +9755,23 @@ function friendlyError(e) {
   return "Something went wrong — please try again.";
 }
 
+// Feature-detect whether batting_lines has a `pos` column. The save path
+// includes pos in the INSERT row; if the column hasn't been added via
+// sql-add-pos-column-2026-05-12.sql yet, PostgREST will 400 the whole
+// batch. This cache lets us conditionally strip pos so saves keep
+// working pre- and post-migration.
+let _BATTING_HAS_POS = null;
+async function battingHasPosColumn() {
+  if (_BATTING_HAS_POS !== null) return _BATTING_HAS_POS;
+  try {
+    await sbFetch("batting_lines?select=pos&limit=1");
+    _BATTING_HAS_POS = true;
+  } catch (e) {
+    _BATTING_HAS_POS = false;
+  }
+  return _BATTING_HAS_POS;
+}
+
 async function sbFetch(path) {
   const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
     headers: {
@@ -10134,8 +10197,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         const satIds = getSatSeasonFilter(seasons);
         const bom = seasons.find(x=>x.name.toLowerCase().includes("boomers"));
         const fetches = [];
-        if (satIds.length) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`));
-        if (bom) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${bom.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
+        // Include `innings` in select so selectSavedGame can repopulate the
+        // line-score grid + hits/errors when the captain re-opens the edit.
+        if (satIds.length) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`));
+        if (bom) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings&season_id=eq.${bom.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
         const results = await Promise.all(fetches);
         return results.flat().sort((a,b)=>b.game_date?.localeCompare(a.game_date||"")||0);
       })
@@ -10161,7 +10226,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           singles:Math.max(0,(+b.h||0)-d-t-hr), doubles:d, triples:t, hr,
           rbi:+b.rbi||0, bb:+b.bb||0, hbp:+b.hbp||0, k:+b.k||0, sb:+b.sb||0,
           sf:+b.sf||0, sac:+b.sac||0, fc:+b.fc||0, roe:+b.roe||0, cs:+b.cs||0,
-          e:0, pos:"",
+          // Restore the position the captain previously selected. Falls back
+          // to "" if pos column doesn't exist yet (pre-migration) or wasn't set.
+          e:0, pos:b.pos||"",
         };
       };
       const toP = (p) => ({
@@ -10200,8 +10267,20 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setHomePit(homeP.length?homeP.map(toP):[blankPitcher()]);
       setAwayStatMode(awayB.length ? "full" : "simple");
       setHomeStatMode(homeB.length ? "full" : "simple");
-      setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
-      setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
+      // Restore line-score innings + hits/errors from the persisted jsonb.
+      // Manager flagged that filling these in lost the data on next edit
+      // because they were never saved nor reloaded. Now they round-trip.
+      const innJson = g.innings && typeof g.innings === "object" ? g.innings : null;
+      if (innJson && Array.isArray(innJson.away)) {
+        setAwayInn(innJson.away.map(v => ({r: v == null ? "" : String(v)})));
+      } else { setAwayInn(emptyInnings()); }
+      if (innJson && Array.isArray(innJson.home)) {
+        setHomeInn(innJson.home.map(v => ({r: v == null ? "" : String(v)})));
+      } else { setHomeInn(emptyInnings()); }
+      setAwayH(innJson && innJson.awayH != null ? String(innJson.awayH) : "");
+      setAwayE(innJson && innJson.awayE != null ? String(innJson.awayE) : "");
+      setHomeH(innJson && innJson.homeH != null ? String(innJson.homeH) : "");
+      setHomeE(innJson && innJson.homeE != null ? String(innJson.homeE) : "");
       setSaveMsg(null); setEditMode(false);
     } catch(err){ setSaveMsg({ok:false,text:`❌ ${friendlyError(err)}`}); }
     setSavedLoading(false);
@@ -10373,11 +10452,24 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           ? (allSeasonsE.find(s=>s.name.includes("Boomers"))||allSeasonsE.find(s=>s.name.toLowerCase().includes("boomers")))
           : (allSeasonsE.find(s=>s.name.includes("Spring")&&s.name.includes("2026"))||allSeasonsE.find(s=>s.name.includes("Diamond Classics")));
         if (!seasonE && !isBoomerE) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); seasonE=r[0]; }
+        // Build the jsonb `innings` payload: per-team line score arrays plus
+        // hits/errors totals. Manager flagged that filling these in the
+        // editor and saving lost the data on next load — they were never
+        // being persisted to the DB at all. Now they live in games.innings.
+        const inningsPayload = {
+          away: awayInn.map(i => i.r === "" || i.r == null ? null : (parseInt(i.r) || 0)),
+          home: homeInn.map(i => i.r === "" || i.r == null ? null : (parseInt(i.r) || 0)),
+          awayH: awayH === "" ? null : (parseInt(awayH) || 0),
+          awayE: awayE === "" ? null : (parseInt(awayE) || 0),
+          homeH: homeH === "" ? null : (parseInt(homeH) || 0),
+          homeE: homeE === "" ? null : (parseInt(homeE) || 0),
+        };
         const patchData = {
           game_date:toISODate(game.date), game_time:game.time, field:game.field,
           away_team:game.away, home_team:game.home,
           away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
           headline:headlineVal, status:gameStatus,
+          innings: inningsPayload,
         };
         if (seasonE) patchData.season_id = seasonE.id;
         await sbPatch(`games?id=eq.${editGameId}`, patchData);
@@ -10422,6 +10514,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             away_team:game.away, home_team:game.home,
             away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
             headline:headlineVal, status:gameStatus,
+            innings: {
+              away: awayInn.map(i => i.r === "" || i.r == null ? null : (parseInt(i.r) || 0)),
+              home: homeInn.map(i => i.r === "" || i.r == null ? null : (parseInt(i.r) || 0)),
+              awayH: awayH === "" ? null : (parseInt(awayH) || 0),
+              awayE: awayE === "" ? null : (parseInt(awayE) || 0),
+              homeH: homeH === "" ? null : (parseInt(homeH) || 0),
+              homeE: homeE === "" ? null : (parseInt(homeE) || 0),
+            },
           }]);
           if(!gameRes?.[0]?.id) throw new Error("Game record was not created — please try again.");
           gid = gameRes[0].id;
@@ -10454,9 +10554,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const batRows = [
         ...(awayStatMode==="full" ? awayBatResolved.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.away})) : []),
         ...(homeStatMode==="full" ? homeBatResolved.filter(p=>p.on&&p.name).map(p=>({...p,_t:game.home})) : []),
-      ].map(({name,_t,_slot,ab,r,singles,doubles,triples,hr,rbi,bb,hbp,k,sb,sf,sac,fc,roe,cs,e})=>({
+      ].map(({name,_t,_slot,pos,ab,r,singles,doubles,triples,hr,rbi,bb,hbp,k,sb,sf,sac,fc,roe,cs,e})=>({
         game_id:gid,player_name:cleanName(name),team:_t,
         slot:_slot || null,
+        // Persist position (P/C/1B/etc.) so the editor reloads it instead of
+        // dropping to "Pos". Requires sql-add-pos-column-2026-05-12.sql to
+        // have been run; if not, this field will silently be ignored by
+        // PostgREST.
+        pos:(pos||"").trim() || null,
         ab:+ab||0,r:+r||0,
         h:(+singles||0)+(+doubles||0)+(+triples||0)+(+hr||0),
         doubles:+doubles||0,triples:+triples||0,
@@ -10473,6 +10578,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             || (r.fc||0) || (r.roe||0) || (r.cs||0) || (r.hr||0)
             || (r.doubles||0) || (r.triples||0);
       });
+      // Strip `pos` if the column doesn't exist yet — keeps saves working
+      // before the user has run sql-add-pos-column-2026-05-12.sql.
+      if (!(await battingHasPosColumn())) {
+        batRows.forEach(r => { delete r.pos; });
+      }
       const pitRows = [
         ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
         ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
@@ -11254,7 +11364,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               return { _id:bid, name:b.player_name, on:true, slot:b.slot||"",
                 ab:+b.ab||0, r:+b.r||0, singles:Math.max(0,(+b.h||0)-d-t-hr), doubles:d, triples:t, hr,
                 rbi:+b.rbi||0, bb:+b.bb||0, hbp:+b.hbp||0, k:+b.k||0, sb:+b.sb||0,
-                sf:+b.sf||0, sac:+b.sac||0, fc:+b.fc||0, roe:+b.roe||0, cs:+b.cs||0, e:0, pos:"" };
+                sf:+b.sf||0, sac:+b.sac||0, fc:+b.fc||0, roe:+b.roe||0, cs:+b.cs||0, e:0,
+                pos:b.pos||"" };
             };
             const toPLocal = (p) => ({ name:p.player_name, ip:fromIP_(p.ip), h:+p.h||0, r:+p.r||0, er:+p.er||0, bb:+p.bb||0, k:+p.k||0, hr:+p.hr||0, decision:p.decision||"ND" });
             // Same load-time filter as selectSavedGame: skip empty rows so the
@@ -11283,6 +11394,18 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             setHomeBat(homeB.length ? homeB.map(toBLocal) : initBatters(g.home_team));
             setAwayPit(awayP.length ? awayP.map(toPLocal) : [blankPitcher()]);
             setHomePit(homeP.length ? homeP.map(toPLocal) : [blankPitcher()]);
+            // Restore innings + hits/errors from games.innings jsonb.
+            const _innJson = g.innings && typeof g.innings === "object" ? g.innings : null;
+            if (_innJson && Array.isArray(_innJson.away)) {
+              setAwayInn(_innJson.away.map(v => ({r: v == null ? "" : String(v)})));
+            }
+            if (_innJson && Array.isArray(_innJson.home)) {
+              setHomeInn(_innJson.home.map(v => ({r: v == null ? "" : String(v)})));
+            }
+            setAwayH(_innJson && _innJson.awayH != null ? String(_innJson.awayH) : "");
+            setAwayE(_innJson && _innJson.awayE != null ? String(_innJson.awayE) : "");
+            setHomeH(_innJson && _innJson.homeH != null ? String(_innJson.homeH) : "");
+            setHomeE(_innJson && _innJson.homeE != null ? String(_innJson.homeE) : "");
             setAwayStatMode("full"); setHomeStatMode("full");
             setBsePhase("entry");
           } catch (err) {
@@ -11747,27 +11870,37 @@ function StatsPage() {
       (gamesRaw || []).forEach(g => {
         gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`;
       });
-      // Dedup batting lines: one row per (player, team, gameKey). Keep the line
-      // with the most plate appearances (AB+BB+HBP+SF) so partial submissions
-      // lose to the most complete one — regardless of which duplicate game id it lives on.
-      // cleanName normalizes NBSP and other invisible whitespace so "Dennis
-      // Donnels" and "Dennis\xa0Donnels" collapse to one row.
+      // Dedup batting lines: one row per (matchKey, team, gameKey). matchKey
+      // normalizes whitespace AND ignores the under-21 asterisk so all name
+      // variants of the same player collapse. Display retains the asterisk
+      // if any line had it.
       const batBest = {};
       (bat || []).forEach(r => {
         if (!r.player_name) return;
         const gk = gameKeyById[r.game_id] || `gid${r.game_id}`;
-        const cleanedName = cleanName(r.player_name);
-        const k = `${cleanedName}||${r.team}||${gk}`;
+        const cleaned = cleanName(r.player_name);
+        const mk = matchKey(r.player_name);
+        const k = `${mk}||${r.team}||${gk}`;
         const pa = (r.ab||0) + (r.bb||0) + (r.hbp||0) + (r.sf||0);
         const score = pa * 100 + (r.h||0) + (r.rbi||0);
-        if (!batBest[k] || score > batBest[k].__s) batBest[k] = { ...r, player_name: cleanedName, __s: score };
+        if (!batBest[k] || score > batBest[k].__s) batBest[k] = { ...r, player_name: cleaned, __mk: mk, __s: score };
+        batBest[k].player_name = preferStarred(batBest[k].player_name, cleaned);
       });
       const batDedup = Object.values(batBest);
-      // Aggregate batting
+      // Canonical display name per (matchKey, team) — asterisk wins.
+      const batDisplayKey = {};
+      batDedup.forEach(r => {
+        const k = `${r.__mk}||${r.team}`;
+        batDisplayKey[k] = preferStarred(batDisplayKey[k], r.player_name);
+      });
+      // Aggregate batting keyed by (matchKey, team) so asterisk vs no-asterisk
+      // of the same player don't end up as two rows on the leaderboard.
       const batMap = {};
       batDedup.forEach(row => {
-        const key = `${row.player_name}||${row.team}`;
-        if (!batMap[key]) batMap[key] = { player_name: row.player_name, team: row.team, ab:0,r:0,h:0,rbi:0,bb:0,k:0,doubles:0,triples:0,hr:0,sb:0,hbp:0,sf:0,gp:0 };
+        const dk = `${row.__mk}||${row.team}`;
+        const key = dk;
+        const display = batDisplayKey[dk];
+        if (!batMap[key]) batMap[key] = { player_name: display, team: row.team, ab:0,r:0,h:0,rbi:0,bb:0,k:0,doubles:0,triples:0,hr:0,sb:0,hbp:0,sf:0,gp:0 };
         const p = batMap[key];
         p.gp++; p.ab+=row.ab||0; p.r+=row.r||0; p.h+=row.h||0; p.rbi+=row.rbi||0;
         p.bb+=row.bb||0; p.k+=row.k||0; p.doubles+=row.doubles||0;
@@ -11784,24 +11917,33 @@ function StatsPage() {
         slgNum: p.ab > 0 ? (p.h - p.doubles - p.triples - p.hr + p.doubles*2 + p.triples*3 + p.hr*4)/p.ab : 0,
         tb: (p.h - p.doubles - p.triples - p.hr) + p.doubles*2 + p.triples*3 + p.hr*4,
       }));
-      // Dedup pitching rows: one row per (player, team, gameKey). Keep the row
-      // with the most IP (partial submissions lose to complete ones).
-      // Normalize player_name via cleanName so NBSP-corrupted names merge.
+      // Dedup pitching rows: one row per (matchKey, team, gameKey). matchKey
+      // normalizes whitespace and ignores under-21 asterisks.
       const pitBest = {};
       (pit || []).forEach(r => {
         if (!r.player_name) return;
         const gk = gameKeyById[r.game_id] || `gid${r.game_id}`;
-        const cleanedName = cleanName(r.player_name);
-        const k = `${cleanedName}||${r.team}||${gk}`;
+        const cleaned = cleanName(r.player_name);
+        const mk = matchKey(r.player_name);
+        const k = `${mk}||${r.team}||${gk}`;
         const ipNum = parseFloat(r.ip)||0;
-        if (!pitBest[k] || ipNum > pitBest[k].__ip) pitBest[k] = { ...r, player_name: cleanedName, __ip: ipNum };
+        if (!pitBest[k] || ipNum > pitBest[k].__ip) pitBest[k] = { ...r, player_name: cleaned, __mk: mk, __ip: ipNum };
+        pitBest[k].player_name = preferStarred(pitBest[k].player_name, cleaned);
       });
       const pitDedup = Object.values(pitBest);
-      // Aggregate pitching
+      // Canonical display per (matchKey, team) — asterisk wins.
+      const pitDisplayKey = {};
+      pitDedup.forEach(r => {
+        const k = `${r.__mk}||${r.team}`;
+        pitDisplayKey[k] = preferStarred(pitDisplayKey[k], r.player_name);
+      });
+      // Aggregate pitching keyed by (matchKey, team) so name variants merge.
       const pitMap = {};
       pitDedup.forEach(row => {
-        const key = `${row.player_name}||${row.team}`;
-        if (!pitMap[key]) pitMap[key] = { player_name: row.player_name, team: row.team, ip:0,h:0,r:0,er:0,bb:0,k:0,w:0,l:0,sv:0,app:0 };
+        const dk = `${row.__mk}||${row.team}`;
+        const key = dk;
+        const display = pitDisplayKey[dk];
+        if (!pitMap[key]) pitMap[key] = { player_name: display, team: row.team, ip:0,h:0,r:0,er:0,bb:0,k:0,w:0,l:0,sv:0,app:0 };
         const p = pitMap[key];
         p.app++; p.ip+=parseFloat(row.ip)||0; p.h+=row.h||0; p.r+=row.r||0;
         p.er+=row.er||0; p.bb+=row.bb||0; p.k+=row.k||0;
