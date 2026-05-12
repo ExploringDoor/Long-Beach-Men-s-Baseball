@@ -11504,13 +11504,34 @@ function StatsPage() {
               seasonIds = [fallback.id];
             }
             return sbFetch(`games?select=${GAME_COLS_SEL}&season_id=in.(${seasonIds.join(",")})&limit=500`)
-              .then(gs => {
+              .then(async gs => {
                 if (!gs.length) return [[],[],[]];
-                const ids = gs.map(g => g.id);
+                // Also pull in any games on these same dates from OTHER seasons.
+                // Some games have orphan duplicates in season 36 ("Fall/Winter
+                // 2026") whose dates actually belong here. Their batting/
+                // pitching lines would be invisible without this augment; the
+                // gameKey-level dedup below merges the duplicates so stats
+                // don't double-count.
+                const dates = [...new Set(gs.map(g => g.game_date).filter(Boolean))];
+                const currentGameKeys = new Set(gs.filter(g => g.game_date).map(g => `${g.game_date}|${g.away_team}|${g.home_team}`));
+                let augmented = [...gs];
+                if (dates.length) {
+                  const dateList = dates.map(d => `"${d}"`).join(",");
+                  const sameDateRows = await sbFetch(`games?select=${GAME_COLS_SEL}&game_date=in.(${dateList})&limit=500`);
+                  const existing = new Set(gs.map(g => g.id));
+                  (sameDateRows || []).forEach(g => {
+                    const gk = `${g.game_date}|${g.away_team}|${g.home_team}`;
+                    if (currentGameKeys.has(gk) && !existing.has(g.id)) {
+                      augmented.push(g);
+                      existing.add(g.id);
+                    }
+                  });
+                }
+                const ids = augmented.map(g => g.id);
                 return Promise.all([
                   sbFetchLinesByGameIds("batting_lines", BAT_COLS_SEL, ids),
                   sbFetchLinesByGameIds("pitching_lines", PIT_COLS_SEL, ids),
-                  Promise.resolve(gs),
+                  Promise.resolve(augmented),
                 ]);
               });
           });
