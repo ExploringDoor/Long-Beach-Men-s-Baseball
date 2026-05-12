@@ -11645,18 +11645,98 @@ function StatsPage() {
       const lines = await sbFetch(`batting_lines?select=game_id,team,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&player_name=ilike.${enc}&limit=1000`);
       if (!Array.isArray(lines) || lines.length === 0) return { seasons: [], gameLog: [], curSatSid: null };
       const gameIds = [...new Set(lines.map(l => l.game_id))];
-      const games = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc&limit=500`);
-      // Dedupe duplicate game records (same date + teams) created when both captains submit their own box scores
-      const dedupedGames = dedupGames(games);
-      const validGameIds = new Set(dedupedGames.map(g => g.id));
-      const dedupedLines = lines.filter(l => validGameIds.has(l.game_id));
-      const seasonIds = [...new Set(dedupedGames.map(g => g.season_id).filter(Boolean))];
-      if (!seasonIds.length) return { seasons: [], gameLog: [], curSatSid: null };
-      const seasonList = await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.desc`);
+      const gamesRaw = await sbFetch(`games?id=in.(${gameIds.join(",")})&select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&order=game_date.desc&limit=500`);
+
+      // Also fetch sibling game records sharing the same date+matchup. If the
+      // player's line is attached to the ORPHAN duplicate (season 36) and the
+      // canonical record is in season 2 — we need the canonical record in our
+      // games set so the curSat filter sees this game. Without this step,
+      // games whose only batting_line lives on an orphan get dropped entirely.
+      const dates = [...new Set(gamesRaw.map(g => g.game_date).filter(Boolean))];
+      let games = [...gamesRaw];
+      if (dates.length) {
+        const dateList = dates.map(d => `"${d}"`).join(",");
+        const matchups = new Set(gamesRaw.filter(g => g.game_date).map(g => `${g.game_date}|${g.away_team}|${g.home_team}`));
+        const sibs = await sbFetch(`games?select=id,season_id,game_date,away_team,home_team,away_score,home_score,status&game_date=in.(${dateList})&limit=500`);
+        const existing = new Set(gamesRaw.map(g => g.id));
+        (sibs || []).forEach(g => {
+          if (existing.has(g.id) || !g.game_date) return;
+          const k = `${g.game_date}|${g.away_team}|${g.home_team}`;
+          if (matchups.has(k)) { games.push(g); existing.add(g.id); }
+        });
+      }
+
+      // Pull season list FIRST so we can identify which season IDs count as
+      // "current Saturday." Previously this only looked for the literal name
+      // "Diamond Classics Saturdays" (id=31), so games in season 2 ("Spring/
+      // Summer 2026") — which is where most current games actually live —
+      // were filtered out of the game log. Treat both as the same season.
+      const seasonIds = [...new Set(games.map(g => g.season_id).filter(Boolean))];
+      const seasonList = seasonIds.length
+        ? await sbFetch(`seasons?id=in.(${seasonIds.join(",")})&select=id,name,year&order=year.desc`)
+        : [];
+      // Also fetch full season list so we know ALL current-Saturday season IDs
+      // even if the player has no lines yet in one of them.
+      const allSeasonList = await sbFetch(`seasons?select=id,name,year&limit=100`);
+      const isCurSat = s => s.name && (
+        s.name.includes("Diamond Classics Saturdays")
+        || (s.name.includes("Spring") && s.name.includes("2026") && !s.name.toLowerCase().includes("boomers"))
+      );
+      const curSatIds = new Set(allSeasonList.filter(isCurSat).map(s => s.id));
+
+      // Build canonical-game-per-gameKey, preferring current-Saturday season
+      // over orphan duplicates that live in the wrong season (e.g. season 36
+      // "Fall/Winter 2026" which holds copies of current Saturday games).
+      const canonicalByKey = {};
+      games.forEach(g => {
+        if (!g.game_date) return;
+        const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
+        const cur = canonicalByKey[key];
+        const isCur = curSatIds.has(g.season_id);
+        if (!cur) { canonicalByKey[key] = g; return; }
+        const curIsCur = curSatIds.has(cur.season_id);
+        // Prefer current-Saturday over non-current.
+        // Within same tier, prefer the one with status=Final + highest score.
+        if (isCur && !curIsCur) { canonicalByKey[key] = g; return; }
+        if (!isCur && curIsCur) return;
+        const score = (g.away_score||0)+(g.home_score||0);
+        const curScore = (cur.away_score||0)+(cur.home_score||0);
+        if (score > curScore) canonicalByKey[key] = g;
+      });
+      // Map every input game_id to its canonical game_id so we can re-key
+      // batting_lines onto the canonical record.
+      const gameIdToCanonical = {};
+      games.forEach(g => {
+        if (!g.game_date) return;
+        const key = `${g.game_date}|${g.away_team}|${g.home_team}`;
+        const canonical = canonicalByKey[key];
+        if (canonical) gameIdToCanonical[g.id] = canonical.id;
+      });
+      const dedupedGames = Object.values(canonicalByKey);
+
+      // Dedupe lines per (canonical game_id, team) by best PA score — handles
+      // the case where the same player has lines on BOTH duplicate game rows.
+      const linesBest = {};
+      lines.forEach(l => {
+        const canonicalId = gameIdToCanonical[l.game_id];
+        if (!canonicalId) return;
+        const k = `${canonicalId}||${l.team||""}`;
+        const pa = (l.ab||0)+(l.bb||0)+(l.hbp||0)+(l.sf||0);
+        const sc = pa*100 + (l.h||0) + (l.rbi||0);
+        if (!linesBest[k] || sc > linesBest[k].__s) linesBest[k] = { ...l, game_id: canonicalId, __s: sc };
+      });
+      const dedupedLines = Object.values(linesBest);
+
       const seasonNameMap = Object.fromEntries(seasonList.map(s => [s.id, s.name||s.year]));
       const seasonYearMap = Object.fromEntries(seasonList.map(s => [s.id, s.year||0]));
       const gameMap = Object.fromEntries(dedupedGames.map(g => [g.id, g]));
-      const curSat = seasonList.find(s => s.name && s.name.includes("Diamond Classics Saturdays"));
+      // For aggregation, "current Saturday" rolls all curSatIds into one bucket
+      // so it doesn't display two separate "Spring/Summer 2026" rows.
+      const curSatPrimary = allSeasonList.find(s => s.name === "Spring/Summer 2026")
+        || allSeasonList.find(s => isCurSat(s));
+      const curSatPrimarySid = curSatPrimary?.id;
+      const curSatPrimaryName = curSatPrimary?.name || "Spring/Summer 2026";
+
       // Group lines by season
       const bySeasonId = {};
       const linesByGameId = {};
@@ -11664,8 +11744,11 @@ function StatsPage() {
         linesByGameId[l.game_id] = l;
         const g = gameMap[l.game_id];
         if (!g) continue;
-        const sid = g.season_id;
-        if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name: seasonNameMap[sid]||"?", year: seasonYearMap[sid]||0, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
+        // Collapse all current-Saturday season IDs into the primary one.
+        const rawSid = g.season_id;
+        const sid = curSatIds.has(rawSid) && curSatPrimarySid ? curSatPrimarySid : rawSid;
+        const sname = curSatIds.has(rawSid) ? curSatPrimaryName : (seasonNameMap[rawSid]||"?");
+        if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name: sname, year: seasonYearMap[rawSid]||0, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
         const s = bySeasonId[sid];
         s.games.add(l.game_id);
         s.ab+=(l.ab||0); s.r+=(l.r||0); s.h+=(l.h||0); s.d+=(l.doubles||0);
@@ -11675,9 +11758,11 @@ function StatsPage() {
       const seasons = Object.entries(bySeasonId)
         .map(([, s]) => ({ sid: s.sid, name: s.name, year: s.year, gp: s.games.size, ab:s.ab, r:s.r, h:s.h, d:s.d, t:s.t, hr:s.hr, rbi:s.rbi, bb:s.bb, k:s.k, hbp:s.hbp, sf:s.sf, sb:s.sb }))
         .sort((a, b) => b.year - a.year);
-      // Build game log for current season (most recent first, already sorted by game_date desc)
-      const gameLog = games
-        .filter(g => curSat && g.season_id === curSat.id && g.status === "Final")
+
+      // Game log: every current-Saturday game the player has a line on.
+      const gameLog = dedupedGames
+        .filter(g => curSatIds.has(g.season_id))
+        .sort((a, b) => (b.game_date||"").localeCompare(a.game_date||""))
         .map(g => {
           const l = linesByGameId[g.id];
           if (!l) return null;
@@ -11690,7 +11775,7 @@ function StatsPage() {
             t: l.triples||0, hr: l.hr||0, rbi: l.rbi||0, bb: l.bb||0, k: l.k||0 };
         })
         .filter(Boolean);
-      return { seasons, gameLog, curSatSid: curSat?.id };
+      return { seasons, gameLog, curSatSid: curSatPrimarySid };
     }
 
     fetchSeasonStats()
