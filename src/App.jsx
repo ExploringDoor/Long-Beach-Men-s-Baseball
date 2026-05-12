@@ -3002,10 +3002,32 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       });
       setGameResults(resMap);
       if (!games || !games.length) return;
-      // Line-level dedup by gameKey — handles duplicate game rows with scattered batting_lines
+      // Line-level dedup by gameKey — handles duplicate game rows with scattered batting_lines.
+      // Additionally: some games have duplicate records in the WRONG season
+      // (e.g. games imported into the "Fall/Winter" season that are actually
+      // current Saturday games). batting_lines saved against those orphan
+      // records would be invisible if we only fetched by season. Fetch any
+      // game on the same dates involving this team to catch those duplicates,
+      // and the line-level gameKey dedup will merge them with their canonical
+      // current-season pair.
+      const dates = [...new Set(games.map(g => g.game_date).filter(Boolean))];
+      const currentGameKeys = new Set(games.filter(g => g.game_date).map(g => `${g.game_date}|${g.away_team}|${g.home_team}`));
+      let augmentedGames = [...games];
+      if (dates.length) {
+        const dateList = dates.map(d => `"${d}"`).join(",");
+        const sameDateRows = await sbFetch(`games?select=id,game_date,away_team,home_team&or=(away_team.eq.${enc(teamName)},home_team.eq.${enc(teamName)})&game_date=in.(${dateList})&limit=100`);
+        const existingIds = new Set(games.map(g => g.id));
+        (sameDateRows || []).forEach(g => {
+          const gk = `${g.game_date}|${g.away_team}|${g.home_team}`;
+          if (currentGameKeys.has(gk) && !existingIds.has(g.id)) {
+            augmentedGames.push(g);
+            existingIds.add(g.id);
+          }
+        });
+      }
       const gameKeyById = {};
-      games.forEach(g => { gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`; });
-      const allIds = games.map(g => g.id).join(",");
+      augmentedGames.forEach(g => { gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`; });
+      const allIds = augmentedGames.map(g => g.id).join(",");
       const rawLines = await sbFetch(`batting_lines?select=game_id,player_name,ab,r,h,doubles,triples,hr,rbi,bb,k,hbp,sf,sb&team=eq.${enc(teamName)}&game_id=in.(${allIds})&limit=5000`);
       const linesBest = {};
       (rawLines || []).forEach(r => {
@@ -3057,9 +3079,28 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       if (!isBoomers && !satIds.length) return;
       const games = await sbFetch(`games?select=id,game_date,away_team,home_team&${seasonFilter}&limit=200`);
       if (!games || !games.length) return;
+      // Same orphan-duplicate handling as the batting aggregation above:
+      // games imported into the wrong season (e.g. "Fall/Winter 2026" rows
+      // that are actually Saturday spring games) have orphan pitching_lines
+      // that would be invisible without this augment.
+      const dates = [...new Set(games.map(g => g.game_date).filter(Boolean))];
+      const currentGameKeys = new Set(games.filter(g => g.game_date).map(g => `${g.game_date}|${g.away_team}|${g.home_team}`));
+      let augmentedGames = [...games];
+      if (dates.length) {
+        const dateList = dates.map(d => `"${d}"`).join(",");
+        const sameDateRows = await sbFetch(`games?select=id,game_date,away_team,home_team&or=(away_team.eq.${enc(teamName)},home_team.eq.${enc(teamName)})&game_date=in.(${dateList})&limit=100`);
+        const existingIds = new Set(games.map(g => g.id));
+        (sameDateRows || []).forEach(g => {
+          const gk = `${g.game_date}|${g.away_team}|${g.home_team}`;
+          if (currentGameKeys.has(gk) && !existingIds.has(g.id)) {
+            augmentedGames.push(g);
+            existingIds.add(g.id);
+          }
+        });
+      }
       const gameKeyById = {};
-      games.forEach(g => { gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`; });
-      const allIds = games.map(g => g.id).join(",");
+      augmentedGames.forEach(g => { gameKeyById[g.id] = `${g.game_date||"null"}|${g.away_team}|${g.home_team}`; });
+      const allIds = augmentedGames.map(g => g.id).join(",");
       // NOTE: pitching_lines does NOT have an `hr` column in the schema —
       // selecting it causes a 400 from PostgREST and silently wipes the
       // whole query. (PlayerStatsModal had this same bug for ages, which
