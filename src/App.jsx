@@ -11477,7 +11477,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               textTransform:"uppercase",color:"#888",marginBottom:6,letterSpacing:".06em"}}>
               {game.away} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>{awayStatMode==="full"?"auto from R":"enter score"}</span>
             </div>
-            {awayStatMode==="simple" ? (
+            {(awayStatMode==="simple" || editGameId) ? (
               <input type="number" min="0" inputMode="numeric" pattern="[0-9]*" value={awayScore} onChange={e=>setAwayScore(e.target.value)}
                 placeholder="0" className="bs-score-input"
                 style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
@@ -11497,7 +11497,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               textTransform:"uppercase",color:"#888",marginBottom:6,letterSpacing:".06em"}}>
               {game.home} <span style={{fontSize:9,color:"#bbb",fontWeight:400}}>{homeStatMode==="full"?"auto from R":"enter score"}</span>
             </div>
-            {homeStatMode==="simple" ? (
+            {(homeStatMode==="simple" || editGameId) ? (
               <input type="number" min="0" inputMode="numeric" pattern="[0-9]*" value={homeScore} onChange={e=>setHomeScore(e.target.value)}
                 placeholder="0" className="bs-score-input"
                 style={{width:80,padding:"10px 6px",textAlign:"center",border:"2px solid #002d6e",
