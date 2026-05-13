@@ -3178,22 +3178,25 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       lines.forEach(l => {
         displayByMk[l.__mk] = preferStarred(displayByMk[l.__mk], l.player_name);
       });
+      // Key the aggregation map by matchKey (not display name) so the roster
+      // lookup works regardless of asterisk mismatch between roster and
+      // batting_lines. e.g. roster has "Ryan Passwater*" but his lines say
+      // "Ryan Passwater" — keying by matchKey("ryan passwater") for both
+      // sides makes the lookup match. Display name is stored alongside.
       const map = {};
-      // Track unique (matchKey, gameKey) pairs so GP is a true game-appearance
-      // count: a player batting AND pitching in the same game = 1 GP.
       const gpSet = {};
       lines.forEach(l => {
-        const display = displayByMk[l.__mk];
-        if (!map[display]) map[display] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
-        const p = map[display];
+        const mk = l.__mk;
+        if (!map[mk]) map[mk] = {displayName:displayByMk[mk], ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
+        const p = map[mk];
         p.ab+=l.ab||0; p.r+=l.r||0; p.h+=l.h||0;
         p.doubles+=l.doubles||0; p.triples+=l.triples||0; p.hr+=l.hr||0;
         p.rbi+=l.rbi||0; p.bb+=l.bb||0; p.k+=l.k||0;
         p.hbp+=l.hbp||0; p.sf+=l.sf||0; p.sb+=l.sb||0;
         const gk = gameKeyById[l.game_id];
         if (gk) {
-          if (!gpSet[display]) gpSet[display] = new Set();
-          gpSet[display].add(gk);
+          if (!gpSet[mk]) gpSet[mk] = new Set();
+          gpSet[mk].add(gk);
         }
       });
       // Fold in pitching appearances. Captain may have entered a phantom line
@@ -3206,14 +3209,12 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
         if (!any) return;
         const mk = matchKey(l.player_name);
         const cleaned = cleanName(l.player_name);
-        // Update display preference if pitching has the asterisk variant.
         displayByMk[mk] = preferStarred(displayByMk[mk], cleaned);
-        const display = displayByMk[mk];
-        if (!map[display]) map[display] = {ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
-        if (!gpSet[display]) gpSet[display] = new Set();
-        gpSet[display].add(gk);
+        if (!map[mk]) map[mk] = {displayName:displayByMk[mk], ab:0,r:0,h:0,doubles:0,triples:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0,gp:0};
+        if (!gpSet[mk]) gpSet[mk] = new Set();
+        gpSet[mk].add(gk);
       });
-      Object.entries(gpSet).forEach(([name, set]) => { if (map[name]) map[name].gp = set.size; });
+      Object.entries(gpSet).forEach(([mk, set]) => { if (map[mk]) map[mk].gp = set.size; });
       Object.values(map).forEach(p => {
         p.tb = (p.h-p.doubles-p.triples-p.hr)+p.doubles*2+p.triples*3+p.hr*4;
         p.avg = p.ab > 0 ? (p.h/p.ab).toFixed(3).replace(/^0/,"") : "—";
@@ -3516,7 +3517,9 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                     const na = typeof a==="string"?a:a.name;
                     const nb = typeof b==="string"?b:b.name;
                     if (rosterSort.col==="name") return rosterSort.dir==="asc" ? na.localeCompare(nb) : nb.localeCompare(na);
-                    const sa = teamStats[na], sb2 = teamStats[nb];
+                    // Look up by matchKey so roster's "Ryan Passwater*" finds
+                    // batting_lines stored as "Ryan Passwater".
+                    const sa = teamStats[matchKey(na)], sb2 = teamStats[matchKey(nb)];
                     const av = (sa && sa[rosterSort.col] != null) ? sa[rosterSort.col] : -1;
                     const bv = (sb2 && sb2[rosterSort.col] != null) ? sb2[rosterSort.col] : -1;
                     return rosterSort.dir==="desc" ? bv-av : av-bv;
@@ -3543,7 +3546,8 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                             const name   = typeof player === "string" ? player : player.name;
                             const num    = typeof player === "string" ? "" : player.number;
                             const status = typeof player === "string" ? "Active" : (player.status || "Active");
-                            const st = teamStats[name];
+                            // matchKey lookup matches name regardless of asterisk / whitespace
+                            const st = teamStats[matchKey(name)];
                             return (
                               <tr key={name} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa",opacity:status==="Released"?0.45:1,cursor:"pointer",transition:"background .1s"}}
                                 onClick={()=>setSelectedPlayer(name)}
