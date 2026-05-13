@@ -5668,6 +5668,16 @@ function PlayerEligibilityPage({ onBack }) {
   const BOM_SEASON = "Boomers 2026";
   const BOM_TEAMS = ["Eddie Murray Mashers '56", "Greg Maddux Magicians '66"];
 
+  // Tournament eligibility: each tournament gets its own tab + roster + paid
+  // tracking. Tournaments come from lbdc_tournament_meta (same source the
+  // Tournaments admin page uses). Player_payments rows for tournament players
+  // use `season = "<tournament name>"` so they don't collide with the
+  // Saturday/Boomers buckets.
+  const [tournMeta, setTournMeta] = useState([]); // [{name, location, ...}]
+  const [tournRosters, setTournRosters] = useState({}); // {tournName: [{id, player_name, team_name, paid, notes}]}
+  const [tournSaving, setTournSaving] = useState(false);
+  const [allLbdcPlayers, setAllLbdcPlayers] = useState([]); // for the autocomplete
+
   const load = async () => {
     setLoading(true);
     try {
@@ -5733,7 +5743,94 @@ function PlayerEligibilityPage({ onBack }) {
     setLoading(false);
   };
 
+  // Load tournament metadata + their payment rosters in one shot. The metadata
+  // tells us which tournaments exist; the player_payments rows keyed by
+  // season=tournament_name give us each tournament's roster.
+  const loadTournaments = async () => {
+    try {
+      const metaRows = await sbFetch("lbdc_tournament_meta?id=eq.main&select=data");
+      const meta = (metaRows?.[0]?.data) || [];
+      setTournMeta(meta);
+      if (meta.length) {
+        const seasonFilter = meta.map(t => `"${(t.name||"").replace(/"/g,'')}"`).join(",");
+        const allPay = await sbFetch(`player_payments?select=id,player_name,team_name,paid,notes,season&season=in.(${seasonFilter})&order=player_name.asc&limit=2000`);
+        const grouped = {};
+        meta.forEach(t => { grouped[t.name] = []; });
+        (allPay || []).forEach(r => {
+          if (!grouped[r.season]) grouped[r.season] = [];
+          grouped[r.season].push(r);
+        });
+        setTournRosters(grouped);
+      } else {
+        setTournRosters({});
+      }
+      // Build a master list of all LBDC players for the autocomplete. Pulls
+      // from the rosters we already loaded for Saturday + Boomers.
+      const allNames = new Set();
+      Object.values(satRosters || {}).forEach(roster => roster.forEach(p => p.name && allNames.add(p.name)));
+      Object.values(bomRosters || {}).forEach(roster => roster.forEach(n => n && allNames.add(n)));
+      setAllLbdcPlayers([...allNames].sort());
+    } catch(e) {}
+  };
+
   useEffect(() => { load(); loadBoomers(); }, []);
+  // Run loadTournaments after sat+bom rosters are populated so the autocomplete
+  // has names available. Re-runs whenever those rosters update.
+  useEffect(() => { loadTournaments(); /* eslint-disable-next-line */ }, [satRosters, bomRosters]);
+
+  // ── Tournament eligibility helpers ──
+  const addTournamentPlayer = async (tournName, playerName, teamName) => {
+    if (!tournName || !playerName.trim()) return;
+    setTournSaving(true);
+    try {
+      await sbPost("player_payments", {
+        player_name: cleanName(playerName),
+        team_name: teamName || "",
+        season: tournName,
+        paid: false,
+        notes: "",
+      });
+      await loadTournaments();
+    } catch(e) { alert("Add failed: " + e.message); }
+    setTournSaving(false);
+  };
+
+  const removeTournamentPlayer = async (id) => {
+    if (!id) return;
+    if (!window.confirm("Remove this player from the tournament roster?")) return;
+    setTournSaving(true);
+    try {
+      await sbDelete(`player_payments?id=eq.${id}`);
+      await loadTournaments();
+    } catch(e) { alert("Remove failed: " + e.message); }
+    setTournSaving(false);
+  };
+
+  const toggleTournamentPaid = async (row) => {
+    setTournSaving(true);
+    try {
+      await sbPatch(`player_payments?id=eq.${row.id}`, { paid: !row.paid });
+      await loadTournaments();
+    } catch(e) { alert("Save failed: " + e.message); }
+    setTournSaving(false);
+  };
+
+  const saveTournamentNotes = async (id, notes) => {
+    setTournSaving(true);
+    try {
+      await sbPatch(`player_payments?id=eq.${id}`, { notes: notes || "" });
+      // No reload — local state update via parent re-render after the next load.
+      // (Trade-off: light optimistic UI, doesn't refetch on every keystroke.)
+      setTournRosters(prev => {
+        const next = {...prev};
+        Object.keys(next).forEach(t => {
+          next[t] = next[t].map(r => r.id === id ? {...r, notes} : r);
+        });
+        return next;
+      });
+    } catch(e) { alert("Save failed: " + e.message); }
+    setTournSaving(false);
+  };
 
   const toggleBomInsurance = async (playerName, teamName) => {
     setBomSaving(true);
@@ -5825,19 +5922,21 @@ function PlayerEligibilityPage({ onBack }) {
         <button type="button" onClick={()=>{load();loadBoomers();}} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
       </div>
 
-      {/* Division tabs */}
-      <div style={{display:"flex",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fafbfc"}}>
+      {/* Division tabs — Saturday, Boomers, then one per tournament from
+          lbdc_tournament_meta. Scrolls horizontally on mobile if many. */}
+      <div style={{display:"flex",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fafbfc",overflowX:"auto"}}>
         {[
           {k:"SAT",label:"Saturday League",color:"#002d6e"},
           {k:"BOM",label:"Boomers",color:"#7c3aed"},
+          ...tournMeta.map(t => ({ k:`T:${t.name}`, label:t.name, color:"#b45309" })),
         ].map(t => (
           <button key={t.k} type="button" onClick={()=>setActiveDiv(t.k)}
             style={{
-              flex:1,padding:"12px 14px",border:"none",background:activeDiv===t.k?"#fff":"transparent",
+              flex:"1 1 auto",minWidth:140,padding:"12px 14px",border:"none",background:activeDiv===t.k?"#fff":"transparent",
               fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",
               color:activeDiv===t.k?t.color:"rgba(0,0,0,0.4)",
               borderBottom:activeDiv===t.k?`3px solid ${t.color}`:"3px solid transparent",
-              cursor:"pointer",letterSpacing:".06em",
+              cursor:"pointer",letterSpacing:".06em",whiteSpace:"nowrap",
             }}>{t.label}</button>
         ))}
       </div>
@@ -6027,6 +6126,177 @@ function PlayerEligibilityPage({ onBack }) {
           </div>
         );
       })()}
+
+      {/* Tournament eligibility — one block per tournament tab. Reads
+          lbdc_tournament_meta to know which tournaments exist; player_payments
+          rows where season = tournament name are this tournament's roster. */}
+      {activeDiv.startsWith("T:") && (() => {
+        const tournName = activeDiv.slice(2);
+        const tournMetaEntry = tournMeta.find(t => t.name === tournName);
+        const roster = tournRosters[tournName] || [];
+        const paidCount = roster.filter(r => r.paid).length;
+        return (
+          <TournamentEligibilityBlock
+            tournName={tournName}
+            tournLocation={tournMetaEntry?.location || ""}
+            roster={roster}
+            paidCount={paidCount}
+            allLbdcPlayers={allLbdcPlayers}
+            saving={tournSaving}
+            onAdd={(name, team) => addTournamentPlayer(tournName, name, team)}
+            onRemove={removeTournamentPlayer}
+            onTogglePaid={toggleTournamentPaid}
+            onSaveNotes={saveTournamentNotes}
+          />
+        );
+      })()}
+    </div>
+  );
+}
+
+// Render block for a single tournament's eligibility view. Split from the
+// parent so the form state (add-player input) is properly scoped to the
+// currently selected tournament — flipping tabs resets the form.
+function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCount, allLbdcPlayers, saving, onAdd, onRemove, onTogglePaid, onSaveNotes }) {
+  const [addName, setAddName] = useState("");
+  const [addTeam, setAddTeam] = useState("");
+  const [editingNotes, setEditingNotes] = useState({}); // {id: localValue}
+  const total = roster.length;
+
+  const handleAdd = () => {
+    const name = (addName || "").trim();
+    if (!name) return;
+    onAdd(name, addTeam);
+    setAddName("");
+    setAddTeam("");
+  };
+
+  return (
+    <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
+      {/* Tournament summary */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
+        {[
+          {label:"Tournament",value:tournName,color:"#b45309",isText:true},
+          {label:"Players Signed Up",value:total,color:"#002d6e"},
+          {label:"Fees Paid",value:`${paidCount} / ${total}`,color:"#16a34a"},
+        ].map(s => (
+          <div key={s.label} style={{background:"#f8f9fb",border:`2px solid ${s.color}22`,borderRadius:10,padding:"12px 16px",textAlign:"center"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:s.isText?16:28,color:s.color,lineHeight:1.1}}>{s.value}</div>
+            <div style={{fontSize:11,color:"rgba(0,0,0,0.45)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginTop:3}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {tournLocation && (
+        <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#7c2d12"}}>
+          📍 {tournLocation}
+        </div>
+      )}
+
+      {/* Add player form */}
+      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"14px 16px"}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#111",marginBottom:10}}>+ Add Player</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <input
+            type="text"
+            value={addName}
+            onChange={e=>setAddName(e.target.value)}
+            onKeyDown={e=>{ if(e.key==="Enter") handleAdd(); }}
+            list={`lbdc-players-${tournName}`}
+            placeholder="Type a name (autocompletes LBDC players)"
+            style={{flex:"1 1 220px",minWidth:200,padding:"8px 12px",border:"1px solid rgba(0,0,0,0.18)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}
+          />
+          <datalist id={`lbdc-players-${tournName}`}>
+            {allLbdcPlayers.map(n => <option key={n} value={n} />)}
+          </datalist>
+          <input
+            type="text"
+            value={addTeam}
+            onChange={e=>setAddTeam(e.target.value)}
+            placeholder="Home team (optional)"
+            style={{flex:"0 1 160px",minWidth:140,padding:"8px 12px",border:"1px solid rgba(0,0,0,0.18)",borderRadius:6,fontSize:13,fontFamily:"inherit"}}
+          />
+          <button
+            type="button"
+            disabled={saving || !addName.trim()}
+            onClick={handleAdd}
+            style={{padding:"8px 18px",background:!addName.trim()?"#e5e7eb":"#b45309",border:"none",borderRadius:6,color:"#fff",fontWeight:700,fontSize:13,cursor:saving||!addName.trim()?"not-allowed":"pointer",letterSpacing:".04em",textTransform:"uppercase"}}
+          >+ Add</button>
+        </div>
+        <div style={{fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:6}}>
+          Start typing — existing LBDC players will autocomplete. For non-LBDC players (e.g. Father/Son sons), just type the name.
+        </div>
+      </div>
+
+      {/* Roster table */}
+      <div style={{border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,overflow:"hidden"}}>
+        <div style={{background:"#7c2d12",padding:"10px 18px",display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#FFD700",textTransform:"uppercase"}}>{tournName} Roster</span>
+          <span style={{fontSize:12,color:"rgba(255,255,255,0.55)"}}>
+            {paidCount}/{total} paid
+          </span>
+        </div>
+        {roster.length === 0 ? (
+          <div style={{padding:"32px 20px",textAlign:"center",color:"#aaa",fontSize:13,fontStyle:"italic"}}>
+            No players signed up yet. Use the form above to add the first one.
+          </div>
+        ) : (
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead>
+              <tr style={{background:"#f8f9fb"}}>
+                <th style={{padding:"8px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Player</th>
+                <th style={{padding:"8px 12px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Home Team</th>
+                <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Paid</th>
+                <th style={{padding:"8px 12px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)"}}>Notes</th>
+                <th style={{padding:"8px 12px",width:60}}/>
+              </tr>
+            </thead>
+            <tbody>
+              {roster.map((r, i) => {
+                const localNote = editingNotes[r.id] !== undefined ? editingNotes[r.id] : (r.notes || "");
+                return (
+                  <tr key={r.id} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
+                    <td style={{padding:"10px 16px",fontWeight:600,color:"#111"}}>{r.player_name}</td>
+                    <td style={{padding:"10px 12px",color:"rgba(0,0,0,0.65)",fontSize:12}}>{r.team_name || <span style={{color:"#ccc",fontStyle:"italic"}}>—</span>}</td>
+                    <td style={{padding:"10px 12px",textAlign:"center"}}>
+                      <input
+                        type="checkbox"
+                        checked={r.paid}
+                        disabled={saving}
+                        onChange={()=>onTogglePaid(r)}
+                        style={{width:18,height:18,cursor:saving?"wait":"pointer",accentColor:"#16a34a"}}
+                      />
+                    </td>
+                    <td style={{padding:"6px 12px"}}>
+                      <input
+                        type="text"
+                        value={localNote}
+                        onChange={e=>setEditingNotes(p=>({...p,[r.id]:e.target.value}))}
+                        onBlur={()=>{ if (localNote !== (r.notes||"")) onSaveNotes(r.id, localNote); }}
+                        placeholder="Venmo, check #, etc."
+                        style={{width:"100%",padding:"5px 8px",border:"1px solid rgba(0,0,0,0.13)",borderRadius:5,fontSize:12,fontFamily:"inherit",background:"#fff"}}
+                      />
+                    </td>
+                    <td style={{padding:"6px 12px",textAlign:"center"}}>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={()=>onRemove(r.id)}
+                        title="Remove from roster"
+                        style={{background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:5,color:"#dc2626",fontSize:12,padding:"4px 8px",cursor:saving?"wait":"pointer",fontWeight:700}}
+                      >✕</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderRadius:8,padding:"12px 16px",fontSize:12,color:"rgba(0,0,0,0.45)",lineHeight:1.7}}>
+        <strong style={{color:"#333"}}>How it works:</strong> Add each player as they sign up. Check the <span style={{color:"#16a34a",fontWeight:700}}>Paid</span> box when fees come in. Use <span style={{color:"#333",fontWeight:700}}>Notes</span> to log payment method/date. Tournaments come from <strong>Admin → 🏆 Tournaments</strong> — add a new one there and it'll show up as a tab here automatically.
+      </div>
     </div>
   );
 }
