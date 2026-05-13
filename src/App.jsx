@@ -5795,6 +5795,37 @@ function PlayerEligibilityPage({ onBack }) {
     setTournSaving(false);
   };
 
+  // Bulk-copy a roster from another tournament or a team into the active
+  // tournament. Skips any name already on the destination (matchKey-based
+  // dedup so "Pete Pirante" / "Pete Pirante*" don't double-add). The user's
+  // idea: set up your tournament regulars once, then one-click clone to
+  // every other tournament that uses the same core players.
+  const copyRosterToTournament = async (destTournName, players) => {
+    if (!destTournName || !players?.length) return;
+    setTournSaving(true);
+    try {
+      // Find existing names on destination so we don't insert duplicates.
+      const existing = new Set((tournRosters[destTournName] || []).map(r => matchKey(r.player_name)));
+      const newRows = players
+        .filter(p => p.name && !existing.has(matchKey(p.name)))
+        .map(p => ({
+          player_name: cleanName(p.name),
+          team_name: p.team || "",
+          season: destTournName,
+          paid: false,
+          notes: "",
+        }));
+      if (newRows.length === 0) {
+        alert("All those players are already on this tournament's roster.");
+      } else {
+        await sbPost("player_payments", newRows);
+        await loadTournaments();
+        alert(`Added ${newRows.length} player${newRows.length===1?"":"s"} to ${destTournName}.`);
+      }
+    } catch(e) { alert("Copy failed: " + e.message); }
+    setTournSaving(false);
+  };
+
   const removeTournamentPlayer = async (id) => {
     if (!id) return;
     if (!window.confirm("Remove this player from the tournament roster?")) return;
@@ -6135,6 +6166,42 @@ function PlayerEligibilityPage({ onBack }) {
         const tournMetaEntry = tournMeta.find(t => t.name === tournName);
         const roster = tournRosters[tournName] || [];
         const paidCount = roster.filter(r => r.paid).length;
+        // Build "copy from" sources: other tournaments + Saturday teams +
+        // Boomers teams. Each option carries enough info to apply in one
+        // click via copyRosterToTournament.
+        const copySources = [];
+        // Other tournaments
+        tournMeta.forEach(t => {
+          if (t.name === tournName) return;
+          const r = tournRosters[t.name] || [];
+          if (!r.length) return;
+          copySources.push({
+            group: "Tournament",
+            label: t.name,
+            count: r.length,
+            players: r.map(p => ({ name: p.player_name, team: p.team_name })),
+          });
+        });
+        // Saturday teams
+        Object.entries(satRosters || {}).forEach(([team, rows]) => {
+          if (!rows?.length) return;
+          copySources.push({
+            group: "Saturday Team",
+            label: team,
+            count: rows.length,
+            players: rows.map(p => ({ name: p.name, team })),
+          });
+        });
+        // Boomers teams
+        Object.entries(bomRosters || {}).forEach(([team, names]) => {
+          if (!names?.length) return;
+          copySources.push({
+            group: "Boomers Team",
+            label: team,
+            count: names.length,
+            players: names.map(n => ({ name: n, team })),
+          });
+        });
         return (
           <TournamentEligibilityBlock
             tournName={tournName}
@@ -6142,11 +6209,13 @@ function PlayerEligibilityPage({ onBack }) {
             roster={roster}
             paidCount={paidCount}
             allLbdcPlayers={allLbdcPlayers}
+            copySources={copySources}
             saving={tournSaving}
             onAdd={(name, team) => addTournamentPlayer(tournName, name, team)}
             onRemove={removeTournamentPlayer}
             onTogglePaid={toggleTournamentPaid}
             onSaveNotes={saveTournamentNotes}
+            onCopyRoster={(players) => copyRosterToTournament(tournName, players)}
           />
         );
       })()}
@@ -6157,10 +6226,11 @@ function PlayerEligibilityPage({ onBack }) {
 // Render block for a single tournament's eligibility view. Split from the
 // parent so the form state (add-player input) is properly scoped to the
 // currently selected tournament — flipping tabs resets the form.
-function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCount, allLbdcPlayers, saving, onAdd, onRemove, onTogglePaid, onSaveNotes }) {
+function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCount, allLbdcPlayers, copySources, saving, onAdd, onRemove, onTogglePaid, onSaveNotes, onCopyRoster }) {
   const [addName, setAddName] = useState("");
   const [addTeam, setAddTeam] = useState("");
   const [editingNotes, setEditingNotes] = useState({}); // {id: localValue}
+  const [copyChoice, setCopyChoice] = useState(""); // value form: "Group||Label"
   const total = roster.length;
 
   const handleAdd = () => {
@@ -6170,6 +6240,22 @@ function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCoun
     setAddName("");
     setAddTeam("");
   };
+
+  const handleCopy = () => {
+    if (!copyChoice) return;
+    const src = (copySources || []).find(s => `${s.group}||${s.label}` === copyChoice);
+    if (!src) return;
+    if (!window.confirm(`Copy ${src.count} player${src.count===1?"":"s"} from ${src.label} into ${tournName}? Duplicates are skipped.`)) return;
+    onCopyRoster(src.players);
+    setCopyChoice("");
+  };
+
+  // Group the copy-source options for the <optgroup>s in the dropdown.
+  const groupedSources = (copySources || []).reduce((acc, s) => {
+    if (!acc[s.group]) acc[s.group] = [];
+    acc[s.group].push(s);
+    return acc;
+  }, {});
 
   return (
     <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
@@ -6190,6 +6276,41 @@ function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCoun
       {tournLocation && (
         <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#7c2d12"}}>
           📍 {tournLocation}
+        </div>
+      )}
+
+      {/* Bulk-copy roster — saves typing the same 15 regulars every tournament.
+          Set up one tournament once with your core players, then one-click
+          clone to any other tournament. Or pull a whole Saturday team's
+          roster in at once. Skips duplicates so it's safe to click multiple
+          times. */}
+      {(copySources || []).length > 0 && (
+        <div style={{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:10,padding:"12px 16px"}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#7c2d12",marginBottom:8}}>
+            ⚡ Copy Roster from Another Tournament or Team
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+            <select value={copyChoice} onChange={e=>setCopyChoice(e.target.value)}
+              style={{flex:"1 1 280px",minWidth:240,padding:"8px 12px",border:"1px solid rgba(124,45,18,0.3)",borderRadius:6,fontSize:13,fontFamily:"inherit",background:"#fff"}}>
+              <option value="">— Select a source —</option>
+              {Object.entries(groupedSources).map(([group, opts]) => (
+                <optgroup key={group} label={group}>
+                  {opts.map(o => (
+                    <option key={`${o.group}||${o.label}`} value={`${o.group}||${o.label}`}>
+                      {o.label} ({o.count} player{o.count===1?"":"s"})
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <button type="button" disabled={saving || !copyChoice} onClick={handleCopy}
+              style={{padding:"8px 18px",background:!copyChoice?"#e5e7eb":"#b45309",border:"none",borderRadius:6,color:"#fff",fontWeight:700,fontSize:13,cursor:saving||!copyChoice?"not-allowed":"pointer",letterSpacing:".04em",textTransform:"uppercase"}}>
+              ⚡ Copy
+            </button>
+          </div>
+          <div style={{fontSize:11,color:"#7c2d12",opacity:0.7,marginTop:6}}>
+            Tip: Set up your "regulars" on the first tournament you create, then copy that roster to every other tournament. Players already on this tournament get skipped automatically.
+          </div>
         </div>
       )}
 
