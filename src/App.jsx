@@ -5954,16 +5954,34 @@ function PlayerEligibilityPage({ onBack }) {
       </div>
 
       {/* Division tabs — Saturday, Boomers, then one per tournament from
-          lbdc_tournament_meta. Scrolls horizontally on mobile if many. */}
+          lbdc_tournament_meta. Tournament names are long ("NABA Arizona
+          World Series Father/Son/Daughter Wood National/American - October
+          1-4") so we shorten them with a heuristic and stash the full name
+          on the title attribute for tooltip on hover. Container scrolls
+          horizontally if there are too many. */}
       <div style={{display:"flex",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fafbfc",overflowX:"auto"}}>
         {[
-          {k:"SAT",label:"Saturday League",color:"#002d6e"},
-          {k:"BOM",label:"Boomers",color:"#7c3aed"},
-          ...tournMeta.map(t => ({ k:`T:${t.name}`, label:t.name, color:"#b45309" })),
+          {k:"SAT",label:"Saturday League",fullName:"Saturday League",color:"#002d6e"},
+          {k:"BOM",label:"Boomers",fullName:"Boomers",color:"#7c3aed"},
+          ...tournMeta.map(t => {
+            const f = (t.name||"").toLowerCase();
+            let short = t.name;
+            if (f.includes('firecracker')) short = 'Firecracker';
+            else if (f.includes('father')) short = "Father/Son";
+            else if (f.includes("65")) short = "65's WS";
+            else if (f.includes('memorial')) short = 'Memorial';
+            else if (f.includes('mlk')) short = 'MLK';
+            else if (f.includes('turkey')) short = 'Turkey Bowl';
+            else if (f.includes('vegas') || f.match(/\blv\b/) || f.includes('las vegas')) short = 'Vegas WS';
+            else if (f.includes('arizona') || f.match(/\baz\b/)) short = 'AZ WS';
+            else short = t.name.replace(/^NABA\s+/i, '').slice(0, 18);
+            return { k:`T:${t.name}`, label:short, fullName:t.name, color:"#b45309" };
+          }),
         ].map(t => (
           <button key={t.k} type="button" onClick={()=>setActiveDiv(t.k)}
+            title={t.fullName}
             style={{
-              flex:"1 1 auto",minWidth:140,padding:"12px 14px",border:"none",background:activeDiv===t.k?"#fff":"transparent",
+              flexShrink:0,padding:"12px 18px",border:"none",background:activeDiv===t.k?"#fff":"transparent",
               fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",
               color:activeDiv===t.k?t.color:"rgba(0,0,0,0.4)",
               borderBottom:activeDiv===t.k?`3px solid ${t.color}`:"3px solid transparent",
