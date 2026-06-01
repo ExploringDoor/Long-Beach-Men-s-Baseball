@@ -8,7 +8,69 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
-## [Unreleased — feature-tournament-eligibility branch]
+## [2026-05-23]
+
+### Added — Per-tournament team lists
+
+**What:**
+- Each tournament in Admin → 🏆 Manage Tournaments now has its own teams list
+- "Teams: [chips] [+ Add Team]" row under each tournament header
+- Picker offers existing teams (built-in + Manage Teams extras) OR free-text for new ones
+- Add-game form's team dropdown filters to that tournament's teams first
+- Saving a game auto-adds typed team names to the tournament's list
+
+**Why:**
+- Tournaments have their own roster of competing teams (Firecracker = 4-6 teams, separate from Father/Son etc.)
+- Previously: only built-in Saturday teams appeared in the game dropdown; tournament teams added via Manage Teams were invisible
+- Now: each tournament's team list is self-contained
+
+**Migration / Backfill:**
+- On TournamentManagerPage load, any tournament without a teams array auto-populates from existing games' away/home teams
+- One-time, idempotent
+
+**Where:**
+- `src/App.jsx::TournamentManagerPage` — added state, backfill effect, team chip UI, scoped dropdown
+- `lbdc_tournament_meta.data[]` shape extended: `{name, location, teams?: string[]}`
+
+---
+
+## [2026-05-14]
+
+### Fixed — Live Scorer was storing raw-decimal IP instead of fractional thirds
+
+**What:**
+- `LiveScorerPage` `toIP()` previously had a fallback: if input didn't match `^\d+\.[012]?$`, it called `parseFloat()` and stored the raw decimal
+- Captain typing "4.7" thinking it meant 4.7 innings stored `4.7` instead of `4.667` (4⅔)
+- Display still worked due to `fromIP()` rounding logic, but storage was inconsistent across rows
+- Now strict: parses baseball notation, clamps `.3+` to `.2` (max 2 outs)
+
+**Why:**
+- Two pitching save paths (BoxScoreEntry uses `parseIP`, LiveScorer used `toIP`) had different rules
+- Storage inconsistency made the audit script C5 query unreliable
+
+**Where:**
+- `src/App.jsx::LiveScorerPage::toIP` (around line 13384)
+
+### Fixed — Audit script C5 had wrong IP-validity rule
+
+**What:**
+- `sql-audit-2026-05-12.sql` C5 check now flags only fractions that AREN'T near {0, 0.333, 0.667}
+- Previously thought storage was baseball-notation (.0/.1/.2). Actually it's fractional thirds.
+- 4 rows from 2026-05-12 fixes were incorrect — revert SQL provided to user
+
+**Why:**
+- App stores IP as `parseIP("X.Y")` = X + Y/3 (fractional thirds)
+- `fromIP(val)` decodes back to baseball notation for display
+- So 0.667 stored ↔ "0.2" displayed. Storing 0.2 directly causes the app to display "0.1" (lost an out).
+- The audit was systematically flagging valid data as wrong
+
+**Where:**
+- `sql-audit-2026-05-12.sql` — C5 query updated
+- DB: 4 manual UPDATEs to revert game 2323 + 2343 Pirates pitcher IPs
+
+---
+
+## [2026-05-13] — Tournament Eligibility
 
 ### Added — Tournament eligibility tracking
 

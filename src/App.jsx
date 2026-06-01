@@ -6442,8 +6442,44 @@ function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCoun
 
 function TournamentManagerPage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
+  // Extra teams added via Admin → Manage Teams (saved to lbdc_schedules.teams.data).
+  // Loaded asynchronously so tournament team pickers can include non-built-in
+  // teams like "So Cal Trojans".
+  const [extraTeams, setExtraTeams] = useState([]);
+  const ALL_TEAMS = [...TEAMS, ...extraTeams];
+  // Team picker state per tournament: which tournament name is currently
+  // showing the "+ Add Team" dropdown.
+  const [teamPickerFor, setTeamPickerFor] = useState(null);
+  const [teamPickerValue, setTeamPickerValue] = useState("");
+  const [teamPickerCustom, setTeamPickerCustom] = useState("");
 
   const saveTournMeta = async (list) => { await safeSave("Tournaments", () => sbUpsert("lbdc_tournament_meta", {id:"main", data:list})); };
+
+  // Add a team to a tournament's `teams` array. Creates the array if it
+  // doesn't exist. Idempotent — duplicates are silently skipped.
+  const addTeamToTournament = async (tournName, teamName) => {
+    const clean = (teamName || "").trim();
+    if (!clean) return;
+    const updated = tournMeta.map(m => {
+      if (m.name !== tournName) return m;
+      const existing = Array.isArray(m.teams) ? m.teams : [];
+      if (existing.includes(clean)) return m;
+      return { ...m, teams: [...existing, clean] };
+    });
+    setTournMeta(updated);
+    await saveTournMeta(updated);
+  };
+
+  const removeTeamFromTournament = async (tournName, teamName) => {
+    if (!window.confirm(`Remove "${teamName}" from ${tournName}? Games referencing this team will remain, but it'll disappear from this tournament's team list.`)) return;
+    const updated = tournMeta.map(m => {
+      if (m.name !== tournName) return m;
+      const existing = Array.isArray(m.teams) ? m.teams : [];
+      return { ...m, teams: existing.filter(t => t !== teamName) };
+    });
+    setTournMeta(updated);
+    await saveTournMeta(updated);
+  };
 
   const moveTournament = async (idx, dir) => {
     const next = idx + dir;
@@ -6479,7 +6515,39 @@ function TournamentManagerPage({ onBack }) {
     sbFetch("lbdc_tournament_meta?id=eq.main&select=data")
       .then(rows => { if (rows && rows[0] && rows[0].data) setTournMeta(rows[0].data); })
       .catch(() => {});
+    // Load extra/tournament teams added via Admin → Manage Teams.
+    sbFetch("lbdc_schedules?id=eq.teams&select=data")
+      .then(rows => { setExtraTeams(rows && rows[0] && Array.isArray(rows[0].data) ? rows[0].data : []); })
+      .catch(() => {});
   }, []);
+
+  // Backfill each tournament's `teams` array from team names referenced in
+  // existing games. Runs once after both games + tournMeta load. So if a
+  // tournament has games using Brooklyn, Tribe, and So Cal Trojans, but no
+  // explicit teams list yet, it auto-populates with those 3.
+  const [backfilled, setBackfilled] = useState(false);
+  useEffect(() => {
+    if (backfilled) return;
+    if (loading) return;
+    if (!tournMeta.length) return;
+    let mutated = false;
+    const updated = tournMeta.map(m => {
+      const gamesForT = games.filter(g => g.tournament_name === m.name && g.notes !== "__placeholder__");
+      const teamsInGames = [...new Set(gamesForT.flatMap(g => [g.away_team, g.home_team]).filter(t => t && t !== "TBD"))];
+      const existing = Array.isArray(m.teams) ? m.teams : [];
+      const merged = [...existing, ...teamsInGames.filter(t => !existing.includes(t))];
+      if (merged.length !== existing.length || !Array.isArray(m.teams)) {
+        mutated = true;
+        return { ...m, teams: merged };
+      }
+      return m;
+    });
+    if (mutated) {
+      setTournMeta(updated);
+      saveTournMeta(updated);
+    }
+    setBackfilled(true);
+  }, [loading, tournMeta, games, backfilled]);
 
   const tournamentNames = [...new Set([...tournMeta.map(m=>m.name), ...games.map(g => g.tournament_name)])];
 
@@ -6536,6 +6604,23 @@ function TournamentManagerPage({ onBack }) {
         home_team: addForm.home_team,
         notes: addForm.notes || null,
       });
+      // Auto-register the away/home team to this tournament's team list if
+      // not already present. Lets captains build a tournament team list
+      // incrementally by just typing new opponents into game entries.
+      const tname = addForm.tournament_name;
+      const meta = tournMeta.find(m => m.name === tname);
+      const existing = Array.isArray(meta?.teams) ? meta.teams : [];
+      const additions = [addForm.away_team, addForm.home_team]
+        .filter(t => t && t !== "TBD" && !existing.includes(t));
+      if (additions.length) {
+        const updated = tournMeta.map(m => m.name === tname
+          ? { ...m, teams: [...existing, ...additions] }
+          : m);
+        // If the tournament had no metadata yet, create the entry.
+        if (!meta) updated.push({ name: tname, teams: additions });
+        setTournMeta(updated);
+        await saveTournMeta(updated);
+      }
       // Remove placeholder row now that a real game exists
       const pids = placeholderIds(addForm.tournament_name);
       for (const pid of pids) { try { await sbDelete(`tournament_games?id=eq.${pid}`); } catch(e) {} }
@@ -6652,13 +6737,26 @@ function TournamentManagerPage({ onBack }) {
                   <input type={pt==="type"?pv:"text"} placeholder={pt==="placeholder"?pv:""} value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/></div>
               ))}
             </div>
-            <datalist id="tourn-teams">
-              {TEAMS.map(t=><option key={t} value={t}/>)}
-            </datalist>
+            {/* Team dropdown options come from THIS tournament's teams list
+                first (so the captain picks from teams already added to e.g.
+                Firecracker), then all other teams as fallback. Typing a new
+                name is still allowed — it gets auto-added on save. */}
+            {(() => {
+              const tname = addForm.tournament_name;
+              const meta = tournMeta.find(m => m.name === tname);
+              const tournTeams = Array.isArray(meta?.teams) ? meta.teams : [];
+              const otherTeams = ALL_TEAMS.filter(t => !tournTeams.includes(t));
+              return (
+                <datalist id="tourn-teams">
+                  {tournTeams.map(t => <option key={`t-${t}`} value={t}/>)}
+                  {otherTeams.map(t => <option key={`o-${t}`} value={t}/>)}
+                </datalist>
+              );
+            })()}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
               {[["Away Team","away_team"],["Home Team","home_team"]].map(([l,k])=>(
                 <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
-                  <input type="text" list="tourn-teams" placeholder="Team name or enter new" value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/>
+                  <input type="text" list="tourn-teams" placeholder={addForm.tournament_name ? "Pick from this tournament's teams or enter new" : "Pick a tournament first"} value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={inputStyle}/>
                 </div>
               ))}
             </div>
@@ -6737,6 +6835,59 @@ function TournamentManagerPage({ onBack }) {
                 🗑 Delete
               </button>
             </div>
+            {/* Per-tournament TEAMS row. Add/remove teams here so the
+                add-game team dropdown stays scoped to this tournament. */}
+            {(() => {
+              const tTeams = Array.isArray(meta?.teams) ? meta.teams : [];
+              const available = ALL_TEAMS.filter(t => !tTeams.includes(t));
+              const isOpen = teamPickerFor === tname;
+              return (
+                <div style={{background:"#f8f9fb",borderBottom:"1px solid rgba(0,0,0,0.06)",padding:"10px 18px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:12,textTransform:"uppercase",color:"rgba(0,0,0,0.45)",letterSpacing:".05em"}}>Teams ({tTeams.length}):</span>
+                  {tTeams.length === 0 && (
+                    <span style={{fontSize:12,color:"rgba(0,0,0,0.3)",fontStyle:"italic"}}>No teams yet — add some below</span>
+                  )}
+                  {tTeams.map(t => (
+                    <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6,background:"#fff",border:"1px solid rgba(0,45,110,0.2)",borderRadius:14,padding:"3px 6px 3px 10px",fontSize:12,fontWeight:700,color:"#002d6e"}}>
+                      {t}
+                      <button type="button" onClick={()=>removeTeamFromTournament(tname, t)}
+                        title="Remove team from this tournament"
+                        style={{width:18,height:18,borderRadius:"50%",border:"none",background:"rgba(220,38,38,0.1)",color:"#dc2626",cursor:"pointer",fontWeight:900,fontSize:11,lineHeight:1,padding:0,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+                    </span>
+                  ))}
+                  {!isOpen ? (
+                    <button type="button" onClick={()=>{setTeamPickerFor(tname);setTeamPickerValue("");setTeamPickerCustom("");}}
+                      style={{padding:"3px 10px",background:"rgba(180,83,9,0.1)",border:"1px dashed #b45309",borderRadius:14,color:"#b45309",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                      + Add Team
+                    </button>
+                  ) : (
+                    <span style={{display:"inline-flex",alignItems:"center",gap:6,background:"#fff8e1",border:"1px solid #b45309",borderRadius:14,padding:"3px 6px",flexWrap:"wrap"}}>
+                      <select value={teamPickerValue} onChange={e=>setTeamPickerValue(e.target.value)}
+                        style={{padding:"3px 6px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:5,fontSize:12,fontFamily:"inherit",maxWidth:200}}>
+                        <option value="">— Pick existing team —</option>
+                        {available.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <span style={{fontSize:11,color:"#999"}}>or</span>
+                      <input type="text" placeholder="Type new team name" value={teamPickerCustom}
+                        onChange={e=>setTeamPickerCustom(e.target.value)}
+                        onKeyDown={e=>{ if(e.key==="Enter" && teamPickerCustom.trim()){ addTeamToTournament(tname, teamPickerCustom); setTeamPickerFor(null); }}}
+                        style={{padding:"3px 8px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:5,fontSize:12,fontFamily:"inherit",width:140}}/>
+                      <button type="button" onClick={async ()=>{
+                        const pick = teamPickerCustom.trim() || teamPickerValue;
+                        if (!pick) return;
+                        await addTeamToTournament(tname, pick);
+                        setTeamPickerFor(null);
+                      }} disabled={!teamPickerValue && !teamPickerCustom.trim()}
+                        style={{padding:"3px 10px",background:(teamPickerValue || teamPickerCustom.trim())?"#b45309":"#ccc",border:"none",borderRadius:5,color:"#fff",fontSize:12,fontWeight:700,cursor:(teamPickerValue || teamPickerCustom.trim())?"pointer":"not-allowed"}}>
+                        Add
+                      </button>
+                      <button type="button" onClick={()=>setTeamPickerFor(null)}
+                        style={{padding:"3px 8px",background:"transparent",border:"none",color:"#999",fontSize:14,cursor:"pointer",lineHeight:1}}>✕</button>
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             {tgamesReal.map(g => (
               <div key={g.id}>
                 {editId === g.id ? (
@@ -13381,7 +13532,23 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
         batRows.push({game_id:gameId,player_name:cleanName(name),team,ab:st.ab||0,h:st.h||0,r:st.r||0,rbi:st.rbi||0,bb:st.bb||0,k:st.k||0,hbp:st.hbp||0,doubles:st.doubles||0,triples:st.triples||0,hr:st.hr||0,sb:st.sb||0});
       });
       if(batRows.length)await sbPost("batting_lines",batRows);
-      const toIP=(v)=>{if(!v&&v!==0)return null;const s=String(v).trim();const m=s.match(/^(\d+)\.([012])?$/);if(m)return parseInt(m[1])+(parseInt(m[2]||0)/3);const n=parseFloat(s);return isNaN(n)?null:n;};
+      // Convert baseball-notation IP ("4.1" = 4⅓, "4.2" = 4⅔) to fractional
+      // thirds for storage. Previously had a fallback that accepted raw
+      // decimals like "4.7", which stored 4.7 directly — relied on rounding
+      // in fromIP() to display correctly. That left storage inconsistent
+      // (some rows fractional thirds, some raw decimal). Now strict: if the
+      // input isn't valid baseball notation, treat any third digit as outs
+      // by truncating (e.g. "4.7" → "4.2" effectively, storing 4.667).
+      const toIP=(v)=>{
+        if(!v && v!==0) return null;
+        const s=String(v).trim();
+        const m=s.match(/^(\d+)(?:\.(\d))?$/);
+        if(!m) return null;
+        const whole = parseInt(m[1]) || 0;
+        let outs = parseInt(m[2] || 0);
+        if (outs > 2) outs = 2;   // clamp — there's no .3+ in baseball IP
+        return whole + outs/3;
+      };
       // Build pitcher rows from live tracked stats, then merge with any manual bsPit edits
       const autoRows={};
       Object.entries(gs.pitStats||{}).forEach(([name,st])=>{

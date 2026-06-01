@@ -64,14 +64,20 @@ FROM pitching_lines
 WHERE ip > 9
 ORDER BY ip DESC;
 
--- C5. Pitching IP fraction stored wrong (only .0/.1/.2 are valid in baseball IP).
---     Anything else (e.g. .3, .7) is a decimal-encoded value the app misreads.
-SELECT 'C5: pitching IP with invalid fraction' AS check;
+-- C5. Pitching IP fraction stored wrong.
+--     The app stores IP as fractional THIRDS (1 out = .333, 2 outs = .667),
+--     NOT baseball notation (.1 / .2). So valid storage fractions are
+--     {0, 0.333..., 0.667...}. Anything else means parseIP() wasn't applied
+--     and the captain's typed value got stored raw (e.g. ".1" stored as 0.1
+--     which the app later misreads as zero outs).
+SELECT 'C5: pitching IP with invalid storage fraction' AS check;
 SELECT game_id, player_name, team, ip,
-  round((ip - floor(ip))::numeric, 2) AS fraction
+  round((ip - floor(ip))::numeric, 4) AS fraction
 FROM pitching_lines
-WHERE (ip - floor(ip)) NOT IN (0, 0.1, 0.2)
-  AND ip IS NOT NULL AND ip > 0
+WHERE ip IS NOT NULL AND ip > 0
+  AND abs((ip - floor(ip)) - 0) > 0.05
+  AND abs((ip - floor(ip)) - 0.3333333333333333) > 0.05
+  AND abs((ip - floor(ip)) - 0.6666666666666666) > 0.05
 ORDER BY game_id DESC;
 
 -- C6. Pitcher decisions don't add up: more than one W or one L per game.
