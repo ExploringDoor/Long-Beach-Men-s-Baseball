@@ -3770,10 +3770,24 @@ function TeamsPage({ setTab, setTeamDetail }) {
   const [extraTeams, setExtraTeams] = useState([]); // tournament teams from Supabase
 
   useEffect(() => {
-    sbFetch("lbdc_schedules?id=eq.teams&select=data")
-      .then(rows => {
-        if (rows && rows[0] && Array.isArray(rows[0].data)) setExtraTeams(rows[0].data);
-      }).catch(() => {});
+    // Tournament teams live in TWO places:
+    //   1. lbdc_schedules.id="teams" — global "extras" added via Admin → Manage Teams
+    //   2. lbdc_tournament_meta — per-tournament team rosters added via Manage Tournaments
+    // The public Teams page should show the union of both, deduped, so a
+    // tournament team added via either path shows up here.
+    Promise.all([
+      sbFetch("lbdc_schedules?id=eq.teams&select=data").catch(() => null),
+      sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => null),
+    ]).then(([extrasRows, metaRows]) => {
+      const fromExtras = (extrasRows && extrasRows[0] && Array.isArray(extrasRows[0].data)) ? extrasRows[0].data : [];
+      const fromTourns = (metaRows && metaRows[0] && Array.isArray(metaRows[0].data))
+        ? metaRows[0].data.flatMap(m => Array.isArray(m.teams) ? m.teams : [])
+        : [];
+      const union = [...new Set([...fromExtras, ...fromTourns])].filter(n =>
+        n && n !== "TBD" && n !== "TBA" && !BOOMERS_TEAMS.has(n) && !Object.keys(TEAM_ROSTERS).includes(n)
+      );
+      setExtraTeams(union.sort((a,b) => a.localeCompare(b)));
+    });
   }, []);
 
   useEffect(() => {
