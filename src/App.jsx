@@ -101,6 +101,8 @@ const DIV = {
       {seed:4,name:"Brooklyn",full:"Brooklyn",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
       {seed:5,name:"Generals",full:"Generals",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
       {seed:6,name:"Black Sox",full:"Black Sox",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:7,name:"Leones",full:"Leones",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
+      {seed:8,name:"Indios",full:"Indios",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
     ]},
   BOM: {
     name: "Boomers 60/70", accent: "#7c3aed",
@@ -117,6 +119,7 @@ const ALL_TEAMS = Object.entries(DIV).flatMap(([dk,div]) =>
 const TEAM_COLORS = {
   "Tribe":"#002d6e","Dodgers":"#005a9c","Pirates":"#1d2d44","Titans":"#4a1d96",
   "Brooklyn":"#b45309","Generals":"#374151","Black Sox":"#111111",
+  "Leones":"#dc2626","Indios":"#15803d",
   "Eddie Murray Mashers '56":"#1a5276","Greg Maddux Magicians '66":"#6b21a8",
 };
 
@@ -225,6 +228,8 @@ const TEAM_ROSTERS = {
     {number:"",   name:"Scott Page"},
     {number:"",   name:"Dave Snyder"},
   ],
+  "Leones": [],
+  "Indios": [],
 };
 
 // Rosters are now managed in Supabase (lbdc_rosters table).
@@ -1154,7 +1159,7 @@ function HomePage({ setTab, setTeamDetail }) {
 
   useEffect(() => {
     // Filter by known Saturday team names — avoids season record confusion
-    const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
+    const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
     const tf = satTeams.map(t=>`away_team.eq.${encodeURIComponent(t)}`).join(",");
     const bomTeamList = [...BOOMERS_TEAMS];
     const bf = bomTeamList.map(t=>`away_team.eq.${encodeURIComponent(t)}`).join(",");
@@ -1757,7 +1762,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
     setFwError(null);
     setFwWeeks([]);
     // Filter by known team names instead of season lookup — avoids season record confusion
-    const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
+    const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
     const bomTeams = [...BOOMERS_TEAMS];
     const teams = seasonIdx === 0 ? satTeams : bomTeams;
     const teamFilter = teams.map(t => `away_team.eq.${encodeURIComponent(t)}`).join(",");
@@ -1926,7 +1931,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const dateStr = week ? week.label : "";
   const boomerWeek = bomWeeks[boomerWk] || bomWeeks[0];
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
-  const allTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
+  const allTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
   const playingTeams = new Set(games.flatMap(g => [g.away, g.home]));
   const byeTeams = allTeams.filter(t => !playingTeams.has(t));
 
@@ -5650,7 +5655,7 @@ function PlayerEligibilityPage({ onBack }) {
   // the Boomers entries, but kept explicit so it doesn't depend on roster
   // data. Live rosters come from lbdc_rosters below; the hardcoded
   // TEAM_ROSTERS constant is only a fallback when the DB is unreachable.
-  const SAT_TEAMS = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"];
+  const SAT_TEAMS = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
   const TEAMS = SAT_TEAMS;
   const [payments, setPayments] = useState([]); // [{player_name, team_name, paid}]
   const [appearances, setAppearances] = useState({}); // {player_name: count}
@@ -8027,7 +8032,7 @@ function AdminContactEditor({ onBack }) {
 // hardcoded DIV constant — Saturday + Boomers — so nothing ever looks empty.
 const DEFAULT_DIVISIONS = [
   { id: "sat", name: "Saturday Division (50's)", accent: "#002d6e", season: "Spring/Summer 2026", active: true,
-    teams: ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox"] },
+    teams: ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"] },
   { id: "bom", name: "Boomers 60/70", accent: "#7c3aed", season: "Boomers 2026", active: true,
     teams: ["Eddie Murray Mashers '56","Greg Maddux Magicians '66"] },
 ];

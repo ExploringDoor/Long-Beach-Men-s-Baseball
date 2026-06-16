@@ -10,6 +10,28 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ## [2026-05-23]
 
+### Added — Leones and Indios to Saturday League
+
+**What:**
+- Two new teams in the Spring/Summer 2026 Saturday Division
+- Leones (seed #7) — accent color #dc2626 (red)
+- Indios (seed #8) — accent color #15803d (forest green)
+- Empty rosters; admin can fill via Manage Rosters
+- TLogo falls back to colored letter boxes ("LEON" / "INDI") until logo PNGs are added to /public
+
+**Why:**
+- Two new teams joining the league
+
+**Where:**
+- `src/App.jsx::DIV.SAT.teams` — appended both as seeds 7 + 8
+- `src/App.jsx::TEAM_COLORS` — added entries
+- `src/App.jsx::TEAM_ROSTERS` — empty arrays
+- 5 hardcoded `satTeams`/`SAT_TEAMS` lists updated:
+  - HomePage (1162), ScoresPage (1765), SchedulePage (1934)
+  - PlayerEligibilityPage (5658), AdminDivisionsEditor (8035)
+
+**Future:** Add `/public/leones.png` + `/public/indios.png` and entries in `TEAM_LOGOS` when artwork is ready
+
 ### Added — Per-tournament team lists
 
 **What:**
