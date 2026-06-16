@@ -8700,16 +8700,25 @@ function AdminRostersEditor({ onBack }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Load all players from Supabase on mount (also loads extra/tournament teams)
+  // Load all players from Supabase on mount. Team list pulls from:
+  //   - built-in (Saturday + Boomers from TEAM_ROSTERS)
+  //   - lbdc_schedules.id="teams" (global extras from Manage Teams)
+  //   - lbdc_tournament_meta (per-tournament rosters from Tournament Manager)
+  // Without #3, teams added via Tournament Manager (Father/Son etc.) had no
+  // way to manage their players from this page.
   useEffect(() => {
     setLoading(true);
     Promise.all([
       sbFetch("lbdc_rosters?select=*&order=team.asc,id.asc"),
-      sbFetch("lbdc_schedules?id=eq.teams&select=data"),
-    ]).then(([rows, schedRows]) => {
-      // Merge extra tournament teams with built-in list
-      const extra = schedRows && schedRows[0] && Array.isArray(schedRows[0].data) ? schedRows[0].data : [];
-      const combinedKeys = [...builtInKeys, ...extra.filter(t => !builtInKeys.includes(t))];
+      sbFetch("lbdc_schedules?id=eq.teams&select=data").catch(() => []),
+      sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => []),
+    ]).then(([rows, schedRows, metaRows]) => {
+      const extras = schedRows && schedRows[0] && Array.isArray(schedRows[0].data) ? schedRows[0].data : [];
+      const tournTeams = (metaRows && metaRows[0] && Array.isArray(metaRows[0].data))
+        ? metaRows[0].data.flatMap(m => Array.isArray(m.teams) ? m.teams : [])
+        : [];
+      const extraDeduped = [...new Set([...extras, ...tournTeams])].filter(t => t && t !== "TBD" && t !== "TBA");
+      const combinedKeys = [...builtInKeys, ...extraDeduped.filter(t => !builtInKeys.includes(t))];
       setAllTeamKeys(combinedKeys);
       // Build rosters object keyed by team
       const built = {};
