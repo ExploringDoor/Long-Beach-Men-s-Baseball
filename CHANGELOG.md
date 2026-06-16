@@ -8,6 +8,33 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-06-16]
+
+### Added — Multi-game add panel (Schedule Editor + Tournament Manager)
+
+**What:**
+- Admin → Manage Schedule: new "📋 Add Many for One Date" button next to "+ Add Game"
+  - Panel with single date input + 4 default rows (matches typical Saturday)
+  - Per-row time + field + away + home + Notes (tournament only)
+  - "+ Add Row" inherits last row's time/field
+  - "Save All" creates every row as a game in one persist call
+- Admin → Manage Tournaments: per-tournament "📋 Add Many" button on each card
+  - Same UX, plus date + default field + per-row notes
+  - Auto-registers any new team names to the tournament's teams list
+- Built-in placeholders use this tournament's teams first in the dropdown
+
+**Why:**
+- Daniel requested ability to add multiple games for a date in one shot
+- Previously each game required a full form click-through; tournaments hit hardest (6-12 games per bracket)
+- Now one panel handles a whole Saturday or tournament round
+
+**Where:**
+- `src/App.jsx::ManageSchedulePage` — added bulk state + bulkSave + UI panel
+- `src/App.jsx::TournamentManagerPage` — added bulkAddGames + per-card UI panel
+- Each tournament's "+Add Many" pre-fills tournament name + location
+
+---
+
 ## [2026-05-23]
 
 ### Added — Leones and Indios to Saturday League

@@ -6666,6 +6666,57 @@ function TournamentManagerPage({ onBack }) {
     setSaving(false);
   };
 
+  // Bulk add for tournaments: same idea as Schedule Editor — set the
+  // tournament + date once, then enter N games. Daniel asked for this
+  // since tournaments are typically a chunk of 6-12 games released as a
+  // schedule, not added one at a time.
+  const [showBulkTourn, setShowBulkTourn] = useState(false);
+  const [bulkTournName, setBulkTournName] = useState("");
+  const [bulkTournDate, setBulkTournDate] = useState("");
+  const [bulkTournField, setBulkTournField] = useState("");
+  const buildEmptyTournRow = () => ({ time:"9:00 AM", field:"", away_team:"", home_team:"", notes:"" });
+  const [bulkTournRows, setBulkTournRows] = useState([
+    buildEmptyTournRow(), buildEmptyTournRow(),
+  ]);
+
+  const bulkAddGames = async () => {
+    if (!bulkTournName.trim()) return;
+    const valid = bulkTournRows.filter(r => (r.away_team||"").trim() && (r.home_team||"").trim());
+    if (!valid.length) return;
+    setSaving(true);
+    try {
+      const rows = valid.map(r => ({
+        tournament_name: bulkTournName,
+        game_date: bulkTournDate || null,
+        game_time: r.time || null,
+        field: (r.field || bulkTournField) || null,
+        away_team: r.away_team,
+        home_team: r.home_team,
+        notes: r.notes || null,
+      }));
+      await sbPost("tournament_games", rows);
+      // Auto-register any new team names to this tournament's teams list.
+      const existing = Array.isArray(tournMeta.find(m=>m.name===bulkTournName)?.teams) ? tournMeta.find(m=>m.name===bulkTournName).teams : [];
+      const additions = [...new Set(valid.flatMap(r => [r.away_team, r.home_team]).filter(t => t && t !== "TBD" && !existing.includes(t)))];
+      if (additions.length) {
+        const has = tournMeta.some(m=>m.name===bulkTournName);
+        const updated = has
+          ? tournMeta.map(m => m.name===bulkTournName ? {...m, teams: [...existing, ...additions]} : m)
+          : [...tournMeta, { name:bulkTournName, teams:additions }];
+        setTournMeta(updated);
+        await saveTournMeta(updated);
+      }
+      // Remove placeholder row now that real games exist
+      const pids = placeholderIds(bulkTournName);
+      for (const pid of pids) { try { await sbDelete(`tournament_games?id=eq.${pid}`); } catch(e) {} }
+      setBulkTournDate("");
+      setBulkTournRows([buildEmptyTournRow(), buildEmptyTournRow()]);
+      setShowBulkTourn(false);
+      load();
+    } catch(e) { alert("Save failed: " + e.message); }
+    setSaving(false);
+  };
+
   const saveEdit = async () => {
     setSaving(true);
     try {
@@ -6752,6 +6803,97 @@ function TournamentManagerPage({ onBack }) {
             </div>
           </div>
         )}
+
+        {/* Bulk add games for one tournament + date — fills out a whole
+            tournament day in one save instead of clicking "+Add Game" 6 times. */}
+        {showBulkTourn && (() => {
+          const teamMeta = tournMeta.find(m => m.name === bulkTournName);
+          const tournTeams = Array.isArray(teamMeta?.teams) ? teamMeta.teams : [];
+          const otherTeams = ALL_TEAMS.filter(t => !tournTeams.includes(t));
+          return (
+          <div style={{background:"#fff8e1",border:"2px solid #b45309",borderRadius:10,padding:"16px 18px",display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:10,flexWrap:"wrap"}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,textTransform:"uppercase",color:"#b45309"}}>📋 Add Many Games for One Day</div>
+              <div style={{fontSize:12,color:"rgba(0,0,0,0.5)"}}>Set the tournament + date once, fill rows below, Save All.</div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <div>
+                <label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Tournament</label>
+                <input type="text" value={bulkTournName} onChange={e=>setBulkTournName(e.target.value)} placeholder="Tournament name" style={inputStyle}/>
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Date (shared)</label>
+                <input type="date" value={bulkTournDate} onChange={e=>setBulkTournDate(e.target.value)} style={inputStyle}/>
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:700,color:"#555",textTransform:"uppercase",display:"block",marginBottom:3}}>Default field</label>
+                <input type="text" value={bulkTournField} onChange={e=>{
+                  const v = e.target.value;
+                  setBulkTournField(v);
+                  setBulkTournRows(rs => rs.map(r => ({...r, field: r.field || v})));
+                }} placeholder="e.g. Tempe Sports Complex" style={inputStyle}/>
+              </div>
+            </div>
+            <datalist id="bulk-tourn-teams">
+              {tournTeams.map(t => <option key={`t-${t}`} value={t}/>)}
+              {otherTeams.map(t => <option key={`o-${t}`} value={t}/>)}
+            </datalist>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead>
+                  <tr style={{background:"rgba(180,83,9,0.08)"}}>
+                    <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>#</th>
+                    <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Time</th>
+                    <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Field (override)</th>
+                    <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Away</th>
+                    <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Home</th>
+                    <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Notes</th>
+                    <th style={{width:30}}/>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulkTournRows.map((row, i) => (
+                    <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
+                      <td style={{padding:"4px 8px",color:"rgba(0,0,0,0.4)",fontWeight:700}}>{i+1}</td>
+                      <td style={{padding:"4px 8px"}}>
+                        <input value={row.time} onChange={e=>setBulkTournRows(rs=>rs.map((r,j)=>j===i?{...r,time:e.target.value}:r))} placeholder="9:00 AM" style={{...inputStyle,minWidth:90}}/>
+                      </td>
+                      <td style={{padding:"4px 8px"}}>
+                        <input value={row.field} onChange={e=>setBulkTournRows(rs=>rs.map((r,j)=>j===i?{...r,field:e.target.value}:r))} placeholder="(uses default above)" style={{...inputStyle,minWidth:130}}/>
+                      </td>
+                      <td style={{padding:"4px 8px"}}>
+                        <input list="bulk-tourn-teams" value={row.away_team} onChange={e=>setBulkTournRows(rs=>rs.map((r,j)=>j===i?{...r,away_team:e.target.value}:r))} placeholder="Away" style={{...inputStyle,minWidth:120}}/>
+                      </td>
+                      <td style={{padding:"4px 8px"}}>
+                        <input list="bulk-tourn-teams" value={row.home_team} onChange={e=>setBulkTournRows(rs=>rs.map((r,j)=>j===i?{...r,home_team:e.target.value}:r))} placeholder="Home" style={{...inputStyle,minWidth:120}}/>
+                      </td>
+                      <td style={{padding:"4px 8px"}}>
+                        <input value={row.notes} onChange={e=>setBulkTournRows(rs=>rs.map((r,j)=>j===i?{...r,notes:e.target.value}:r))} placeholder="Pool / Bracket #1" style={{...inputStyle,minWidth:120}}/>
+                      </td>
+                      <td style={{padding:"4px 8px",textAlign:"center"}}>
+                        <button type="button" disabled={bulkTournRows.length===1} onClick={()=>setBulkTournRows(rs=>rs.filter((_,j)=>j!==i))}
+                          style={{background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:4,color:"#dc2626",cursor:bulkTournRows.length===1?"not-allowed":"pointer",fontWeight:700,fontSize:13,padding:"2px 8px",opacity:bulkTournRows.length===1?0.3:1}}>×</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button type="button" onClick={()=>{
+                const last = bulkTournRows[bulkTournRows.length-1];
+                setBulkTournRows(rs => [...rs, { ...buildEmptyTournRow(), time:last?.time||"9:00 AM", field:last?.field||"" }]);
+              }} style={{padding:"7px 14px",background:"rgba(0,45,110,0.08)",border:"1px dashed #002d6e",borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add Row</button>
+              <button type="button" onClick={bulkAddGames} disabled={saving || !bulkTournName.trim()}
+                style={{marginLeft:"auto",padding:"9px 22px",background:(!bulkTournName.trim()||saving)?"#94a3b8":"#b45309",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:(!bulkTournName.trim()||saving)?"not-allowed":"pointer"}}>
+                {saving?"Saving…":`Save All (${bulkTournRows.filter(r=>r.away_team&&r.home_team).length})`}
+              </button>
+              <button type="button" onClick={()=>setShowBulkTourn(false)} disabled={saving}
+                style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:saving?"wait":"pointer"}}>Cancel</button>
+            </div>
+          </div>
+          );
+        })()}
 
         {/* Add Game form */}
         {showAdd && (
@@ -6848,9 +6990,19 @@ function TournamentManagerPage({ onBack }) {
                 {meta?.location && <span style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginLeft:10}}>📍 {meta.location}</span>}
               </div>
               <span style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,0.5)"}}>{tgamesReal.length > 0 ? `${tgamesReal.length} game${tgamesReal.length!==1?"s":""}` : "No games yet"}</span>
-              <button type="button" onClick={()=>{setAddForm(f=>({...f,tournament_name:tname,field:meta?.location||""}));setShowAdd(true);setShowNewTourn(false);}}
+              <button type="button" onClick={()=>{setAddForm(f=>({...f,tournament_name:tname,field:meta?.location||""}));setShowAdd(true);setShowNewTourn(false);setShowBulkTourn(false);}}
                 style={{padding:"4px 10px",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:5,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 + Add Game
+              </button>
+              <button type="button" onClick={()=>{
+                setBulkTournName(tname);
+                setBulkTournField(meta?.location||"");
+                // Pre-fill field on all rows
+                setBulkTournRows(rs => rs.map(r => ({...r, field: r.field || meta?.location || ""})));
+                setShowBulkTourn(true);setShowAdd(false);setShowNewTourn(false);
+              }}
+                style={{padding:"4px 10px",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:5,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                📋 Add Many
               </button>
               <button type="button" onClick={async ()=>{
                   const allTGames = byTournament[tname] || [];
@@ -7010,6 +7162,18 @@ function ManageSchedulePage({ onBack }) {
   const [editForm, setEditForm] = useState({});
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ date:"", time:"9:00 AM", field:SCHEDULE_FIELDS[0], away:TEAMS[0], home:TEAMS[1] });
+  // Multi-row "add many games for one date" panel. Daniel asked for a way
+  // to fill out a whole Saturday (or tournament round) in one shot instead
+  // of clicking through the single-game form once per game.
+  const buildEmptyBulkRow = () => ({ time:"9:00 AM", field:SCHEDULE_FIELDS[0], away:"", home:"" });
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkDate, setBulkDate] = useState("");
+  const [bulkRows, setBulkRows] = useState([
+    { time:"9:00 AM",  field:SCHEDULE_FIELDS[0], away:"", home:"" },
+    { time:"12:00 PM", field:SCHEDULE_FIELDS[0], away:"", home:"" },
+    { time:"9:00 AM",  field:SCHEDULE_FIELDS[1] || SCHEDULE_FIELDS[0], away:"", home:"" },
+    { time:"12:00 PM", field:SCHEDULE_FIELDS[1] || SCHEDULE_FIELDS[0], away:"", home:"" },
+  ]);
   // Disable Save/Delete buttons while a write is in flight so a double-click
   // doesn't fire two racey writes against the same row.
   const [saving, setSaving] = useState(false);
@@ -7058,6 +7222,30 @@ function ManageSchedulePage({ onBack }) {
     setAddForm({ date:"", time:"9:00 AM", field:"Clark Field", away:TEAMS[0], home:TEAMS[1] });
     setShowAdd(false);
   };
+  // Save every row in the bulk-add panel as a separate game with the shared
+  // date. Skips rows where away or home is blank.
+  const bulkSave = () => {
+    if (!bulkDate.trim()) return;
+    const validRows = bulkRows.filter(r => (r.away||"").trim() && (r.home||"").trim());
+    if (!validRows.length) return;
+    const newGames = validRows.map(r => ({
+      id: Math.random().toString(36).slice(2),
+      date: bulkDate.trim(),
+      time: r.time, field: r.field,
+      away: r.away, home: r.home,
+      source: "custom",
+    }));
+    persist([...games, ...newGames]);
+    // Reset to 4 fresh empty rows for the next date
+    setBulkDate("");
+    setBulkRows([
+      { time:"9:00 AM",  field:fieldOptions[0]||SCHEDULE_FIELDS[0], away:"", home:"" },
+      { time:"12:00 PM", field:fieldOptions[0]||SCHEDULE_FIELDS[0], away:"", home:"" },
+      { time:"9:00 AM",  field:fieldOptions[1]||fieldOptions[0]||SCHEDULE_FIELDS[0], away:"", home:"" },
+      { time:"12:00 PM", field:fieldOptions[1]||fieldOptions[0]||SCHEDULE_FIELDS[0], away:"", home:"" },
+    ]);
+    setShowBulk(false);
+  };
 
   // Group by date for display
   const byDate = {};
@@ -7083,10 +7271,86 @@ function ManageSchedulePage({ onBack }) {
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
           <button type="button" disabled={saving} onClick={async()=>{ if(window.confirm("Reset schedule back to original?")){ const prev = league===1?bomGames:satGames; const d=league===1?buildDefaultBom():buildDefaultSat(); if(league===1)setBomGames(d);else setSatGames(d); setSaving(true); const r=await safeSave("Schedule reset",()=>sbUpsert("lbdc_schedules",{id:league===1?"bom":"sat",data:d})); setSaving(false); if(!r.ok){ if(league===1)setBomGames(prev);else setSatGames(prev); } }}}
             style={{padding:"7px 14px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:saving?"wait":"pointer"}}>Reset</button>
-          <button type="button" onClick={()=>setShowAdd(s=>!s)}
+          <button type="button" onClick={()=>{setShowBulk(s=>!s);setShowAdd(false);}}
+            style={{padding:"8px 16px",background:showBulk?"#b45309":"rgba(180,83,9,0.1)",border:`1px solid #b45309`,borderRadius:8,color:showBulk?"#fff":"#b45309",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>📋 Add Many for One Date</button>
+          <button type="button" onClick={()=>{setShowAdd(s=>!s);setShowBulk(false);}}
             style={{padding:"8px 18px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Add Game</button>
         </div>
       </div>
+
+      {showBulk && (
+        <div style={{background:"#fff",border:"2px solid #b45309",borderRadius:12,padding:"18px",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#b45309"}}>📋 Add Many Games For One Date</div>
+            <div style={{fontSize:12,color:"rgba(0,0,0,0.5)"}}>Set the date once, fill in each game row, click Save All.</div>
+          </div>
+          <div style={{marginBottom:12,maxWidth:300}}>
+            <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:3}}>Date (shared for all rows)</label>
+            <input value={bulkDate} onChange={e=>setBulkDate(e.target.value)} placeholder="e.g. Jun 27" style={inputStyle}/>
+            <div style={{fontSize:10,color:"#888",marginTop:3}}>Use the same format as your other games (e.g. "Jun 27", not "June 27th").</div>
+          </div>
+          <div style={{overflowX:"auto",marginBottom:10}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"#fff8e1"}}>
+                  <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>#</th>
+                  <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Time</th>
+                  <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Field</th>
+                  <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Away</th>
+                  <th style={{padding:"6px 8px",textAlign:"left",fontSize:11,fontWeight:700,color:"#7c2d12",textTransform:"uppercase"}}>Home</th>
+                  <th style={{width:30}}/>
+                </tr>
+              </thead>
+              <tbody>
+                {bulkRows.map((row, i) => (
+                  <tr key={i} style={{borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
+                    <td style={{padding:"4px 8px",color:"rgba(0,0,0,0.4)",fontWeight:700}}>{i+1}</td>
+                    <td style={{padding:"4px 8px"}}>
+                      <input value={row.time} onChange={e=>setBulkRows(rs=>rs.map((r,j)=>j===i?{...r,time:e.target.value}:r))} placeholder="9:00 AM" style={{...inputStyle,minWidth:90}}/>
+                    </td>
+                    <td style={{padding:"4px 8px"}}>
+                      <select value={row.field} onChange={e=>setBulkRows(rs=>rs.map((r,j)=>j===i?{...r,field:e.target.value}:r))} style={{...selStyle,minWidth:160}}>
+                        {fieldOptions.map(f=><option key={f}>{f}</option>)}
+                      </select>
+                    </td>
+                    <td style={{padding:"4px 8px"}}>
+                      <select value={row.away} onChange={e=>setBulkRows(rs=>rs.map((r,j)=>j===i?{...r,away:e.target.value}:r))} style={{...selStyle,minWidth:120}}>
+                        <option value="">— pick —</option>
+                        {TEAMS.map(t=><option key={t}>{t}</option>)}
+                      </select>
+                    </td>
+                    <td style={{padding:"4px 8px"}}>
+                      <select value={row.home} onChange={e=>setBulkRows(rs=>rs.map((r,j)=>j===i?{...r,home:e.target.value}:r))} style={{...selStyle,minWidth:120}}>
+                        <option value="">— pick —</option>
+                        {TEAMS.map(t=><option key={t}>{t}</option>)}
+                      </select>
+                    </td>
+                    <td style={{padding:"4px 8px",textAlign:"center"}}>
+                      <button type="button" disabled={bulkRows.length===1} onClick={()=>setBulkRows(rs=>rs.filter((_,j)=>j!==i))}
+                        title="Remove this row"
+                        style={{background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.2)",borderRadius:4,color:"#dc2626",cursor:bulkRows.length===1?"not-allowed":"pointer",fontWeight:700,fontSize:13,padding:"2px 8px",opacity:bulkRows.length===1?0.3:1}}>×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button type="button" onClick={()=>{
+              // Inherit time + field from the last row so adding more on the
+              // same field/timeslot is one click.
+              const last = bulkRows[bulkRows.length-1];
+              setBulkRows(rs => [...rs, { ...buildEmptyBulkRow(), time:last?.time||"9:00 AM", field:last?.field||fieldOptions[0]||SCHEDULE_FIELDS[0] }]);
+            }} style={{padding:"7px 14px",background:"rgba(0,45,110,0.08)",border:"1px dashed #002d6e",borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer"}}>+ Add Row</button>
+            <button type="button" onClick={bulkSave} disabled={saving || !bulkDate.trim()}
+              style={{marginLeft:"auto",padding:"9px 24px",background:(!bulkDate.trim()||saving)?"#94a3b8":"#b45309",border:"none",borderRadius:7,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:(!bulkDate.trim()||saving)?"not-allowed":"pointer"}}>
+              {saving?"Saving…":`Save All (${bulkRows.filter(r=>r.away&&r.home).length})`}
+            </button>
+            <button type="button" onClick={()=>setShowBulk(false)} disabled={saving}
+              style={{padding:"9px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:7,fontWeight:700,fontSize:13,cursor:saving?"wait":"pointer"}}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {showAdd && (
         <div style={{background:"#fff",border:"2px solid #002d6e",borderRadius:12,padding:"18px",marginBottom:16}}>
