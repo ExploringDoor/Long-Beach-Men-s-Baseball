@@ -9662,28 +9662,33 @@ function AdminPage({ onAlertChange }) {
   const [showBoxScore, setShowBoxScore] = useState(false);
   const [quickView, setQuickView] = useState(null); // null | "alert" | "news" | "schedule" | "email" | "games" | "tournaments" | "eligibility"
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
-  // Live team list for the Captain Login dropdown — loaded from lbdc_rosters
-  // so tournament teams (which only exist in the DB, not in the hardcoded
-  // TEAM_ROSTERS constant) are selectable. Falls back to TEAM_ROSTERS if
-  // the DB fetch fails.
+  // Live team list for the Captain Login dropdown. Sources:
+  //   1. ALL built-in teams from TEAM_ROSTERS (Saturday + Boomers, hardcoded
+  //      order). Always present even if their lbdc_rosters table is still empty
+  //      — otherwise new teams like Leones/Indios disappear from the dropdown
+  //      until someone adds their first player.
+  //   2. Any team referenced in lbdc_rosters (covers tournament/sub teams that
+  //      have rosters but aren't built-in).
+  //   3. Any team from lbdc_tournament_meta (covers tournament rosters added
+  //      via Tournament Manager — Diamond Classics Father/Son etc.).
   const [captainTeamOptions, setCaptainTeamOptions] = useState(null);
   useEffect(() => {
-    sbFetch("lbdc_rosters?select=team&limit=2000")
-      .then(rows => {
-        const seen = new Set();
-        (rows || []).forEach(r => { if (r && r.team) seen.add(r.team); });
-        // Junk team names that should never appear in the captain dropdown.
-        ["Test", ""].forEach(j => seen.delete(j));
-        // Order regular Saturday + Boomers teams first (hardcoded order), then
-        // any other team (tournament, free-agent group, etc.) alphabetically.
-        const PRIMARY_ORDER = Object.keys(TEAM_ROSTERS);
-        const primary = PRIMARY_ORDER.filter(t => seen.has(t));
-        primary.forEach(t => seen.delete(t));
-        const rest = [...seen].sort();
-        const list = [...primary, ...rest];
-        setCaptainTeamOptions(list.length ? list : Object.keys(TEAM_ROSTERS));
-      })
-      .catch(() => setCaptainTeamOptions(Object.keys(TEAM_ROSTERS)));
+    Promise.all([
+      sbFetch("lbdc_rosters?select=team&limit=2000").catch(() => []),
+      sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => []),
+    ]).then(([rosterRows, metaRows]) => {
+      const seen = new Set();
+      (rosterRows || []).forEach(r => { if (r && r.team) seen.add(r.team); });
+      const meta = (metaRows && metaRows[0] && Array.isArray(metaRows[0].data)) ? metaRows[0].data : [];
+      meta.forEach(t => (Array.isArray(t.teams) ? t.teams : []).forEach(n => { if (n && n !== "TBD" && n !== "TBA") seen.add(n); }));
+      // Junk names that should never appear.
+      ["Test", "", "TBD", "TBA"].forEach(j => seen.delete(j));
+      // Built-in teams come first in TEAM_ROSTERS order, always present.
+      const PRIMARY = Object.keys(TEAM_ROSTERS);
+      PRIMARY.forEach(t => seen.delete(t));
+      const rest = [...seen].sort();
+      setCaptainTeamOptions([...PRIMARY, ...rest]);
+    });
   }, []);
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
@@ -10989,15 +10994,24 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const [awayOrderQueue, setAwayOrderQueue] = useState([]); // _ids in tap order
   const [homeOrderQueue, setHomeOrderQueue] = useState([]);
 
-  // ── Load extra (tournament) teams from Supabase ──
+  // ── Load extra (tournament) teams from BOTH sources ──
+  //   1. lbdc_schedules.id="teams"  — global extras (Manage Teams admin)
+  //   2. lbdc_tournament_meta       — per-tournament teams (Tournament Manager)
+  // Without #2, teams added via Tournament Manager (e.g. "Diamond Classics
+  // Father/Son") never appear in the BoxScoreEntry game-selection dropdown.
   useEffect(() => {
-    sbFetch("lbdc_schedules?id=eq.teams&select=data")
-      .then(rows => {
-        if (rows && rows[0] && Array.isArray(rows[0].data)) {
-          setExtraTeams(rows[0].data.filter(t => !BASE_TEAMS.includes(t)));
-        }
-      })
-      .catch(() => {});
+    Promise.all([
+      sbFetch("lbdc_schedules?id=eq.teams&select=data").catch(() => []),
+      sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => []),
+    ]).then(([extras, meta]) => {
+      const fromExtras = (extras && extras[0] && Array.isArray(extras[0].data)) ? extras[0].data : [];
+      const fromTourns = (meta && meta[0] && Array.isArray(meta[0].data))
+        ? meta[0].data.flatMap(m => Array.isArray(m.teams) ? m.teams : [])
+        : [];
+      const union = [...new Set([...fromExtras, ...fromTourns])]
+        .filter(t => t && t !== "TBD" && t !== "TBA" && !BASE_TEAMS.includes(t));
+      setExtraTeams(union.sort((a,b) => a.localeCompare(b)));
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
