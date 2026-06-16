@@ -6462,15 +6462,24 @@ function TournamentManagerPage({ onBack }) {
 
   // Add a team to a tournament's `teams` array. Creates the array if it
   // doesn't exist. Idempotent — duplicates are silently skipped.
+  // Also handles tournaments that exist in `games` (have scheduled games)
+  // but have no entry in tournMeta yet — creates the meta entry in that case.
   const addTeamToTournament = async (tournName, teamName) => {
     const clean = (teamName || "").trim();
     if (!clean) return;
-    const updated = tournMeta.map(m => {
-      if (m.name !== tournName) return m;
-      const existing = Array.isArray(m.teams) ? m.teams : [];
-      if (existing.includes(clean)) return m;
-      return { ...m, teams: [...existing, clean] };
-    });
+    const has = tournMeta.some(m => m.name === tournName);
+    let updated;
+    if (has) {
+      updated = tournMeta.map(m => {
+        if (m.name !== tournName) return m;
+        const existing = Array.isArray(m.teams) ? m.teams : [];
+        if (existing.includes(clean)) return m;
+        return { ...m, teams: [...existing, clean] };
+      });
+    } else {
+      // Tournament has games but no meta row — create one with this team.
+      updated = [...tournMeta, { name: tournName, teams: [clean] }];
+    }
     setTournMeta(updated);
     await saveTournMeta(updated);
   };
