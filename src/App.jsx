@@ -21,6 +21,8 @@ const TEAM_LOGOS = {
   "Brooklyn": "/brooklyn.png",
   "Generals": "/generals.png",
   "Black Sox": "/blacksox.png",
+  "Leones":   "/17.png",
+  "Indios":   "/18.png",
   "Eddie Murray Mashers '56":   "/20.png",
   "Greg Maddux Magicians '66":  "/21.png",
 };
