@@ -3436,7 +3436,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const rec = liveRecord || {w:team.w,l:team.l,t:team.t,pct:team.pct,rs:team.rs,ra:team.ra};
 
   // Build full season schedule for this team — prefer live Supabase data over static SCHED
-  const fullSchedule = BOOMERS_TEAMS.has(teamName)
+  const rawSchedule = BOOMERS_TEAMS.has(teamName)
     ? (liveSchedule || BOOMERS_SCHED.map(g => ({...g, away:g.away, home:g.home})))
         .filter(g => g.away===teamName || g.home===teamName)
         .map(g => ({date:g.date, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:g.field, status:g.status||"", notes:g.notes||""}))
@@ -3451,6 +3451,25 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               .map(g => ({date:week.label, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:f.name, status:g.status||"", notes:g.notes||""}))
           )
         );
+  // Sort by ISO date asc, then time-of-day. lbdc_schedules stores games in
+  // insertion order, so without this the team page lists 6/27 after 8/15
+  // whenever new games are bulk-appended via SQL.
+  const _timeToMinutes = (t) => {
+    const m = String(t||"").trim().match(/(\d+):?(\d*)\s*(am|pm)?/i);
+    if (!m) return 0;
+    let h = parseInt(m[1]) || 0;
+    const min = parseInt(m[2]||"0") || 0;
+    const ap = (m[3]||"").toLowerCase();
+    if (ap === "pm" && h !== 12) h += 12;
+    if (ap === "am" && h === 12) h = 0;
+    return h * 60 + min;
+  };
+  const fullSchedule = [...rawSchedule].sort((a, b) => {
+    const dA = toISODate(a.date) || "9999-12-31";
+    const dB = toISODate(b.date) || "9999-12-31";
+    if (dA !== dB) return dA.localeCompare(dB);
+    return _timeToMinutes(a.time) - _timeToMinutes(b.time);
+  });
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {selectedPlayer && <PlayerStatsModal playerName={selectedPlayer} onClose={()=>setSelectedPlayer(null)} />}
