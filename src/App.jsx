@@ -5792,13 +5792,50 @@ function PlayerEligibilityPage({ onBack }) {
       const meta = (metaRows?.[0]?.data) || [];
       setTournMeta(meta);
       if (meta.length) {
+        // Step 1: load existing payment rows for any of these tournaments.
         const seasonFilter = meta.map(t => `"${(t.name||"").replace(/"/g,'')}"`).join(",");
         const allPay = await sbFetch(`player_payments?select=id,player_name,team_name,paid,notes,season&season=in.(${seasonFilter})&order=player_name.asc&limit=2000`);
+        // Step 2: ALSO load the team roster for any team listed under any
+        // tournament. This lets the tournament tab auto-show players who
+        // are on the tournament's team roster but haven't been added to
+        // player_payments yet — admin checks Paid → row is created.
+        const allTournTeamNames = [...new Set(meta.flatMap(t => Array.isArray(t.teams) ? t.teams : []).filter(n => n && n !== "TBD" && n !== "TBA"))];
+        const teamRosterArrays = await Promise.all(
+          allTournTeamNames.map(tn =>
+            sbFetch(`lbdc_rosters?select=name,number&team=eq.${encodeURIComponent(tn)}&order=name.asc`).catch(() => [])
+          )
+        );
+        const rostersByTeam = {};
+        allTournTeamNames.forEach((tn, i) => { rostersByTeam[tn] = teamRosterArrays[i] || []; });
+        // Step 3: merge per tournament. Existing payment rows come through
+        // as-is; team-roster players w/o payment rows become "ghost" rows
+        // (id=null, paid=false) so admin can see + check them off.
         const grouped = {};
-        meta.forEach(t => { grouped[t.name] = []; });
-        (allPay || []).forEach(r => {
-          if (!grouped[r.season]) grouped[r.season] = [];
-          grouped[r.season].push(r);
+        meta.forEach(t => {
+          const realRows = (allPay || []).filter(r => r.season === t.name);
+          const realKeys = new Set(realRows.map(r => `${matchKey(r.player_name)}||${(r.team_name||"").toLowerCase()}`));
+          const ghosts = [];
+          (Array.isArray(t.teams) ? t.teams : []).forEach(tn => {
+            (rostersByTeam[tn] || []).forEach(p => {
+              const key = `${matchKey(p.name)}||${tn.toLowerCase()}`;
+              if (realKeys.has(key)) return; // already represented
+              ghosts.push({
+                id: null, // marks this as a ghost — first interaction inserts
+                player_name: p.name,
+                team_name: tn,
+                paid: false,
+                notes: "",
+                __ghost: true,
+                __season: t.name, // stamp the tournament name so handlers can INSERT later
+              });
+            });
+          });
+          // Sort: paid + real rows first (sorted by name), then ghosts (sorted by name).
+          const allRows = [
+            ...realRows.sort((a,b)=>a.player_name.localeCompare(b.player_name)),
+            ...ghosts.sort((a,b)=>a.player_name.localeCompare(b.player_name)),
+          ];
+          grouped[t.name] = allRows;
         });
         setTournRosters(grouped);
       } else {
@@ -5880,25 +5917,47 @@ function PlayerEligibilityPage({ onBack }) {
   const toggleTournamentPaid = async (row) => {
     setTournSaving(true);
     try {
-      await sbPatch(`player_payments?id=eq.${row.id}`, { paid: !row.paid });
+      if (row.id) {
+        await sbPatch(`player_payments?id=eq.${row.id}`, { paid: !row.paid });
+      } else {
+        // Ghost row from team roster — INSERT a new payment record on
+        // first interaction. Subsequent toggles use the patched path.
+        await sbPost("player_payments", {
+          player_name: cleanName(row.player_name),
+          team_name: row.team_name || "",
+          season: row.__season || row.season || "",
+          paid: !row.paid,
+          notes: row.notes || "",
+        });
+      }
       await loadTournaments();
     } catch(e) { alert("Save failed: " + e.message); }
     setTournSaving(false);
   };
 
-  const saveTournamentNotes = async (id, notes) => {
+  const saveTournamentNotes = async (id, notes, row) => {
     setTournSaving(true);
     try {
-      await sbPatch(`player_payments?id=eq.${id}`, { notes: notes || "" });
-      // No reload — local state update via parent re-render after the next load.
-      // (Trade-off: light optimistic UI, doesn't refetch on every keystroke.)
-      setTournRosters(prev => {
-        const next = {...prev};
-        Object.keys(next).forEach(t => {
-          next[t] = next[t].map(r => r.id === id ? {...r, notes} : r);
+      if (id) {
+        await sbPatch(`player_payments?id=eq.${id}`, { notes: notes || "" });
+        setTournRosters(prev => {
+          const next = {...prev};
+          Object.keys(next).forEach(t => {
+            next[t] = next[t].map(r => r.id === id ? {...r, notes} : r);
+          });
+          return next;
         });
-        return next;
-      });
+      } else if (row) {
+        // Ghost row → INSERT with the notes.
+        await sbPost("player_payments", {
+          player_name: cleanName(row.player_name),
+          team_name: row.team_name || "",
+          season: row.__season || row.season || "",
+          paid: row.paid || false,
+          notes: notes || "",
+        });
+        await loadTournaments();
+      }
     } catch(e) { alert("Save failed: " + e.message); }
     setTournSaving(false);
   };
@@ -6432,10 +6491,17 @@ function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCoun
             </thead>
             <tbody>
               {roster.map((r, i) => {
-                const localNote = editingNotes[r.id] !== undefined ? editingNotes[r.id] : (r.notes || "");
+                // Ghost rows (from team roster, no payment record yet) get a
+                // unique fake key for editingNotes state and React's reconciler
+                const rowKey = r.id || `ghost-${r.team_name}-${r.player_name}`;
+                const localNote = editingNotes[rowKey] !== undefined ? editingNotes[rowKey] : (r.notes || "");
+                const isGhost = !r.id;
                 return (
-                  <tr key={r.id} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                    <td style={{padding:"10px 16px",fontWeight:600,color:"#111"}}>{r.player_name}</td>
+                  <tr key={rowKey} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa",opacity:isGhost?0.92:1}}>
+                    <td style={{padding:"10px 16px",fontWeight:600,color:"#111"}}>
+                      {r.player_name}
+                      {isGhost && <span title="From team roster — not yet on payment list. Check Paid or enter notes to add." style={{marginLeft:6,fontSize:10,color:"#b45309",fontWeight:700,background:"rgba(180,83,9,0.1)",padding:"1px 6px",borderRadius:8,textTransform:"uppercase",letterSpacing:".04em"}}>roster</span>}
+                    </td>
                     <td style={{padding:"10px 12px",color:"rgba(0,0,0,0.65)",fontSize:12}}>{r.team_name || <span style={{color:"#ccc",fontStyle:"italic"}}>—</span>}</td>
                     <td style={{padding:"10px 12px",textAlign:"center"}}>
                       <input
@@ -6450,8 +6516,8 @@ function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCoun
                       <input
                         type="text"
                         value={localNote}
-                        onChange={e=>setEditingNotes(p=>({...p,[r.id]:e.target.value}))}
-                        onBlur={()=>{ if (localNote !== (r.notes||"")) onSaveNotes(r.id, localNote); }}
+                        onChange={e=>setEditingNotes(p=>({...p,[rowKey]:e.target.value}))}
+                        onBlur={()=>{ if (localNote !== (r.notes||"")) onSaveNotes(r.id, localNote, r); }}
                         placeholder="Venmo, check #, etc."
                         style={{width:"100%",padding:"5px 8px",border:"1px solid rgba(0,0,0,0.13)",borderRadius:5,fontSize:12,fontFamily:"inherit",background:"#fff"}}
                       />
@@ -6459,10 +6525,10 @@ function TournamentEligibilityBlock({ tournName, tournLocation, roster, paidCoun
                     <td style={{padding:"6px 12px",textAlign:"center"}}>
                       <button
                         type="button"
-                        disabled={saving}
+                        disabled={saving || isGhost}
                         onClick={()=>onRemove(r.id)}
-                        title="Remove from roster"
-                        style={{background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:5,color:"#dc2626",fontSize:12,padding:"4px 8px",cursor:saving?"wait":"pointer",fontWeight:700}}
+                        title={isGhost ? "Roster players can't be removed here — edit the team roster in Manage Rosters." : "Remove from payment list"}
+                        style={{background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:5,color:"#dc2626",fontSize:12,padding:"4px 8px",cursor:(saving||isGhost)?"not-allowed":"pointer",fontWeight:700,opacity:isGhost?0.3:1}}
                       >✕</button>
                     </td>
                   </tr>
