@@ -5128,7 +5128,7 @@ function PlayerSignUpPage() {
       // different address without ALSO going through that confirmation —
       // FormSubmit silently holds emails to unverified addresses, which
       // makes it look like signups stopped working.
-      fetch("https://formsubmit.co/ajax/toddharris1222@gmail.com", {
+      fetch("https://formsubmit.co/ajax/dgutierrez22@yahoo.com", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
