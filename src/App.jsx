@@ -8198,13 +8198,37 @@ function AdminFieldsEditor({ onBack }) {
                   <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Address</label>
                   <RichTextInput key={`addr-${fi}`} defaultValue={field.address} onChange={v=>updField(fi,"address",v)} placeholder="Street address" minHeight={38} />
                 </div>
+                {/* Generate-from-address button: builds correctly-formed
+                    Google + Apple Maps URLs from the typed address. Saves
+                    captains from constructing URLs by hand (which is how
+                    Cantwell shipped broken with literal text instead of
+                    a real maps.google.com/?q=… URL). */}
+                <div>
+                  <button type="button" onClick={()=>{
+                    // Strip HTML tags + &nbsp; entities + collapse whitespace
+                    const cleaned = String(field.address||"")
+                      .replace(/<[^>]+>/g, " ")
+                      .replace(/&nbsp;/gi, " ")
+                      .replace(/&amp;/gi, "&")
+                      .replace(/\s+/g, " ")
+                      .trim();
+                    if (!cleaned) { alert("Add a street address first, then click this button to generate the URLs."); return; }
+                    const enc = encodeURIComponent(cleaned);
+                    const gmaps = `https://maps.google.com/?q=${enc}`;
+                    const amaps = `https://maps.apple.com/?q=${enc}`;
+                    updField(fi, "mapsUrl", gmaps);
+                    updField(fi, "appleMapsUrl", amaps);
+                  }} style={{padding:"7px 14px",background:"rgba(0,45,110,0.08)",border:"1px dashed #002d6e",borderRadius:6,color:"#002d6e",fontWeight:700,fontSize:12,cursor:"pointer",alignSelf:"flex-start"}}>
+                    🗺 Generate Map URLs from Address
+                  </button>
+                </div>
                 <div>
                   <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Google Maps URL</label>
-                  <input value={field.mapsUrl||""} onChange={e=>updField(fi,"mapsUrl",e.target.value)} placeholder="https://maps.google.com/..." style={inp} />
+                  <input value={field.mapsUrl||""} onChange={e=>updField(fi,"mapsUrl",e.target.value)} placeholder="https://maps.google.com/?q=…" style={inp} />
                 </div>
                 <div>
                   <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Apple Maps URL</label>
-                  <input value={field.appleMapsUrl||""} onChange={e=>updField(fi,"appleMapsUrl",e.target.value)} placeholder="https://maps.apple.com/..." style={inp} />
+                  <input value={field.appleMapsUrl||""} onChange={e=>updField(fi,"appleMapsUrl",e.target.value)} placeholder="https://maps.apple.com/?q=…" style={inp} />
                 </div>
                 <div>
                   <label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:4}}>Accent Color</label>
