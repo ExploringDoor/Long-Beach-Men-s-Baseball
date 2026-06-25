@@ -1996,7 +1996,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {previewGame && <GamePreviewModal {...previewGame} onClose={()=>setPreviewGame(null)} />}
       <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second">
-        <TabBar items={["Saturday Division","Boomers 60/70"]} active={league} onChange={handleLeagueChange} />
+        <TabBar items={["Saturday Division","Boomers 60/70","Tournaments"]} active={league} onChange={handleLeagueChange} />
       </PageHero>
 
       {league === 0 && <>
@@ -2087,7 +2087,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
         </div>
       </>}
 
-      {league === 99 && (
+      {league === 2 && (
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           {Object.keys(byTournament).length === 0 ? (
             <div style={{textAlign:"center",padding:"60px 20px",color:"#aaa",fontSize:16}}>No tournaments scheduled yet.</div>
