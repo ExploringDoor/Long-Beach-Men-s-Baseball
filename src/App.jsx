@@ -2157,6 +2157,7 @@ function TournamentsPage({ setTab, setTeamDetail }) {
   const [tournGames, setTournGames] = useState([]);
   const [tournMeta, setTournMeta] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [previewGame, setPreviewGame] = useState(null);
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
 
   useEffect(() => {
@@ -2187,6 +2188,7 @@ function TournamentsPage({ setTab, setTeamDetail }) {
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
+      {previewGame && <GamePreviewModal {...previewGame} onClose={()=>setPreviewGame(null)} />}
       <PageHero label="Diamond Classics" title="Tournaments" subtitle="LBDC tournament schedules & brackets" />
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         {loading ? (
@@ -2220,24 +2222,28 @@ function TournamentsPage({ setTab, setTeamDetail }) {
                   </div>
                 </div>
               ) : (
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  {visibleGames.map((g) => (
-                    <div key={g.id} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"4px solid #b45309",borderRadius:12,padding:"14px 20px",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                      <div style={{flex:1,minWidth:180}}>
-                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>
-                          <span style={{cursor:"pointer",color:"#002d6e"}} onClick={()=>goTeam(g.away_team)}>{g.away_team}</span>
-                          <span style={{color:"#ccc",fontWeight:400,margin:"0 8px"}}>@</span>
-                          <span style={{cursor:"pointer",color:"#002d6e"}} onClick={()=>goTeam(g.home_team)}>{g.home_team}</span>
-                        </div>
-                        {g.notes && <div style={{fontSize:12,color:"#b45309",fontWeight:700,marginTop:2,textTransform:"uppercase",letterSpacing:".04em"}}>{g.notes}</div>}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
+                  {visibleGames.map((g) => {
+                    const tDate = g.game_date ? new Date(g.game_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}) : "";
+                    return (
+                      <div key={g.id} style={{width:"100%",display:"flex",flexDirection:"column",gap:6}}>
+                        <UpcomingCard
+                          away={g.away_team}
+                          home={g.home_team}
+                          time={g.game_time}
+                          date={tDate}
+                          field={g.field}
+                          isNext={false}
+                          status={g.status}
+                          onTeamClick={goTeam}
+                          onPreview={setPreviewGame}
+                        />
+                        {g.notes && (
+                          <div style={{alignSelf:"flex-start",background:"#fff8e1",border:"1px solid #f59e0b",borderRadius:6,padding:"4px 10px",fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,fontWeight:700,color:"#b45309",textTransform:"uppercase",letterSpacing:".06em"}}>{g.notes}</div>
+                        )}
                       </div>
-                      <div style={{textAlign:"right",flexShrink:0}}>
-                        {g.game_time && <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e",lineHeight:1}}>{g.game_time}</div>}
-                        {g.game_date && <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",fontWeight:600,marginTop:2}}>{new Date(g.game_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>}
-                        {g.field && <div style={{fontSize:12,color:"rgba(0,0,0,0.38)",marginTop:1}}>{g.field}</div>}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
