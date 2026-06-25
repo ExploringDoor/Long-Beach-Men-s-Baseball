@@ -33,6 +33,35 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-06-17] — Full tournament box scores (one-sided)
+
+### Added — Score tournament games with full box scores
+
+**What:**
+- Tournament games can now be scored through Box Score Entry with full batting + pitching for the Diamond Classics side. The opponent is score-only (per Daniel: "only posting our stats, not the opponents").
+- Tournament results live in the `games` table under a per-tournament season (created on demand), so all existing box-score machinery + player-stats aggregation work automatically.
+- Scores page: new **Tournaments** tab grouping played tournament games by tournament, each with a full box score (our stats + opponent score-only).
+- Team pages: tournament schedule card shows the inline final score (W/L + score) once a game is played.
+- Player stats: every Diamond Classics player's tournament batting/pitching rolls into their career profile automatically.
+
+**How it works:**
+- `resolveTournamentSeason(name)` — deterministic resolve-or-create of a `seasons` row matching the tournament name (id.asc read so all callers converge on one id even without the DB constraint; re-reads after create for race-tolerance).
+- Box Score Entry: tournament games added to the picker; selecting one defaults the Diamond Classics side to "full" and the opponent to "simple" (score-only). handleSave routes tournament games to the tournament season; Saturday/Boomers detection unchanged.
+- Scores Tournaments tab + team-page inline scores fetch `games` by tournament season_ids.
+
+**Verified end-to-end** in preview with a real (then-deleted) test game: entry one-sided default, Scores tab, one-sided box modal (no crash on empty opponent), team-page inline W 12–5, and player career stats all correct.
+
+**Adversarial review fixes applied:**
+- Season resolver made deterministic + race-tolerant (was check-then-insert; could dup).
+- "Skip Lineup → Edit Stats" shortcut made tournament-aware (was forcing both sides full).
+- selectSavedGame skips its fallback fetches once the authoritative tournament-season map is built (perf on Saturday edits).
+
+**Where:**
+- `src/App.jsx` — resolveTournamentSeason, BoxScoreEntry (picker + selectGame + handleSave + edit paths), ScoresPage (Tournaments tab), TeamDetailPage (inline tournament scores).
+- `sql-add-seasons-unique-2026-06-17.sql` — optional unique index on seasons.name (belt-and-suspenders for the resolver).
+
+---
+
 ## [2026-06-16]
 
 ### Added — Multi-game add panel (Schedule Editor + Tournament Manager)

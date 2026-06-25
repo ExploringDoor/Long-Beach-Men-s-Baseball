@@ -1759,7 +1759,10 @@ function ScoresPage({ setTab, setTeamDetail }) {
   const season = SCORES[seasonIdx];
   const week = season?.weeks?.[weekIdx];
   const isLive = seasonIdx === 0 || seasonIdx === 1; // Spring/Summer (0) and Boomers (1) load from Supabase
+  const isTourn = seasonIdx === 2; // Tournaments tab — loads by season_id, not team list
   const isFW = false;
+  const [tournGroups, setTournGroups] = useState([]);
+  const [tournLoading, setTournLoading] = useState(false);
 
   // Load live data whenever we switch to a live tab
   useEffect(() => {
@@ -1802,6 +1805,34 @@ function ScoresPage({ setTab, setTeamDetail }) {
       .catch(e => { if(e.message !== "no_games_yet") setFwError(e.message); setFwLoading(false); });
   }, [seasonIdx]);
 
+  // Tournaments tab: resolve tournament season_ids from lbdc_tournament_meta
+  // names → seasons, fetch games by season_id (no date floor — tournaments may
+  // predate April), group by tournament name. One-sided games render fine via
+  // LiveBoxScoreFinalCard (opponent has no batting/pitching lines).
+  useEffect(() => {
+    if (seasonIdx !== 2) return;
+    setTournLoading(true);
+    setTournGroups([]);
+    Promise.all([
+      sbFetch("seasons?select=id,name&limit=200"),
+      sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => []),
+    ]).then(async ([seasons, metaRows]) => {
+      const metaNames = (metaRows?.[0]?.data || []).map(m => m.name).filter(Boolean);
+      const matched = (seasons || []).filter(s => metaNames.includes(s.name));
+      const tournIds = matched.map(s => s.id);
+      if (!tournIds.length) { setTournGroups([]); setTournLoading(false); return; }
+      const idToName = Object.fromEntries(matched.map(s => [s.id, s.name]));
+      const games = await sbFetch(
+        `games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline,season_id&season_id=in.(${tournIds.join(",")})&away_score=not.is.null&order=game_date.desc,id.desc&limit=200`
+      );
+      const deduped = dedupGames(games || []);
+      const byTourn = {};
+      deduped.forEach(g => { const n = idToName[g.season_id] || "Tournament"; (byTourn[n] ||= []).push(g); });
+      setTournGroups(Object.entries(byTourn).map(([name, gs]) => ({ name, games: gs })));
+      setTournLoading(false);
+    }).catch(() => { setTournGroups([]); setTournLoading(false); });
+  }, [seasonIdx]);
+
   const handleSeasonChange = (i) => { setSeasonIdx(i); setWeekIdx(0); };
   const fwWeek = fwWeeks[weekIdx];
 
@@ -1824,7 +1855,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Results" title="Scores">
-        <TabBar items={SCORES.map(s=>s.season)} active={seasonIdx} onChange={handleSeasonChange} />
+        <TabBar items={[...SCORES.map(s=>s.season), "Tournaments"]} active={seasonIdx} onChange={handleSeasonChange} />
       </PageHero>
       <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
 
@@ -1869,7 +1900,9 @@ function ScoresPage({ setTab, setTeamDetail }) {
         )}
 
         {/* SPRING/SUMMER + NABA: static hardcoded data */}
-        {!isLive && (
+        {/* !isTourn guard is required: SCORES[2] is undefined, so season.weeks
+            below would throw on the Tournaments tab. */}
+        {!isLive && !isTourn && (
           <>
             {season.weeks.length > 1 && (
               <WeekPills items={season.weeks.map(w=>w.week)} active={weekIdx} onChange={setWeekIdx} />
@@ -1885,6 +1918,35 @@ function ScoresPage({ setTab, setTeamDetail }) {
                 {week && week.games.map((g,i) => <FinalCard key={i} g={g} onTeamClick={goTeam} />)}
               </div>
             )}
+          </>
+        )}
+
+        {/* TOURNAMENTS: grouped one-sided box scores from Supabase */}
+        {isTourn && (
+          <>
+            {tournLoading && (
+              <div style={{textAlign:"center",padding:60,color:"rgba(0,0,0,0.4)"}}>
+                <div style={{fontSize:32,marginBottom:12}}>⚾</div>
+                Loading tournament box scores…
+              </div>
+            )}
+            {!tournLoading && tournGroups.length === 0 && (
+              <div style={{background:"#fff",borderRadius:12,padding:"48px",textAlign:"center",border:"1px solid rgba(0,0,0,0.09)"}}>
+                <div style={{fontSize:40,marginBottom:12}}>🏆</div>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#111",textTransform:"uppercase"}}>No Tournament Results Yet</div>
+                <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:8}}>Tournament box scores will appear here after games are entered.</div>
+              </div>
+            )}
+            {!tournLoading && tournGroups.map(grp => (
+              <div key={grp.name} style={{marginBottom:32}}>
+                <h3 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#111",textTransform:"uppercase",margin:"0 0 14px",letterSpacing:".02em"}}>{grp.name}</h3>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(300px,100%),1fr))",gap:12}}>
+                  {grp.games.map((g,i) => (
+                    <LiveBoxScoreFinalCard key={g.id ?? i} game={g} onTeamClick={goTeam} />
+                  ))}
+                </div>
+              </div>
+            ))}
           </>
         )}
       </div>
@@ -3047,6 +3109,10 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   // null = not yet loaded (hides the empty state during initial fetch).
   // Array (incl empty) = loaded.
   const [tournamentGames, setTournamentGames] = useState(null);
+  // Map of `${game_date}|${away_team}|${home_team}` -> {away_score, home_score, status}
+  // for played tournament `games` rows, so the Tournament Games schedule card can
+  // show inline finals (mirroring the Saturday schedule card).
+  const [tournamentResults, setTournamentResults] = useState({});
 
   const openBoxScore = async (g) => {
     setBoxGame(g);
@@ -3429,6 +3495,34 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       .catch(() => setTournamentGames([]));
   }, [teamName]);
 
+  // Fetch played tournament `games` rows for this team to show inline finals on
+  // the Tournament Games schedule card. Resolve tournament season_ids from
+  // lbdc_tournament_meta names → seasons, then fetch games in those seasons for
+  // this team. Keyed by date|away|home (exact orientation) so the schedule row
+  // looks up its own final. dedupGames handles dual-captain submissions.
+  useEffect(() => {
+    const enc = encodeURIComponent;
+    Promise.all([
+      sbFetch("seasons?select=id,name&limit=200"),
+      sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => []),
+    ]).then(async ([seasons, metaRows]) => {
+      const metaNames = (metaRows?.[0]?.data || []).map(m => m.name).filter(Boolean);
+      const ids = (seasons || []).filter(s => metaNames.includes(s.name)).map(s => s.id);
+      if (!ids.length) { setTournamentResults({}); return; }
+      const games = await sbFetch(
+        `games?select=id,game_date,away_team,home_team,away_score,home_score,status,headline&season_id=in.(${ids.join(",")})&or=(away_team.eq.${enc(teamName)},home_team.eq.${enc(teamName)})&away_score=not.is.null&limit=200`
+      );
+      const deduped = dedupGames(games || []);
+      const resMap = {};
+      deduped.forEach(g => {
+        resMap[`${g.game_date}|${g.away_team}|${g.home_team}`] = {
+          away_score: g.away_score, home_score: g.home_score, status: g.status,
+        };
+      });
+      setTournamentResults(resMap);
+    }).catch(() => setTournamentResults({}));
+  }, [teamName]);
+
   const isTournamentTeam = !team;
   const color = TEAM_COLORS[teamName] || "#b45309";
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); } };
@@ -3504,6 +3598,15 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
             {(tournamentGames||[]).map((g, i) => {
               const isHome = g.home_team === teamName;
               const opponent = isHome ? g.away_team : g.home_team;
+              // Inline final: key directly off this row's own away_team/home_team
+              // (exact orientation), NOT reconstructed from isHome. No score → null
+              // (no crash); see Step 15 [GUARD] re: exact team-name matching.
+              const tres = g.game_date ? tournamentResults[`${g.game_date}|${g.away_team}|${g.home_team}`] : null;
+              const myScore  = tres ? (isHome ? tres.home_score : tres.away_score) : null;
+              const oppScore = tres ? (isHome ? tres.away_score : tres.home_score) : null;
+              const hasFinal = tres && myScore != null;
+              const tResult = hasFinal ? (myScore > oppScore ? "W" : myScore < oppScore ? "L" : "T") : null;
+              const tResultColor = tResult === "W" ? "#16a34a" : tResult === "L" ? "#dc2626" : "#b45309";
               // Render date like "Sat Jun 27" — game_date is YYYY-MM-DD; pin to noon
               // to avoid UTC rollover flipping the day in PT.
               let dateDisp = g.game_date || "";
@@ -3514,7 +3617,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               }
               const fieldDisp = (g.field || "").replace("Clark Field — Long Beach","Clark Field").replace("Fromhold Field — San Pedro","Fromhold Field").replace("St Pius X — Downey","St Pius X");
               return (
-                <div key={g.id ?? i} style={{display:"grid",gridTemplateColumns:"68px 48px minmax(0,1fr)",alignItems:"center",gap:8,padding:"10px 14px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"transparent":"rgba(0,0,0,0.01)"}}>
+                <div key={g.id ?? i} style={{display:"grid",gridTemplateColumns:"68px 48px minmax(0,1fr) auto",alignItems:"center",gap:8,padding:"10px 14px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"transparent":"rgba(0,0,0,0.01)"}}>
                   <div>
                     <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#111",lineHeight:1}}>{dateDisp}</div>
                     {g.game_time && <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.game_time}</div>}
@@ -3544,6 +3647,12 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                       </div>
                     </div>
                   </div>
+                  {hasFinal && (
+                    <div style={{display:"flex",alignItems:"center",gap:8,justifySelf:"end",flexShrink:0}}>
+                      <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:tResultColor}}>{tResult}</span>
+                      <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#111",whiteSpace:"nowrap"}}>{myScore}–{oppScore}</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -10808,6 +10917,26 @@ const getSatSeason = (seasons) => {
   return seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
 };
 
+// Resolve-or-create a 'seasons' row for a tournament name.
+// Deterministic + race-tolerant: the read is ordered by id.asc so even if
+// duplicate same-named seasons somehow exist (no DB unique constraint), every
+// caller resolves to the SAME (lowest) id — which keeps the season-scoped
+// game-dedup consistent. After a create we RE-READ (also id.asc) so that if a
+// concurrent save created the row first, we converge on the winning row instead
+// of trusting our own possibly-duplicate insert.
+// encodeURIComponent handles apostrophes/slashes in the name=eq. filter.
+// (For belt-and-suspenders, sql-add-seasons-unique-2026-*.sql adds a unique
+// index on seasons.name so duplicates can't be created at all.)
+async function resolveTournamentSeason(name) {
+  if (!name) return null;
+  const enc = encodeURIComponent(name);
+  const rows = await sbFetch(`seasons?select=id,name&name=eq.${enc}&order=id.asc&limit=1`);
+  if (rows && rows[0]) return rows[0].id;
+  try { await sbPost("seasons", [{ name }]); } catch(e) { /* a concurrent save may have created it */ }
+  const after = await sbFetch(`seasons?select=id,name&name=eq.${enc}&order=id.asc&limit=1`);
+  return after && after[0] ? after[0].id : null;
+}
+
 // Deduplicate game records: same away+home+date → keep highest run total (or highest id)
 const dedupGames = (games) => {
   const seen = {};
@@ -11163,6 +11292,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     ...SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home })))),
     ...BOOMERS_SCHED.map(g => ({ date:g.date, field:g.field, time:g.time, away:g.away, home:g.home })),
   ].filter(g => !captainTeam || g.away===captainTeam || g.home===captainTeam);
+  // ── Tournament games (real tournament_games rows) — third selection source.
+  // Mapped to the SAME flat {date,field,time,away,home} shape as allGames, plus
+  // tournament_name + isTourn marker. The UUID g.id is deliberately dropped — it
+  // must never become a games.id (games.id is integer; box-score lines link to it).
+  const [tournGames, setTournGames] = useState([]);
+  // Apply the captainTeam filter to tournament games separately so allGames
+  // (the static Saturday+Boomers list) stays untouched.
+  const tournGamesFiltered = tournGames.filter(g => !captainTeam || g.away === captainTeam || g.home === captainTeam);
   const [game, setGame] = useState(null);
   const [customMode, setCustomMode] = useState(false);
   const [custom, setCustom] = useState({ date:"", time:"", field:"", away:TEAMS[0], home:TEAMS[1] });
@@ -11234,6 +11371,25 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Load tournament games (real schedule rows) as a third selection source ──
+  // game_date is already ISO, so feeding it as `date` avoids toISODate year
+  // ambiguity. Placeholder rows (notes==="__placeholder__") are excluded.
+  useEffect(() => {
+    sbFetch(`tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=game_date.asc`)
+      .then(rows => {
+        const visible = (rows || [])
+          .filter(g => g.notes !== "__placeholder__")
+          .map(g => ({
+            date: g.game_date, field: g.field || "", time: g.game_time || "",
+            away: g.away_team, home: g.home_team,
+            tournament_name: g.tournament_name, isTourn: true,
+          }));
+        setTournGames(visible);
+      })
+      .catch(() => setTournGames([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Auto-load a game when opened from "Manage Games" → Edit ──
   useEffect(() => {
     if (preloadGame) selectSavedGame(preloadGame);
@@ -11242,7 +11398,10 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   }, []);
 
   // ── localStorage draft persistence ──
-  const bseDraftKey = (g) => g ? `bse_draft_${g.away}_${g.home}_${g.date}`.replace(/[\s/]/g,"_") : null;
+  // Append tournament_name (only when truthy) so a tournament game and a
+  // Saturday game with identical teams+date don't clobber each other's drafts.
+  // The conditional keeps existing Saturday/Boomers draft keys byte-identical.
+  const bseDraftKey = (g) => g ? `bse_draft_${g.away}_${g.home}_${g.date}${g.tournament_name ? `_${g.tournament_name}` : ""}`.replace(/[\s/]/g,"_") : null;
   // Auto-save draft whenever key fields change (only when a game is selected and not in edit mode)
   useEffect(() => {
     if (!game || editGameId) return;
@@ -11289,6 +11448,14 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const [editGameId, setEditGameId] = useState(null);
   const [editSubmittedTag, setEditSubmittedTag] = useState(""); // preserves "[submitted: X]" through re-saves
   const [savedGames, setSavedGames] = useState([]);
+  // season_id → tournament_name, populated by loadSavedGames. Lets selectSavedGame
+  // restore tournament_name onto game so a re-save stays in the tournament season.
+  const [tournSeasonNames, setTournSeasonNames] = useState({});
+  // True once loadSavedGames has resolved the authoritative tournament-season
+  // map. When set, a season_id absent from tournSeasonNames is DEFINITIVELY not
+  // a tournament, so selectSavedGame can skip its 2-fetch fallback (avoids extra
+  // round-trips on every Saturday/Boomers edit from the captain's saved list).
+  const [tournNamesResolved, setTournNamesResolved] = useState(false);
   const [savedLoading, setSavedLoading] = useState(false);
   const [editMode, setEditMode] = useState(false); // true = showing saved games list
 
@@ -11302,15 +11469,29 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
 
   const loadSavedGames = () => {
     setSavedLoading(true);
-    sbFetch("seasons?select=id,name&limit=50")
-      .then(async seasons => {
+    // Fetch a wider season list (limit=200) so accumulated tournament seasons
+    // aren't dropped by the old limit=50 cap, plus tournament meta names.
+    Promise.all([
+      sbFetch("seasons?select=id,name&limit=200"),
+      sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => []),
+    ])
+      .then(async ([seasons, metaRows]) => {
         const satIds = getSatSeasonFilter(seasons);
         const bom = seasons.find(x=>x.name.toLowerCase().includes("boomers"));
+        // Resolve tournament season_ids from lbdc_tournament_meta names.
+        const metaNames = (metaRows?.[0]?.data || []).map(m => m.name).filter(Boolean);
+        const tournSeasons = (seasons || []).filter(s => metaNames.includes(s.name));
+        const tournIds = tournSeasons.map(s => s.id);
+        // Build a season_id → tournament_name map so selectSavedGame can restore
+        // tournament_name on saved tournament games (drives the edit-branch routing).
+        setTournSeasonNames(Object.fromEntries(tournSeasons.map(s => [s.id, s.name])));
+        setTournNamesResolved(true);
         const fetches = [];
-        // Include `innings` in select so selectSavedGame can repopulate the
-        // line-score grid + hits/errors when the captain re-opens the edit.
-        if (satIds.length) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`));
-        if (bom) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings&season_id=eq.${bom.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
+        // Include `innings` so selectSavedGame can repopulate the line-score grid +
+        // hits/errors; include `season_id` so tournament_name can be restored.
+        if (satIds.length) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings,season_id&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`));
+        if (bom) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings,season_id&season_id=eq.${bom.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
+        if (tournIds.length) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings,season_id&season_id=in.(${tournIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=100`));
         const results = await Promise.all(fetches);
         return results.flat().sort((a,b)=>b.game_date?.localeCompare(a.game_date||"")||0);
       })
@@ -11324,6 +11505,26 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const selectSavedGame = async (g) => {
     setSavedLoading(true);
     try {
+      // Resolve this game's tournament_name (null for Saturday/Boomers). Prefer
+      // the map populated by loadSavedGames; fall back to a direct season lookup
+      // for the admin preload path (Manage Games → Edit), where loadSavedGames
+      // may not have run / its state update hasn't landed yet. The fallback only
+      // tags it as a tournament if the season name is in lbdc_tournament_meta.
+      let tournName = tournSeasonNames[g.season_id] || null;
+      // Only run the fallback when the authoritative map ISN'T built yet (admin
+      // preload path). Once loadSavedGames has resolved it, a season_id not in
+      // the map is definitively non-tournament — skip the extra fetches.
+      if (!tournName && g.season_id && !tournNamesResolved) {
+        try {
+          const [seasonRows, metaRows] = await Promise.all([
+            sbFetch(`seasons?select=id,name&id=eq.${g.season_id}&limit=1`),
+            sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => []),
+          ]);
+          const sName = seasonRows?.[0]?.name;
+          const metaNames = (metaRows?.[0]?.data || []).map(m => m.name).filter(Boolean);
+          if (sName && metaNames.includes(sName)) tournName = sName;
+        } catch(e) { /* leave tournName null on failure */ }
+      }
       const [batLines, pitLines] = await Promise.all([
         sbFetch(`batting_lines?select=*&game_id=eq.${g.id}&limit=100`),
         sbFetch(`pitching_lines?select=*&game_id=eq.${g.id}&limit=50`),
@@ -11364,7 +11565,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const awayP=pitLines.filter(p=>p.team===g.away_team && pitHasStat(p));
       const homeP=pitLines.filter(p=>p.team===g.home_team && pitHasStat(p));
       setEditGameId(g.id);
-      setGame({date:g.game_date, time:g.game_time||"", field:g.field||"", away:g.away_team, home:g.home_team});
+      // Restore tournament_name (null for Saturday/Boomers) so the edit-branch
+      // season routing in handleSave keeps a re-saved tournament game in its
+      // tournament season instead of re-stamping it as Saturday/Boomers.
+      setGame({date:g.game_date, time:g.game_time||"", field:g.field||"", away:g.away_team, home:g.home_team,
+               tournament_name: tournName});
       setAwayScore(String(g.away_score??"")); setHomeScore(String(g.home_score??""));
       // Strip "[submitted: X]" from the displayed headline but save it so re-saving doesn't wipe it
       const submittedMatch = (g.headline||"").match(/\s*\[submitted:[^\]]*\]/);
@@ -11397,7 +11602,11 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   };
 
   const selectGame = (g) => {
-    setGame(g);
+    // Carry tournament_name (and only the canonical fields) onto game state so
+    // handleSave can route a tournament game to its own season. Non-tournament
+    // games get tournament_name:null and behave exactly as before.
+    setGame({ date: g.date, time: g.time || "", field: g.field || "", away: g.away, home: g.home,
+              tournament_name: g.tournament_name || null });
     // Restore from localStorage draft if one exists for this game
     const draftKey = bseDraftKey(g);
     let draft = null;
@@ -11427,7 +11636,17 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setAwayScore(""); setHomeScore(""); setHeadline(""); setRecap("");
       setAwayInn(emptyInnings()); setHomeInn(emptyInnings());
       setAwayH(""); setAwayE(""); setHomeH(""); setHomeE("");
-      setAwayStatMode("simple"); setHomeStatMode("simple");
+      if (g.tournament_name) {
+        // One-sided box scoring: only the Diamond Classics side records full
+        // stats; the opponent is score-only ("simple"). If neither side is DC,
+        // default the away side to full per spec. Admin can still toggle.
+        const dcAway = (g.away || "").toLowerCase().includes("diamond classics");
+        const dcHome = (g.home || "").toLowerCase().includes("diamond classics");
+        setAwayStatMode(dcAway ? "full" : (dcHome ? "simple" : "full"));
+        setHomeStatMode(dcHome ? "full" : "simple");
+      } else {
+        setAwayStatMode("simple"); setHomeStatMode("simple");
+      }
     }
     setSaveMsg(null);
     // Captain portal: go to lineup order step first (unless a draft already exists)
@@ -11436,6 +11655,21 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       setLineupNameInput("");
       setRosterFetched(false);
       setBsePhase(draft ? "entry" : "lineup");
+    }
+  };
+
+  // Stat modes when jumping straight into editing an already-saved game (the
+  // "Skip Lineup → Edit Stats" shortcut). Tournament games stay one-sided
+  // (Diamond Classics side full, opponent score-only); Saturday/Boomers games
+  // get both sides full so the captain can edit either.
+  const applyEditStatModes = () => {
+    if (game?.tournament_name) {
+      const dcAway = (game.away || "").toLowerCase().includes("diamond classics");
+      const dcHome = (game.home || "").toLowerCase().includes("diamond classics");
+      setAwayStatMode(dcAway ? "full" : (dcHome ? "simple" : "full"));
+      setHomeStatMode(dcHome ? "full" : "simple");
+    } else {
+      setAwayStatMode("full"); setHomeStatMode("full");
     }
   };
 
@@ -11556,12 +11790,22 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       let gid;
       if(editGameId) {
         // UPDATE existing game — also stamp season_id so it's visible to season-filtered queries
-        const allSeasonsE = await sbFetch("seasons?select=id,name&limit=50");
-        const isBoomerE = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
-        let seasonE = isBoomerE
-          ? (allSeasonsE.find(s=>s.name.includes("Boomers"))||allSeasonsE.find(s=>s.name.toLowerCase().includes("boomers")))
-          : (allSeasonsE.find(s=>s.name.includes("Spring")&&s.name.includes("2026"))||allSeasonsE.find(s=>s.name.includes("Diamond Classics")));
-        if (!seasonE && !isBoomerE) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); seasonE=r[0]; }
+        // Tournament games route to their own season; without this branch a
+        // re-saved tournament game would be re-stamped into the Saturday/Boomers
+        // season (silent data corruption). Depends on selectSavedGame restoring
+        // game.tournament_name when a saved tournament game is loaded.
+        let seasonE;
+        if (game.tournament_name) {
+          const sid = await resolveTournamentSeason(game.tournament_name);
+          seasonE = sid ? { id: sid } : null;
+        } else {
+          const allSeasonsE = await sbFetch("seasons?select=id,name&limit=50");
+          const isBoomerE = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
+          seasonE = isBoomerE
+            ? (allSeasonsE.find(s=>s.name.includes("Boomers"))||allSeasonsE.find(s=>s.name.toLowerCase().includes("boomers")))
+            : (allSeasonsE.find(s=>s.name.includes("Spring")&&s.name.includes("2026"))||allSeasonsE.find(s=>s.name.includes("Diamond Classics")));
+          if (!seasonE && !isBoomerE) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); seasonE=r[0]; }
+        }
         // Build the jsonb `innings` payload: per-team line score arrays plus
         // hits/errors totals. Manager flagged that filling these in the
         // editor and saving lost the data on next load — they were never
@@ -11590,16 +11834,24 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         // already entered. See _replaceStats below.
         gid = editGameId;
       } else {
-        // INSERT new game — detect which season based on teams
-        const allSeasons = await sbFetch("seasons?select=id,name&limit=50");
-        const isBoomerGame = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
+        // INSERT new game — detect which season based on teams.
+        // Tournament games resolve/create their own season FIRST, before the
+        // dedup fetch below, so the dedup is tournament-season-scoped and a
+        // same-date/same-teams Saturday game (different season_id) can't collide.
         let season;
-        if (isBoomerGame) {
-          season = allSeasons.find(s=>s.name.toLowerCase().includes("boomers"));
-          if(!season){const res=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=res?.[0];}
+        if (game.tournament_name) {
+          const sid = await resolveTournamentSeason(game.tournament_name);
+          season = sid ? { id: sid } : null;
         } else {
-          season = allSeasons.find(s=>s.name.includes("Diamond Classics Saturdays")||( s.name.includes("Spring")&&s.name.includes("2026")));
-          if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res?.[0];}
+          const allSeasons = await sbFetch("seasons?select=id,name&limit=50");
+          const isBoomerGame = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
+          if (isBoomerGame) {
+            season = allSeasons.find(s=>s.name.toLowerCase().includes("boomers"));
+            if(!season){const res=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=res?.[0];}
+          } else {
+            season = allSeasons.find(s=>s.name.includes("Diamond Classics Saturdays")||( s.name.includes("Spring")&&s.name.includes("2026")));
+            if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res?.[0];}
+          }
         }
         if(!season) throw new Error("Could not find or create a season record — please try again.");
         // Before inserting, check if a game already exists for the same date+teams+season
@@ -11693,9 +11945,15 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       if (!(await battingHasPosColumn())) {
         batRows.forEach(r => { delete r.pos; });
       }
+      // pitRows is NOT gated by statMode, so a one-sided tournament opponent
+      // could otherwise leak pitching lines. For tournament games, only record
+      // a side's pitchers when that side is in "full" mode (the DC side).
+      // Non-tournament games keep recording both sides regardless of statMode.
+      const awayPitActive = awayStatMode === "full" || !game.tournament_name;
+      const homePitActive = homeStatMode === "full" || !game.tournament_name;
       const pitRows = [
-        ...awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})),
-        ...homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})),
+        ...(awayPitActive ? awayPit.filter(p=>p.name).map(p=>({...p,_t:game.away})) : []),
+        ...(homePitActive ? homePit.filter(p=>p.name).map(p=>({...p,_t:game.home})) : []),
       ].map(({name,_t,ip,h,r,er,bb,k,decision})=>({
         game_id:gid,player_name:cleanName(name),team:_t,
         ip:parseIP(ip),h:+h||0,r:+r||0,er:+er||0,bb:+bb||0,k:+k||0,
@@ -12264,6 +12522,29 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               <div style={{fontSize:12,color:"#002d6e",fontWeight:700}}>Select →</div>
             </div>
           ))}
+          {tournGamesFiltered.length > 0 && (
+            <>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,
+                textTransform:"uppercase",color:"#888",letterSpacing:0.5,marginTop:10,
+                paddingBottom:4,borderBottom:"1px solid rgba(0,0,0,0.08)"}}>Tournaments</div>
+              {tournGamesFiltered.map((g,i)=>(
+                <div key={`t${i}`} onClick={()=>selectGame(g)}
+                  style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:9,
+                    padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",
+                    justifyContent:"space-between"}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor="#002d6e"}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(0,0,0,0.09)"}>
+                  <div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,
+                      textTransform:"uppercase"}}>{g.away} <span style={{color:"#ccc"}}>@</span> {g.home}</div>
+                    <div style={{fontSize:11,color:"#888",marginTop:2}}>{g.date} · {g.time} · {g.field}</div>
+                    <div style={{fontSize:11,color:"#002d6e",fontWeight:700,marginTop:2}}>{g.tournament_name}</div>
+                  </div>
+                  <div style={{fontSize:12,color:"#002d6e",fontWeight:700}}>Select →</div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       ) : (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -12516,11 +12797,13 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             setAwayE(_innJson && _innJson.awayE != null ? String(_innJson.awayE) : "");
             setHomeH(_innJson && _innJson.homeH != null ? String(_innJson.homeH) : "");
             setHomeE(_innJson && _innJson.homeE != null ? String(_innJson.homeE) : "");
-            setAwayStatMode("full"); setHomeStatMode("full");
+            // For tournament games, only the Diamond Classics side gets full
+            // stats (opponent is score-only). For Saturday/Boomers, both full.
+            applyEditStatModes();
             setBsePhase("entry");
           } catch (err) {
             // Fall back to plain entry if the lookup fails
-            setAwayStatMode("full"); setHomeStatMode("full");
+            applyEditStatModes();
             setBsePhase("entry");
           }
         }}
