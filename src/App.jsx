@@ -508,6 +508,10 @@ const RULES_DATA = [
 
 /* ─── SHARED COMPONENTS ─────────────────────────────────────────────────── */
 function TLogo({ name, size=80 }) {
+  // Null guard — tournament_games rows can have NULL away/home teams (e.g.
+  // partial entries, placeholder rows). Without this, .slice(0,4) below
+  // throws and the whole parent page blanks out.
+  if (!name) return <div style={{width:size,height:size,flexShrink:0}} />;
   const src = TEAM_LOGOS[name];
   if (src) return (
     <div style={{width:size,height:size,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -2114,24 +2118,28 @@ function SchedulePage({ setTab, setTeamDetail }) {
                   </div>
                 </div>
               ) : (
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {visibleGames.map((g,i) => (
-                  <div key={g.id} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"4px solid #b45309",borderRadius:12,padding:"14px 20px",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                    <div style={{flex:1,minWidth:180}}>
-                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>
-                        <span style={{cursor:"pointer",color:"#002d6e"}} onClick={()=>goTeam(g.away_team)}>{g.away_team}</span>
-                        <span style={{color:"#ccc",fontWeight:400,margin:"0 8px"}}>@</span>
-                        <span style={{cursor:"pointer",color:"#002d6e"}} onClick={()=>goTeam(g.home_team)}>{g.home_team}</span>
-                      </div>
-                      {g.notes && <div style={{fontSize:12,color:"#b45309",fontWeight:700,marginTop:2,textTransform:"uppercase",letterSpacing:".04em"}}>{g.notes}</div>}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
+                {visibleGames.map((g,i) => {
+                  const tDate = g.game_date ? new Date(g.game_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}) : "";
+                  return (
+                    <div key={g.id} style={{width:"100%",display:"flex",flexDirection:"column",gap:6}}>
+                      <UpcomingCard
+                        away={g.away_team}
+                        home={g.home_team}
+                        time={g.game_time}
+                        date={tDate}
+                        field={g.field}
+                        isNext={false}
+                        status={g.status}
+                        onTeamClick={goTeam}
+                        onPreview={setPreviewGame}
+                      />
+                      {g.notes && (
+                        <div style={{alignSelf:"flex-start",background:"#fff8e1",border:"1px solid #f59e0b",borderRadius:6,padding:"4px 10px",fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,fontWeight:700,color:"#b45309",textTransform:"uppercase",letterSpacing:".06em"}}>{g.notes}</div>
+                      )}
                     </div>
-                    <div style={{textAlign:"right",flexShrink:0}}>
-                      {g.game_time && <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#002d6e",lineHeight:1}}>{g.game_time}</div>}
-                      {g.game_date && <div style={{fontSize:13,color:"rgba(0,0,0,0.5)",fontWeight:600,marginTop:2}}>{new Date(g.game_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>}
-                      {g.field && <div style={{fontSize:12,color:"rgba(0,0,0,0.38)",marginTop:1}}>{g.field}</div>}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               )}
             </div>
@@ -3028,6 +3036,11 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const [boxBatting, setBoxBatting] = useState([]);
   const [boxPitching, setBoxPitching] = useState([]);
   const [rosterSort, setRosterSort] = useState({col:"avgN", dir:"desc"});
+  // Tournament games for this team (only used when isTournamentTeam is true).
+  // Each row: { id, tournament_name, game_date, game_time, field, away_team, home_team, notes }.
+  // null = not yet loaded (hides the empty state during initial fetch).
+  // Array (incl empty) = loaded.
+  const [tournamentGames, setTournamentGames] = useState(null);
 
   const openBoxScore = async (g) => {
     setBoxGame(g);
@@ -3376,6 +3389,40 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
       .catch(() => {});
   }, [teamName]);
 
+  // Fetch tournament_games for this team (only meaningful for tournament teams,
+  // but harmless to run for any team — the OR filter just returns empty for
+  // regular teams not in any tournament). Client-side:
+  //   - filters __placeholder__ rows because PostgREST `notes=neq.__placeholder__`
+  //     would also drop NULL notes rows.
+  //   - sorts by game_time using minute-of-day, NOT lexically. The server's
+  //     `order=game_time.asc` puts "10:00 AM" before "9:00 AM" because game_time
+  //     is stored as free-form text.
+  useEffect(() => {
+    const enc = encodeURIComponent;
+    const timeToMinutes = (t) => {
+      const m = String(t||"").trim().match(/(\d+):?(\d*)\s*(am|pm)?/i);
+      if (!m) return 0;
+      let h = parseInt(m[1]) || 0;
+      const min = parseInt(m[2]||"0") || 0;
+      const ap = (m[3]||"").toLowerCase();
+      if (ap === "pm" && h !== 12) h += 12;
+      if (ap === "am" && h === 12) h = 0;
+      return h * 60 + min;
+    };
+    sbFetch(`tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&or=(away_team.eq.${enc(teamName)},home_team.eq.${enc(teamName)})&order=game_date.asc`)
+      .then(rows => {
+        const visible = (rows || []).filter(g => g.notes !== "__placeholder__");
+        visible.sort((a,b) => {
+          const dA = a.game_date || "9999-12-31";
+          const dB = b.game_date || "9999-12-31";
+          if (dA !== dB) return dA.localeCompare(dB);
+          return timeToMinutes(a.game_time) - timeToMinutes(b.game_time);
+        });
+        setTournamentGames(visible);
+      })
+      .catch(() => setTournamentGames([]));
+  }, [teamName]);
+
   const isTournamentTeam = !team;
   const color = TEAM_COLORS[teamName] || "#b45309";
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); } };
@@ -3428,6 +3475,69 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
                 })}
               </div>
             )}
+          </Card>
+          <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginTop:28,marginBottom:14}}>Tournament Schedule</h2>
+          <Card>
+            <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Tournament Games</span>
+              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,color:color,fontWeight:700}}>{(tournamentGames||[]).length} Games</span>
+            </div>
+            {tournamentGames === null && (
+              <div style={{padding:"32px 18px",textAlign:"center",color:"rgba(0,0,0,0.3)",fontSize:13}}>Loading…</div>
+            )}
+            {Array.isArray(tournamentGames) && tournamentGames.length === 0 && (
+              <div style={{padding:"32px 18px",textAlign:"center",color:"#888",fontSize:13,lineHeight:1.5}}>
+                <span style={{fontSize:28,display:"block",marginBottom:8,opacity:0.4}}>⚾</span>
+                No tournament games scheduled.
+                <div style={{fontSize:11,color:"rgba(0,0,0,0.35)",marginTop:6}}>Schedule will appear here once games are posted.</div>
+              </div>
+            )}
+            {(tournamentGames||[]).map((g, i) => {
+              const isHome = g.home_team === teamName;
+              const opponent = isHome ? g.away_team : g.home_team;
+              // Render date like "Sat Jun 27" — game_date is YYYY-MM-DD; pin to noon
+              // to avoid UTC rollover flipping the day in PT.
+              let dateDisp = g.game_date || "";
+              if (g.game_date) {
+                try {
+                  dateDisp = new Date(g.game_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                } catch {}
+              }
+              const fieldDisp = (g.field || "").replace("Clark Field — Long Beach","Clark Field").replace("Fromhold Field — San Pedro","Fromhold Field").replace("St Pius X — Downey","St Pius X");
+              return (
+                <div key={g.id ?? i} style={{display:"grid",gridTemplateColumns:"68px 48px minmax(0,1fr)",alignItems:"center",gap:8,padding:"10px 14px",borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"transparent":"rgba(0,0,0,0.01)"}}>
+                  <div>
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,color:"#111",lineHeight:1}}>{dateDisp}</div>
+                    {g.game_time && <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:11,color:"rgba(0,0,0,0.4)",marginTop:2}}>{g.game_time}</div>}
+                  </div>
+                  <div style={{
+                    fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,
+                    letterSpacing:".08em",textTransform:"uppercase",
+                    color:isHome?"#fff":"#002d6e",
+                    background:isHome?"#002d6e":"rgba(0,45,110,0.08)",
+                    border:`1px solid ${isHome?"#002d6e":"rgba(0,45,110,0.2)"}`,
+                    borderRadius:4,padding:"2px 6px",textAlign:"center",
+                  }}>
+                    {isHome?"HOME":"AWAY"}
+                  </div>
+                  <div style={{minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
+                      <TLogo name={opponent} size={44} />
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,color:"#111",textTransform:"uppercase",lineHeight:1.1,overflow:"hidden",textOverflow:"ellipsis"}}>{isHome?"vs":"@"} {opponent}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3,flexWrap:"wrap"}}>
+                          {g.tournament_name && (
+                            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:10,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase",color:color,background:`${color}15`,border:`1px solid ${color}40`,borderRadius:3,padding:"1px 6px",whiteSpace:"nowrap"}}>{g.tournament_name}</span>
+                          )}
+                          {fieldDisp && <span style={{fontSize:11,color:"rgba(0,0,0,0.4)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fieldDisp}</span>}
+                        </div>
+                        {g.notes && <div style={{fontSize:10,color:"#c8102e",marginTop:2,fontWeight:700}}>📝 {g.notes}</div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </Card>
         </div>
       </div>

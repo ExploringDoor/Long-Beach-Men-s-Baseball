@@ -8,6 +8,31 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-06-17]
+
+### Added — Tournament schedule on team pages + styled tournament cards on Schedule page
+
+**What:**
+- Tournament team detail pages now show a "Tournament Schedule" card below the roster (mirrors the Saturday team's "2026 Schedule" card). Each game row: date, time, HOME/AWAY badge, opponent logo, opponent name, tournament tag, field, and bracket/pool notes.
+- Public Schedule page → Tournaments tab now renders each game using the shared UpcomingCard component (logos, big clickable team names, time/date/field, Preview), matching the Saturday Division tab visual weight. Previously plain text rows.
+
+**Why:**
+- Saturday teams show schedule + roster together; tournament teams only had a roster
+- Tournament games on the Schedule page looked plain vs the polished Saturday cards
+- Both requested by user/Daniel
+
+**Robustness fixes (from adversarial review):**
+- TLogo now null-guards `name` — tournament_games rows can have NULL away/home teams; without the guard `.slice(0,4)` crashed the whole page.
+- Tournament team schedule sorts game_time by minute-of-day client-side (server's text sort put "10:00 AM" before "9:00 AM").
+- Loading sentinel (null vs []) prevents the "No games" empty-state flash during initial fetch.
+
+**Where:**
+- `src/App.jsx::TLogo` — null guard
+- `src/App.jsx::TeamDetailPage` — tournamentGames state + useEffect + schedule card (tournament branch)
+- `src/App.jsx::SchedulePage` league===2 branch — UpcomingCard grid
+
+---
+
 ## [2026-06-16]
 
 ### Added — Multi-game add panel (Schedule Editor + Tournament Manager)
