@@ -3448,7 +3448,8 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
             </div>
           </div>
         </div>
-        <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
+        <div className="team-detail-grid" style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px",display:"grid",gridTemplateColumns:"1fr 300px",gap:28,alignItems:"start"}}>
+          <div>
           <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginBottom:14}}>Roster</h2>
           <Card>
             {roster.length === 0 ? (
@@ -3476,7 +3477,9 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               </div>
             )}
           </Card>
-          <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#111",marginTop:28,marginBottom:14}}>Tournament Schedule</h2>
+          </div>
+
+          <div style={{display:"flex",flexDirection:"column",gap:16,position:"sticky",top:72}}>
           <Card>
             <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>Tournament Games</span>
@@ -3539,6 +3542,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
               );
             })}
           </Card>
+          </div>
         </div>
       </div>
     );
