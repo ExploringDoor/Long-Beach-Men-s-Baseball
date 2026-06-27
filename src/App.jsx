@@ -11288,10 +11288,29 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   const initBatters = (team) => (TEAM_ROSTERS[team]||[]).map(p => typeof p === "string" ? p : p.name).filter(p=>p!=="TBD").map(blankBatter);
 
   // ── Game selection ──
-  const allGames = [
+  // Live schedule from lbdc_schedules (what Admin → Manage Schedule edits).
+  // null until loaded. The static SCHED/BOOMERS_SCHED constants are only a
+  // fallback for first paint / fetch failure — otherwise a revised schedule
+  // (games added or changed in the admin) would never appear in this picker,
+  // which is exactly the "revised schedule isn't visible" bug.
+  const [liveSchedule, setLiveSchedule] = useState(null);
+  useEffect(() => {
+    sbFetch("lbdc_schedules?id=in.(sat,bom)&select=id,data")
+      .then(rows => {
+        const merged = [];
+        (rows || []).forEach(r => {
+          if (Array.isArray(r.data)) r.data.forEach(g => merged.push({ date:g.date, time:g.time, field:g.field, away:g.away, home:g.home }));
+        });
+        setLiveSchedule(merged);
+      })
+      .catch(() => setLiveSchedule([]));
+  }, []);
+  const staticGames = [
     ...SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home })))),
     ...BOOMERS_SCHED.map(g => ({ date:g.date, field:g.field, time:g.time, away:g.away, home:g.home })),
-  ].filter(g => !captainTeam || g.away===captainTeam || g.home===captainTeam);
+  ];
+  const allGames = ((liveSchedule && liveSchedule.length) ? liveSchedule : staticGames)
+    .filter(g => !captainTeam || g.away===captainTeam || g.home===captainTeam);
   // ── Tournament games (real tournament_games rows) — third selection source.
   // Mapped to the SAME flat {date,field,time,away,home} shape as allGames, plus
   // tournament_name + isTourn marker. The UUID g.id is deliberately dropped — it

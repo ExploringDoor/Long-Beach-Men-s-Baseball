@@ -33,6 +33,20 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-06-18]
+
+### Fixed — Box Score Entry now shows the revised (live) schedule
+
+**What:**
+- The "From Schedule" game picker in Box Score Entry was built from the static hardcoded `SCHED`/`BOOMERS_SCHED` constants, NOT the live `lbdc_schedules` table that Admin → Manage Schedule edits.
+- So any revised/added games (new dates, Leones/Indios matchups, the Jun 27–Aug 15 revisions) were invisible when trying to enter scores — Daniel: "the revised schedule isn't visible."
+- Now fetches the live schedule from lbdc_schedules (sat + bom) and builds the picker from it; static constants are only a fallback for first paint / fetch failure.
+
+**Where:**
+- `src/App.jsx::BoxScoreEntry` — added liveSchedule state + fetch; allGames derives from it.
+
+---
+
 ## [2026-06-17] — Full tournament box scores (one-sided)
 
 ### Added — Score tournament games with full box scores
