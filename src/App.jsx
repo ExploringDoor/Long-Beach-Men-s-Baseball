@@ -12560,7 +12560,13 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           ))}
         </div>
       ) : !customMode ? (() => {
-        const visible = allGames.filter(g => !captainTeam || !savedGames.some(s => s.away_team===g.away && s.home_team===g.home));
+        // Captains: hide games already submitted — but match on DATE too, not
+        // just the matchup. Teams play each other twice a season, so matching
+        // only (away,home) hid the SECOND meeting once the first was scored
+        // (captains couldn't see/score their Jul/Aug rematches). Comparing the
+        // date as well means only the specific submitted game is hidden.
+        const visible = allGames.filter(g => !captainTeam || !savedGames.some(s =>
+          s.away_team===g.away && s.home_team===g.home && s.game_date===toISODate(g.date)));
         // First game on/after today; if all are past, target the last one.
         let todayIdx = visible.findIndex(g => (toISODate(g.date)||"9999-12-31") >= _todayISO);
         if (todayIdx < 0) todayIdx = visible.length - 1;

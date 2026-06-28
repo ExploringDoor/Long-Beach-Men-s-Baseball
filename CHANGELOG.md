@@ -35,6 +35,19 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ## [2026-06-18]
 
+### Fixed — Captains couldn't see rematch games to score
+
+**What:**
+- The captain "From Schedule" picker hid already-submitted games by matching only (away_team, home_team) — ignoring the date.
+- Teams play each other twice a season, so once the first meeting was scored, the SECOND meeting (Jul/Aug rematch) was wrongly hidden. A captain often saw only the 1 game vs a brand-new opponent.
+- Now matches on date too, so only the specific submitted game is hidden; all upcoming/unscored games (including rematches) show.
+
+**Verified:** Black Sox captain went from seeing 1 game (Indios Jul 25) to all 6 upcoming games (Jul 11 → Aug 15) in date order. Submitted games still hidden.
+
+**Where:** `src/App.jsx::BoxScoreEntry` — captain savedGames hide filter now compares `s.game_date === toISODate(g.date)`.
+
+**Note:** the live-schedule fix, chronological sort, and Jump-to-Today button all already applied to the captain portal (same BoxScoreEntry component) — this was the one captain-specific gap.
+
 ### Added — "Jump to Today's Games" button in Box Score Entry
 
 **What:**
