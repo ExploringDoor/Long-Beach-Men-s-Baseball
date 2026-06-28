@@ -35,6 +35,19 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ## [2026-06-18]
 
+### Added — "Jump to Today's Games" button in Box Score Entry
+
+**What:**
+- A button at the top of the From-Schedule picker that scrolls to (and briefly highlights) the first game on/after today's date.
+- Now that the picker is sorted Apr → Aug, today's games are far down the list; this jumps straight to them.
+
+**Where:**
+- `src/App.jsx::BoxScoreEntry` — todayRowRef + jumpToToday + button in the picker.
+
+### Fixed — Box Score Entry picker sorted chronologically
+
+**What:** picker showed games in raw insertion order (Boomers first, bulk-appended Jun 27–Aug 15 out of sequence). Now sorted by date then time.
+
 ### Fixed — Box Score Entry now shows the revised (live) schedule
 
 **What:**

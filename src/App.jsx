@@ -11340,6 +11340,20 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // Apply the captainTeam filter to tournament games separately so allGames
   // (the static Saturday+Boomers list) stays untouched.
   const tournGamesFiltered = tournGames.filter(g => !captainTeam || g.away === captainTeam || g.home === captainTeam);
+  // "Jump to Today" support for the From-Schedule picker: a ref on the row for
+  // the first game on/after today, + a brief highlight when the button is used.
+  const todayRowRef = useRef(null);
+  const [highlightToday, setHighlightToday] = useState(false);
+  const _todayISO = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  })();
+  const jumpToToday = () => {
+    if (!todayRowRef.current) return;
+    todayRowRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    setHighlightToday(true);
+    setTimeout(() => setHighlightToday(false), 1600);
+  };
   const [game, setGame] = useState(null);
   const [customMode, setCustomMode] = useState(false);
   const [custom, setCustom] = useState({ date:"", time:"", field:"", away:TEAMS[0], home:TEAMS[1] });
@@ -12545,15 +12559,27 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             </div>
           ))}
         </div>
-      ) : !customMode ? (
+      ) : !customMode ? (() => {
+        const visible = allGames.filter(g => !captainTeam || !savedGames.some(s => s.away_team===g.away && s.home_team===g.home));
+        // First game on/after today; if all are past, target the last one.
+        let todayIdx = visible.findIndex(g => (toISODate(g.date)||"9999-12-31") >= _todayISO);
+        if (todayIdx < 0) todayIdx = visible.length - 1;
+        return (
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {visible.length > 0 && (
+            <button type="button" onClick={jumpToToday}
+              style={{alignSelf:"flex-start",padding:"6px 14px",marginBottom:2,background:"#002d6e",border:"none",borderRadius:7,color:"#FFD700",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",letterSpacing:".04em",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}>
+              📅 Jump to Today's Games
+            </button>
+          )}
         <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:420,overflowY:"auto"}}>
-          {allGames.filter(g => !captainTeam || !savedGames.some(s => s.away_team===g.away && s.home_team===g.home)).map((g,i)=>(
-            <div key={i} onClick={()=>selectGame(g)}
-              style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:9,
+          {visible.map((g,i)=>(
+            <div key={i} ref={i===todayIdx ? todayRowRef : null} onClick={()=>selectGame(g)}
+              style={{background:(highlightToday && i===todayIdx)?"#fffbeb":"#fff",border:`1px solid ${(highlightToday && i===todayIdx)?"#FFD700":"rgba(0,0,0,0.09)"}`,borderRadius:9,
                 padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",
-                justifyContent:"space-between"}}
+                justifyContent:"space-between",transition:"background .3s, border-color .3s"}}
               onMouseEnter={e=>e.currentTarget.style.borderColor="#002d6e"}
-              onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(0,0,0,0.09)"}>
+              onMouseLeave={e=>e.currentTarget.style.borderColor=(highlightToday && i===todayIdx)?"#FFD700":"rgba(0,0,0,0.09)"}>
               <div>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,
                   textTransform:"uppercase"}}>{g.away} <span style={{color:"#ccc"}}>@</span> {g.home}</div>
@@ -12586,7 +12612,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             </>
           )}
         </div>
-      ) : (
+        </div>
+        );
+      })() : (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
             {[["Date","date","Apr 11"],["Time","time","9:00 AM"],["Field","field","Clark Field"]].map(([l,k,ph])=>(
