@@ -11309,8 +11309,29 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     ...SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home })))),
     ...BOOMERS_SCHED.map(g => ({ date:g.date, field:g.field, time:g.time, away:g.away, home:g.home })),
   ];
+  // Chronological order: lbdc_schedules stores games in insertion order (the
+  // bulk-appended Jun 27–Aug 15 games landed out of sequence), and Boomers +
+  // Saturday were concatenated, so the raw list looks scrambled. Sort by ISO
+  // date then time-of-day so the picker reads Apr → Aug top to bottom.
+  const _pickerTimeMin = (t) => {
+    const m = String(t||"").trim().match(/(\d+):?(\d*)\s*(am|pm)?/i);
+    if (!m) return 0;
+    let h = parseInt(m[1]) || 0;
+    const mn = parseInt(m[2]||"0") || 0;
+    const ap = (m[3]||"").toLowerCase();
+    if (ap === "pm" && h !== 12) h += 12;
+    if (ap === "am" && h === 12) h = 0;
+    return h*60 + mn;
+  };
   const allGames = ((liveSchedule && liveSchedule.length) ? liveSchedule : staticGames)
-    .filter(g => !captainTeam || g.away===captainTeam || g.home===captainTeam);
+    .filter(g => !captainTeam || g.away===captainTeam || g.home===captainTeam)
+    .slice()
+    .sort((a, b) => {
+      const dA = toISODate(a.date) || "9999-12-31";
+      const dB = toISODate(b.date) || "9999-12-31";
+      if (dA !== dB) return dA.localeCompare(dB);
+      return _pickerTimeMin(a.time) - _pickerTimeMin(b.time);
+    });
   // ── Tournament games (real tournament_games rows) — third selection source.
   // Mapped to the SAME flat {date,field,time,away,home} shape as allGames, plus
   // tournament_name + isTourn marker. The UUID g.id is deliberately dropped — it
