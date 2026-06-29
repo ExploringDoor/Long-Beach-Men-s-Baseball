@@ -35,6 +35,19 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ## [2026-06-18]
 
+### Added — Field Fees ledger (admin)
+
+**What:**
+- New Admin → 🏟️ Field Fees page to track per-team field-fee payments per game.
+- Summary cards: Total Owed / Collected / Outstanding.
+- Editable per-field fee settings (seeded from lbdc_fields: Clark/St Pius/Cantwell $150, Fromhold $125, South Gate $100).
+- Games table (auto-pulled from the live schedule + Boomers + tournament games): each game has a paid checkbox + note per team.
+- Filters: team / field / status / division. Per-team ledger (games, owed, paid, balance, sorted by balance). CSV export.
+
+**Storage:** reuses lbdc_schedules with a new id="field_fees" row (no schema migration); writes are read-modify-write of that row only — never touches sat/bom/teams.
+
+**Built via workflow** (research → implement → 3-lens adversarial review). Review fixes applied: payKey now includes time+field (so same-day rematches don't collide), ref-based writes (no lost updates on rapid clicks), NaN-safe fee reads, TBD/BYE rows excluded, controlled note remount. Verified end-to-end in preview (toggle → $0→$150 collected + persisted, per-team ledger, CSV) with a then-deleted test row.
+
 ### Fixed — Captains couldn't see rematch games to score
 
 **What:**

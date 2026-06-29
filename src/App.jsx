@@ -6569,6 +6569,380 @@ function PlayerEligibilityPage({ onBack }) {
   );
 }
 
+// ── Field Fees ledger (admin) ────────────────────────────────────────────
+// Tracks which teams have paid their per-game field fee. Every game has two
+// teams and EACH team owes the full field fee (not split). Storage reuses the
+// keyed lbdc_schedules jsonb table under a NEW id="field_fees" row holding
+// { fieldFees: {<exact field string>: <number>}, paid: {"<date>|<away>|<home>::<team>": {paid, notes}} }.
+// We only ever read-modify-write that one row — sat/bom/teams are read-only here.
+function FieldFeesPage({ onBack }) {
+  const [feeData, setFeeData] = useState({ fieldFees: {}, paid: {} }); // the field_fees row
+  const [games, setGames] = useState([]); // normalized union {date,time,field,away,home,division,tournament_name}
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [filterTeam, setFilterTeam] = useState("All");
+  const [filterField, setFilterField] = useState("All");
+  const [filterStatus, setFilterStatus] = useState("all"); // all | paid | unpaid
+  const [filterDiv, setFilterDiv] = useState("All"); // All | Saturday | Boomers | Tournaments
+
+  // Reuse BoxScoreEntry's chronological sort (toISODate then time-of-day).
+  const _timeMin = (t) => {
+    const m = String(t || "").trim().match(/(\d+):?(\d*)\s*(am|pm)?/i);
+    if (!m) return 0;
+    let h = parseInt(m[1]) || 0;
+    const mn = parseInt(m[2] || "0") || 0;
+    const ap = (m[3] || "").toLowerCase();
+    if (ap === "pm" && h !== 12) h += 12;
+    if (ap === "am" && h === 12) h = 0;
+    return h * 60 + mn;
+  };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [ffRows, satRows, bomRows, fieldRows, tournRows] = await Promise.all([
+        sbFetch("lbdc_schedules?id=eq.field_fees&select=data"),
+        sbFetch("lbdc_schedules?id=eq.sat&select=data"),
+        sbFetch("lbdc_schedules?id=eq.bom&select=data"),
+        sbFetch("lbdc_fields?id=eq.main&select=data"),
+        sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=game_date.asc,game_time.asc"),
+      ]);
+
+      // Stored config (may be absent on first run).
+      const stored = ffRows?.[0]?.data || {};
+      const storedFees = (stored && typeof stored.fieldFees === "object" && stored.fieldFees) || {};
+      const storedPaid = (stored && typeof stored.paid === "object" && stored.paid) || {};
+
+      // Normalize the games union.
+      const satData = Array.isArray(satRows?.[0]?.data) ? satRows[0].data : [];
+      const bomData = Array.isArray(bomRows?.[0]?.data) ? bomRows[0].data : [];
+      const union = [
+        ...satData.map(g => ({ date: g.date, time: g.time, field: g.field || "", away: g.away, home: g.home, division: "Saturday" })),
+        ...bomData.map(g => ({ date: g.date, time: g.time, field: g.field || "", away: g.away, home: g.home, division: "Boomers" })),
+        ...(tournRows || [])
+          .filter(g => g.notes !== "__placeholder__")
+          .map(g => ({ date: g.game_date, time: g.game_time || "", field: g.field || "", away: g.away_team, home: g.home_team, division: "Tournaments", tournament_name: g.tournament_name })),
+      ].filter(g => g.away && g.home
+        && !["TBD","TBA","BYE"].includes(g.away)
+        && !["TBD","TBA","BYE"].includes(g.home));
+      union.sort((a, b) => {
+        const dA = toISODate(a.date) || "9999-12-31";
+        const dB = toISODate(b.date) || "9999-12-31";
+        if (dA !== dB) return dA.localeCompare(dB);
+        return _timeMin(a.time) - _timeMin(b.time);
+      });
+      setGames(union);
+
+      // Seed fieldFees: start from stored, then fill any field string not yet
+      // present. Parse "Field Fee $N" from the matching lbdc_fields notes.
+      const fieldDefs = Array.isArray(fieldRows?.[0]?.data) ? fieldRows[0].data : [];
+      // base-name (no " — City" suffix) → parsed fee
+      const feeByBaseName = {};
+      fieldDefs.forEach(f => {
+        const joined = Array.isArray(f.notes) ? f.notes.join(" ") : "";
+        const m = joined.match(/Field Fee \$(\d+)/);
+        if (m) feeByBaseName[(f.name || "").trim()] = parseInt(m[1], 10);
+      });
+      const distinctFieldStrings = [...new Set(union.map(g => g.field).filter(Boolean))];
+      const mergedFees = { ...storedFees };
+      distinctFieldStrings.forEach(fs => {
+        if (mergedFees[fs] != null) return; // already configured (incl. an explicit 0)
+        const base = fs.split(" — ")[0].trim();
+        mergedFees[fs] = feeByBaseName[base] != null ? feeByBaseName[base] : 0;
+      });
+
+      setFeeData({ fieldFees: mergedFees, paid: storedPaid });
+    } catch (e) {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  // Mirror feeData in a ref so each mutator composes on the LATEST committed
+  // data (not a stale render closure). Without this, two quick edits (e.g. two
+  // checkboxes before React commits the first) both build from the same
+  // snapshot and the second silently overwrites the first — and since each
+  // write replaces the whole jsonb, the lost edit also vanishes on reload.
+  const feeDataRef = useRef(feeData);
+  useEffect(() => { feeDataRef.current = feeData; }, [feeData]);
+
+  // Read-modify-write the field_fees row ONLY. Optimistic local update +
+  // rollback on failure, mirroring ManageSchedulePage.persist.
+  const persist = async (nextData) => {
+    const prev = feeDataRef.current;
+    feeDataRef.current = nextData;   // sync ref before the async hop
+    setFeeData(nextData);
+    setSaving(true);
+    const r = await safeSave("Field Fees", () => sbUpsert("lbdc_schedules", { id: "field_fees", data: nextData }));
+    setSaving(false);
+    if (!r.ok) { feeDataRef.current = prev; setFeeData(prev); }
+  };
+
+  const feeFor = (g) => {
+    const f = feeData.fieldFees || {};
+    const coerce = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+    if (f[g.field] != null) return coerce(f[g.field]);
+    const base = (g.field || "").split(" — ")[0].trim();
+    // fall back to any stored key sharing the same base name
+    const hit = Object.keys(f).find(k => k.split(" — ")[0].trim() === base);
+    return hit != null ? coerce(f[hit]) : 0;
+  };
+
+  const setFieldFee = (fieldStr, value) => {
+    const num = Math.max(0, parseInt(value, 10) || 0);
+    const cur = feeDataRef.current;
+    persist({ ...cur, fieldFees: { ...cur.fieldFees, [fieldStr]: num } });
+  };
+
+  // Include time + field in the key so two games with the same date+matchup
+  // (doubleheader, or a tournament game coinciding with a league game) stay
+  // distinct — otherwise marking one paid would mark both and double-count.
+  const payKey = (g, team) => `${g.date}|${g.time||""}|${g.field||""}|${g.away}|${g.home}::${team}`;
+  const isPaid = (g, team) => !!(feeData.paid?.[payKey(g, team)]?.paid);
+  const noteFor = (g, team) => feeData.paid?.[payKey(g, team)]?.notes || "";
+
+  const togglePaid = (g, team) => {
+    const k = payKey(g, team);
+    const d = feeDataRef.current;
+    const cur = d.paid?.[k] || { paid: false, notes: "" };
+    persist({ ...d, paid: { ...d.paid, [k]: { ...cur, paid: !cur.paid } } });
+  };
+
+  const saveNote = (g, team, notes) => {
+    const k = payKey(g, team);
+    const d = feeDataRef.current;
+    const cur = d.paid?.[k] || { paid: false, notes: "" };
+    persist({ ...d, paid: { ...d.paid, [k]: { ...cur, notes } } });
+  };
+
+  // Distinct teams + fields for filter dropdowns.
+  const allTeams = [...new Set(games.flatMap(g => [g.away, g.home]).filter(Boolean))].sort();
+  const allFields = [...new Set(games.map(g => g.field).filter(Boolean))].sort();
+
+  // Totals (across ALL games, unfiltered) — owed counts both teams per game.
+  let totalOwed = 0, collected = 0;
+  games.forEach(g => {
+    const fee = feeFor(g);
+    totalOwed += fee * 2;
+    [g.away, g.home].forEach(team => { if (isPaid(g, team)) collected += fee; });
+  });
+  const outstanding = totalOwed - collected;
+
+  // Per-team summary (across all games).
+  const teamSummary = {};
+  games.forEach(g => {
+    const fee = feeFor(g);
+    [g.away, g.home].forEach(team => {
+      if (!teamSummary[team]) teamSummary[team] = { team, games: 0, owed: 0, paid: 0 };
+      teamSummary[team].games += 1;
+      teamSummary[team].owed += fee;
+      if (isPaid(g, team)) teamSummary[team].paid += fee;
+    });
+  });
+  const teamRows = Object.values(teamSummary)
+    .map(t => ({ ...t, balance: t.owed - t.paid }))
+    .sort((a, b) => b.balance - a.balance || a.team.localeCompare(b.team));
+
+  // Filtered games for the table. Status applies if EITHER team matches when no
+  // team filter, else the filtered team's status.
+  const filteredGames = games.filter(g => {
+    if (filterDiv !== "All" && g.division !== filterDiv) return false;
+    if (filterField !== "All" && g.field !== filterField) return false;
+    if (filterTeam !== "All" && g.away !== filterTeam && g.home !== filterTeam) return false;
+    if (filterStatus !== "all") {
+      const teamsToCheck = filterTeam !== "All" ? [filterTeam] : [g.away, g.home];
+      const anyPaid = teamsToCheck.some(t => isPaid(g, t));
+      const allPaidT = teamsToCheck.every(t => isPaid(g, t));
+      if (filterStatus === "paid" && !allPaidT) return false;
+      if (filterStatus === "unpaid" && allPaidT) return false;
+      if (filterStatus === "unpaid" && !teamsToCheck.some(t => !isPaid(g, t))) return false;
+      void anyPaid;
+    }
+    return true;
+  });
+
+  const exportCSV = () => {
+    const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const lines = [["Date", "Matchup", "Field", "Team", "Fee", "Paid", "Notes"].map(esc).join(",")];
+    games.forEach(g => {
+      const fee = feeFor(g);
+      const matchup = `${g.away} @ ${g.home}`;
+      [g.away, g.home].forEach(team => {
+        lines.push([g.date, matchup, g.field, team, fee, isPaid(g, team) ? "Yes" : "No", noteFor(g, team)].map(esc).join(","));
+      });
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "field-fees.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const TH = { padding: "8px 12px", textAlign: "left", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", color: "rgba(0,0,0,0.4)", borderBottom: "1px solid rgba(0,0,0,0.07)" };
+
+  const TeamCell = ({ g, team }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <input type="checkbox" checked={isPaid(g, team)} onChange={() => !saving && togglePaid(g, team)}
+        style={{ width: 18, height: 18, cursor: saving ? "wait" : "pointer", accentColor: "#16a34a", flexShrink: 0 }} />
+      <input type="text" key={`note-${noteFor(g, team)}`} defaultValue={noteFor(g, team)} placeholder="note"
+        onBlur={(e) => { if (e.target.value !== noteFor(g, team)) saveNote(g, team, e.target.value); }}
+        style={{ width: 90, padding: "3px 6px", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 5, fontSize: 11 }} />
+    </div>
+  );
+
+  return (
+    <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(0,0,0,0.07)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button type="button" onClick={onBack} style={{ padding: "5px 12px", background: "rgba(0,0,0,0.07)", border: "none", borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>← Back</button>
+        <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", color: "#111" }}>🏟️ Field Fees</div>
+        <button type="button" onClick={exportCSV} style={{ marginLeft: "auto", padding: "5px 12px", background: "rgba(15,118,110,0.08)", border: "1px solid rgba(15,118,110,0.25)", borderRadius: 6, fontWeight: 700, fontSize: 12, color: "#0f766e", cursor: "pointer" }}>⬇ Export CSV</button>
+        <button type="button" onClick={load} style={{ padding: "5px 12px", background: "rgba(0,45,110,0.07)", border: "1px solid rgba(0,45,110,0.2)", borderRadius: 6, fontWeight: 700, fontSize: 12, color: "#002d6e", cursor: "pointer" }}>↻ Refresh</button>
+      </div>
+
+      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Summary cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 10 }}>
+          {[
+            { label: "Total Owed", value: `$${totalOwed}`, color: "#0f766e" },
+            { label: "Collected", value: `$${collected}`, color: "#16a34a" },
+            { label: "Outstanding", value: `$${outstanding}`, color: "#b45309" },
+          ].map(s => (
+            <div key={s.label} style={{ background: "#f8f9fb", border: `2px solid ${s.color}22`, borderRadius: 10, padding: "12px 16px", textAlign: "center" }}>
+              <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 28, color: s.color, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: "rgba(0,0,0,0.45)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", marginTop: 3 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {loading && <div style={{ textAlign: "center", padding: 30, color: "#888" }}>Loading…</div>}
+
+        {!loading && (
+          <>
+            {/* Per-field fee editor */}
+            <div style={{ border: "1px solid rgba(0,0,0,0.09)", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ background: "#001a3e", padding: "10px 18px" }}>
+                <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, color: "#FFD700", textTransform: "uppercase" }}>Field Fees (per team)</span>
+              </div>
+              <div style={{ padding: "14px 18px", display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 10 }}>
+                {allFields.length === 0 && <div style={{ color: "#aaa", fontSize: 13 }}>No fields found in the schedule yet.</div>}
+                {allFields.map(fs => (
+                  <div key={fs} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ flex: 1, fontSize: 12, color: "#333" }}>{fs}</span>
+                    <span style={{ fontWeight: 700, color: "#0f766e" }}>$</span>
+                    <input type="number" min="0" value={feeData.fieldFees?.[fs] ?? 0}
+                      onChange={(e) => setFieldFee(fs, e.target.value)}
+                      style={{ width: 70, padding: "4px 8px", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 6, fontSize: 13, textAlign: "right" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              {[
+                { label: "Team", value: filterTeam, set: setFilterTeam, opts: ["All", ...allTeams] },
+                { label: "Field", value: filterField, set: setFilterField, opts: ["All", ...allFields] },
+                { label: "Status", value: filterStatus, set: setFilterStatus, opts: ["all", "paid", "unpaid"] },
+                { label: "Division", value: filterDiv, set: setFilterDiv, opts: ["All", "Saturday", "Boomers", "Tournaments"] },
+              ].map(f => (
+                <label key={f.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "rgba(0,0,0,0.5)" }}>
+                  <span style={{ textTransform: "uppercase" }}>{f.label}:</span>
+                  <select value={f.value} onChange={(e) => f.set(e.target.value)}
+                    style={{ padding: "4px 8px", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 6, fontSize: 12, background: "#fff" }}>
+                    {f.opts.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+
+            {/* Games table */}
+            <div style={{ border: "1px solid rgba(0,0,0,0.09)", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ background: "#001a3e", padding: "10px 18px" }}>
+                <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, color: "#FFD700", textTransform: "uppercase" }}>Games ({filteredGames.length})</span>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: "#f8f9fb" }}>
+                      <th style={TH}>Date</th>
+                      <th style={TH}>Matchup</th>
+                      <th style={TH}>Field</th>
+                      <th style={{ ...TH, textAlign: "center" }}>Fee/team</th>
+                      <th style={TH}>Away</th>
+                      <th style={TH}>Home</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredGames.map((g, i) => (
+                      <tr key={`${payKey(g, g.away)}|${i}`} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                        <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{g.date}</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 600, color: "#111" }}>{g.away} @ {g.home}</td>
+                        <td style={{ padding: "10px 12px", color: "rgba(0,0,0,0.6)" }}>{g.field || "—"}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontWeight: 700, color: "#0f766e" }}>${feeFor(g)}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ fontSize: 11, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>{g.away}</div>
+                          <TeamCell g={g} team={g.away} />
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ fontSize: 11, color: "rgba(0,0,0,0.5)", marginBottom: 3 }}>{g.home}</div>
+                          <TeamCell g={g} team={g.home} />
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredGames.length === 0 && (
+                      <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", color: "#aaa", fontSize: 13 }}>No games match the current filters.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Per-team summary */}
+            <div style={{ border: "1px solid rgba(0,0,0,0.09)", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ background: "#001a3e", padding: "10px 18px" }}>
+                <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, color: "#FFD700", textTransform: "uppercase" }}>Team Balances</span>
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f8f9fb" }}>
+                    <th style={TH}>Team</th>
+                    <th style={{ ...TH, textAlign: "center" }}>Games</th>
+                    <th style={{ ...TH, textAlign: "right" }}>Owed</th>
+                    <th style={{ ...TH, textAlign: "right" }}>Paid</th>
+                    <th style={{ ...TH, textAlign: "right" }}>Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamRows.map((t, i) => (
+                    <tr key={t.team} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                      <td style={{ padding: "10px 12px", fontWeight: 600, color: "#111" }}>{t.team}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>{t.games}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right" }}>${t.owed}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", color: "#16a34a", fontWeight: 700 }}>${t.paid}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 900, color: t.balance > 0 ? "#b45309" : "#16a34a" }}>${t.balance}</td>
+                    </tr>
+                  ))}
+                  {teamRows.length === 0 && (
+                    <tr><td colSpan={5} style={{ padding: 24, textAlign: "center", color: "#aaa", fontSize: 13 }}>No teams found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ background: "#f8f9fb", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 8, padding: "12px 16px", fontSize: 12, color: "rgba(0,0,0,0.45)", lineHeight: 1.8 }}>
+              <strong style={{ color: "#333" }}>Note:</strong> Each team owes the full field fee per game (not split). Total Owed = fee × 2 per game. Toggling a checkbox or editing a note saves immediately.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Render block for a single tournament's eligibility view. Split from the
 // parent so the form state (add-player input) is properly scoped to the
 // currently selected tournament — flipping tabs resets the form.
@@ -10749,6 +11123,7 @@ function AdminPage({ onAlertChange }) {
         {quickView==="schedule"     ? <ManageSchedulePage onBack={()=>setQuickView(null)}/> :
          quickView==="tournaments"  ? <TournamentManagerPage onBack={()=>setQuickView(null)}/> :
          quickView==="eligibility"  ? <PlayerEligibilityPage onBack={()=>setQuickView(null)}/> :
+         quickView==="fieldfees"    ? <FieldFeesPage onBack={()=>setQuickView(null)}/> :
          quickView==="email"        ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
          quickView==="live"         ? <LiveScorerPage onExit={()=>setQuickView(null)}/> :
          quickView==="teams"        ? <ManageTeamsPage onBack={()=>setQuickView(null)}/> :
@@ -10862,6 +11237,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"🗂️",title:"Manage Games",desc:"Edit or delete saved games",accent:"#dc2626",action:()=>{setQuickView("games");loadAdminGames();}},
                   {icon:"🏆",title:"Tournaments",desc:"Add tournament games to schedule",accent:"#002d6e",action:()=>setQuickView("tournaments")},
                   {icon:"🏅",title:"Player Eligibility",desc:"Track fees paid & game appearances",accent:"#002d6e",action:()=>setQuickView("eligibility")},
+                  {icon:"🏟️",title:"Field Fees",desc:"Track field fee payments by team",accent:"#0f766e",action:()=>setQuickView("fieldfees")},
                   {icon:"📧",title:"Send Weekly Email",desc:"Copy results to clipboard",accent:"#002d6e",action:()=>setQuickView("email")},
                   {icon:"📅",title:"Manage Schedule",desc:"View season schedule",accent:"#002d6e",action:()=>setQuickView("schedule")},
                   {icon:"📜",title:"Edit Rules",desc:"Update Field Guide rules & sections",accent:"#002d6e",action:()=>setScreen("admin_rules")},
