@@ -35,6 +35,16 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ## [2026-06-18]
 
+### Added — Umpire Evaluations (captain form + admin review)
+
+**What:** captains get a "📋 Umpire Evaluation" form in their portal (Date, Field, Time, Plate Umpire, Base Umpire, four 1–5 ratings — Game Control / Rule Interpretation / Accuracy / Attitude — and Notes). Admin → 📋 Umpire Evals lists every submission newest-first with per-umpire average ratings, filters, and delete.
+
+**Storage:** new `umpire_evals` table. The code feature-detects it (like the pos-column probe), so before the migration is run the captain form and admin view both show a friendly "not enabled / run this SQL" notice instead of crashing.
+
+**Setup required:** run `sql-add-umpire-evals-2026-06-18.sql` once in Supabase.
+
+**Built via workflow** (research → implement → 3-lens adversarial review: submit/validation, table-missing safety, admin view). All lenses passed with no fixes needed. Verified in preview: captain tile + graceful not-enabled state; form fields confirmed against spec. Full submit→admin flow verifiable once the table exists.
+
 ### Added — Field Fees ledger (admin)
 
 **What:**

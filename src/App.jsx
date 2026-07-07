@@ -10349,6 +10349,418 @@ function CaptainAvailabilityView({ teamName }) {
   );
 }
 
+// ── Captain: Umpire Evaluation form ────────────────────────────────────────
+// Week-by-week umpire evaluation submitted by a team manager. Writes to the
+// umpire_evals Supabase table (feature-detected so nothing crashes before the
+// one-time migration is run).
+function UmpireEvalForm({ teamName }) {
+  const RATING_FIELDS = [
+    { key: "game_control",        label: "Game Control" },
+    { key: "rule_interpretation", label: "Rule Interpretation" },
+    { key: "accuracy",            label: "Accuracy" },
+    { key: "attitude",            label: "Attitude" },
+  ];
+  const emptyForm = {
+    game_date: "", field: "", game_time: "",
+    plate_umpire: "", base_umpire: "",
+    game_control: null, rule_interpretation: null, accuracy: null, attitude: null,
+    notes: "",
+  };
+  const [tableReady, setTableReady] = useState(null); // null = probing
+  const [games, setGames] = useState([]);
+  const [selectedGameId, setSelectedGameId] = useState("");
+  const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [okMsg, setOkMsg] = useState("");
+  const [errMsg, setErrMsg] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    umpireEvalsTableExists().then(ok => { if (alive) setTableReady(ok); });
+    return () => { alive = false; };
+  }, []);
+
+  // Load THIS team's games from lbdc_schedules (sat + bom), chronological.
+  useEffect(() => {
+    if (!teamName) return;
+    let alive = true;
+    sbFetch("lbdc_schedules?id=in.(sat,bom)&select=id,data")
+      .then(rows => {
+        if (!alive) return;
+        const all = (rows || []).flatMap(r => Array.isArray(r.data) ? r.data : []);
+        const mine = all
+          .filter(g => g && (g.away === teamName || g.home === teamName))
+          .sort((a, b) => (toISODate(a.date) || "") < (toISODate(b.date) || "") ? -1 : 1);
+        setGames(mine);
+      })
+      .catch(() => { if (alive) setGames([]); });
+    return () => { alive = false; };
+  }, [teamName]);
+
+  const pickGame = (id) => {
+    setSelectedGameId(id);
+    const g = games.find(x => String(x.id) === String(id));
+    if (g) {
+      setForm(f => ({
+        ...f,
+        game_date: toISODate(g.date) || g.date || "",
+        field: g.field || "",
+        game_time: g.time || "",
+      }));
+    }
+  };
+
+  const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
+  const setRating = (key, n) => setForm(f => ({ ...f, [key]: f[key] === n ? null : n }));
+
+  const canSubmit = !!form.game_date.trim() &&
+    RATING_FIELDS.every(r => form[r.key] != null);
+
+  const submit = async () => {
+    setOkMsg(""); setErrMsg("");
+    if (!canSubmit) {
+      setErrMsg("Please set the Date and all four ratings before submitting.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await sbPost("umpire_evals", {
+        team: teamName,
+        game_date: form.game_date.trim(),
+        field: form.field.trim() || null,
+        game_time: form.game_time.trim() || null,
+        plate_umpire: cleanName(form.plate_umpire) || null,
+        base_umpire: cleanName(form.base_umpire) || null,
+        game_control: form.game_control,
+        rule_interpretation: form.rule_interpretation,
+        accuracy: form.accuracy,
+        attitude: form.attitude,
+        notes: form.notes.trim() || null,
+      });
+      setOkMsg("Thanks! Your umpire evaluation was submitted.");
+      setForm(emptyForm);
+      setSelectedGameId("");
+    } catch (e) {
+      setErrMsg("Sorry — that didn't save. Please try again. (" + (e.message || "error") + ")");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const labelStyle = { display:"block", fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, textTransform:"uppercase", letterSpacing:".03em", color:"#2d6a4f", marginBottom:5 };
+  const inputStyle = { width:"100%", padding:"8px 10px", border:"1px solid rgba(0,0,0,0.15)", borderRadius:7, fontSize:14, boxSizing:"border-box" };
+
+  if (tableReady === null) {
+    return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>Loading…</div>;
+  }
+  if (tableReady === false) {
+    return (
+      <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"18px 20px",color:"#92400e",fontSize:14,lineHeight:1.5}}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase",marginBottom:6}}>Not enabled yet</div>
+        Umpire evaluations aren't enabled yet — ask the commissioner to run the one-time setup.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:18,maxWidth:640}}>
+      {okMsg && (
+        <div style={{background:"#f0fff4",border:"1px solid rgba(22,163,74,0.35)",borderRadius:8,padding:"10px 14px",color:"#166534",fontWeight:700,fontSize:14}}>{okMsg}</div>
+      )}
+      {errMsg && (
+        <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:8,padding:"10px 14px",color:"#dc2626",fontWeight:600,fontSize:13}}>{errMsg}</div>
+      )}
+
+      {games.length > 0 && (
+        <div>
+          <label style={labelStyle}>Auto-fill from a game (optional)</label>
+          <select value={selectedGameId} onChange={e=>pickGame(e.target.value)} style={inputStyle}>
+            <option value="">— Pick one of your games —</option>
+            {games.map(g => (
+              <option key={g.id} value={g.id}>
+                {(toISODate(g.date) || g.date || "?")}{g.time ? ` · ${g.time}` : ""} — {g.away} @ {g.home}{g.field ? ` · ${g.field}` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12}}>
+        <div>
+          <label style={labelStyle}>Date *</label>
+          <input type="text" value={form.game_date} onChange={e=>setField("game_date", e.target.value)} placeholder="2026-07-11" style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Field</label>
+          <input type="text" value={form.field} onChange={e=>setField("field", e.target.value)} placeholder="Field name" style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Time</label>
+          <input type="text" value={form.game_time} onChange={e=>setField("game_time", e.target.value)} placeholder="10:00 AM" style={inputStyle} />
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
+        <div>
+          <label style={labelStyle}>Plate Umpire</label>
+          <input type="text" value={form.plate_umpire} onChange={e=>setField("plate_umpire", e.target.value)} placeholder="Name (optional)" style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Base Umpire</label>
+          <input type="text" value={form.base_umpire} onChange={e=>setField("base_umpire", e.target.value)} placeholder="Name (optional)" style={inputStyle} />
+        </div>
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        {RATING_FIELDS.map(r => (
+          <div key={r.key}>
+            <label style={labelStyle}>{r.label} * <span style={{fontWeight:400,textTransform:"none",color:"#9ca3af",letterSpacing:0}}>(5 = excellent)</span></label>
+            <div style={{display:"flex",gap:8}}>
+              {[1,2,3,4,5].map(n => {
+                const on = form[r.key] === n;
+                return (
+                  <button key={n} type="button" onClick={()=>setRating(r.key, n)} style={{
+                    flex:1, maxWidth:64, padding:"9px 0", borderRadius:8, cursor:"pointer", fontWeight:800, fontSize:15,
+                    border: on ? "1px solid #002d6e" : "1px solid rgba(0,0,0,0.15)",
+                    background: on ? "#002d6e" : "#f9fafb",
+                    color: on ? "#FFD700" : "#6b7280",
+                  }}>{n}</button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <label style={labelStyle}>Notes</label>
+        <textarea value={form.notes} onChange={e=>setField("notes", e.target.value)} rows={4} placeholder="Anything else the commissioner should know (optional)" style={{...inputStyle, resize:"vertical", fontFamily:"inherit"}} />
+      </div>
+
+      <div>
+        <button type="button" disabled={submitting} onClick={submit} style={{
+          padding:"10px 22px", background: submitting ? "#9ca3af" : "#2d6a4f", border:"none", borderRadius:8,
+          color:"#fff", fontWeight:800, fontSize:15, cursor: submitting ? "default" : "pointer",
+          fontFamily:"'Barlow Condensed',sans-serif", textTransform:"uppercase", letterSpacing:".03em",
+        }}>{submitting ? "Submitting…" : "Submit Evaluation"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Admin: review manager umpire evaluations ───────────────────────────────
+function UmpireEvalsAdmin({ onBack }) {
+  const MIGRATION_SQL = `create table if not exists public.umpire_evals (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  team text,
+  game_date text,
+  field text,
+  game_time text,
+  plate_umpire text,
+  base_umpire text,
+  game_control int,
+  rule_interpretation int,
+  accuracy int,
+  attitude int,
+  notes text
+);
+alter table public.umpire_evals enable row level security;
+create policy "umpire_evals anon select" on public.umpire_evals for select to anon using (true);
+create policy "umpire_evals anon insert" on public.umpire_evals for insert to anon with check (true);
+create policy "umpire_evals anon delete" on public.umpire_evals for delete to anon using (true);
+grant select, insert, delete on public.umpire_evals to anon;`;
+
+  const RATING_FIELDS = [
+    { key: "game_control",        label: "Control" },
+    { key: "rule_interpretation", label: "Rules" },
+    { key: "accuracy",            label: "Accuracy" },
+    { key: "attitude",            label: "Attitude" },
+  ];
+
+  const [tableReady, setTableReady] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(null);
+  const [umpFilter, setUmpFilter] = useState("");
+  const [teamFilter, setTeamFilter] = useState("All");
+
+  useEffect(() => {
+    let alive = true;
+    umpireEvalsTableExists().then(ok => {
+      if (!alive) return;
+      setTableReady(ok);
+      if (!ok) { setLoading(false); return; }
+      sbFetch("umpire_evals?select=*&order=created_at.desc")
+        .then(data => { if (alive) { setRows(data || []); setLoading(false); } })
+        .catch(() => { if (alive) setLoading(false); });
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const deleteRow = async (row) => {
+    if (!window.confirm(`Delete this evaluation (${row.team || "?"} · ${row.game_date || "?"})? This cannot be undone.`)) return;
+    setDeleting(row.id);
+    try {
+      await sbDelete(`umpire_evals?id=eq.${row.id}`);
+      const after = await sbFetch(`umpire_evals?select=id&id=eq.${row.id}`);
+      if (after && after.length > 0) throw new Error("DB still has the row — RLS may be blocking DELETE.");
+      setRows(prev => prev.filter(x => x.id !== row.id));
+    } catch (e) {
+      alert("Delete failed: " + (e.message || "error"));
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const teams = ["All", ...Array.from(new Set(rows.map(r => r.team).filter(Boolean))).sort()];
+  const umpQ = umpFilter.trim().toLowerCase();
+  const filtered = rows.filter(r => {
+    if (teamFilter !== "All" && r.team !== teamFilter) return false;
+    if (umpQ) {
+      const hay = `${r.plate_umpire || ""} ${r.base_umpire || ""}`.toLowerCase();
+      if (!hay.includes(umpQ)) return false;
+    }
+    return true;
+  });
+
+  // Per-umpire average across all rating fields (group by each ump name that appears).
+  const umpStats = (() => {
+    const acc = {}; // name → { n, sums:{key:val}, count:{key} }
+    const add = (name, r) => {
+      const nm = (name || "").trim();
+      if (!nm) return;
+      if (!acc[nm]) acc[nm] = { n: 0, sums: {}, counts: {} };
+      acc[nm].n += 1;
+      RATING_FIELDS.forEach(f => {
+        if (r[f.key] != null) {
+          acc[nm].sums[f.key] = (acc[nm].sums[f.key] || 0) + r[f.key];
+          acc[nm].counts[f.key] = (acc[nm].counts[f.key] || 0) + 1;
+        }
+      });
+    };
+    filtered.forEach(r => { add(r.plate_umpire, r); add(r.base_umpire, r); });
+    return Object.entries(acc)
+      .map(([name, d]) => ({
+        name, n: d.n,
+        avgs: RATING_FIELDS.reduce((o, f) => {
+          o[f.key] = d.counts[f.key] ? (d.sums[f.key] / d.counts[f.key]) : null;
+          return o;
+        }, {}),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  })();
+
+  const backBtn = (
+    <button onClick={onBack} style={{background:"rgba(0,0,0,0.08)",border:"none",borderRadius:8,padding:"9px 18px",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer",color:"#333",marginBottom:16}}>← Back</button>
+  );
+
+  if (tableReady === false) {
+    return (
+      <div>
+        {backBtn}
+        <div style={{background:"#fffbeb",border:"1px solid #fcd34d",borderRadius:10,padding:"18px 20px",color:"#92400e",fontSize:14,lineHeight:1.5,maxWidth:760}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",marginBottom:8}}>One-time setup required</div>
+          The <code>umpire_evals</code> table doesn't exist yet. Run this SQL in the Supabase SQL editor once, then reload:
+          <pre style={{marginTop:12,background:"#1e293b",color:"#e2e8f0",padding:"14px 16px",borderRadius:8,fontSize:12,lineHeight:1.5,overflowX:"auto",whiteSpace:"pre"}}>{MIGRATION_SQL}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  const fmtAvg = (v) => v == null ? "—" : v.toFixed(1);
+  const pill = { padding:"4px 12px", borderRadius:20, cursor:"pointer", border:"1px solid", fontWeight:700, fontSize:12 };
+
+  return (
+    <div>
+      {backBtn}
+      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,textTransform:"uppercase",color:"#111",marginBottom:14}}>📋 Umpire Evaluations</div>
+
+      {loading ? (
+        <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>Loading…</div>
+      ) : (
+        <>
+          {/* Filters */}
+          <div style={{display:"flex",flexWrap:"wrap",gap:10,alignItems:"center",marginBottom:16}}>
+            <input type="text" value={umpFilter} onChange={e=>setUmpFilter(e.target.value)} placeholder="Filter by umpire name…" style={{padding:"7px 12px",border:"1px solid rgba(0,0,0,0.15)",borderRadius:8,fontSize:13,minWidth:220}} />
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {teams.map(t => (
+                <button key={t} type="button" onClick={()=>setTeamFilter(t)} style={{
+                  ...pill,
+                  background: teamFilter===t ? "#002d6e" : "#fff",
+                  color: teamFilter===t ? "#fff" : "#444",
+                  borderColor: teamFilter===t ? "#002d6e" : "rgba(0,0,0,0.15)",
+                }}>{t}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Per-umpire averages summary */}
+          {umpStats.length > 0 && (
+            <div style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,padding:"14px 16px",marginBottom:18,overflowX:"auto"}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#0f766e",marginBottom:10}}>Average Ratings by Umpire</div>
+              <table style={{borderCollapse:"collapse",fontSize:13,minWidth:520}}>
+                <thead>
+                  <tr style={{textAlign:"left",color:"#6b7280"}}>
+                    <th style={{padding:"4px 12px 4px 0"}}>Umpire</th>
+                    <th style={{padding:"4px 12px"}}>Evals</th>
+                    {RATING_FIELDS.map(f => <th key={f.key} style={{padding:"4px 12px"}}>{f.label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {umpStats.map(u => (
+                    <tr key={u.name} style={{borderTop:"1px solid rgba(0,0,0,0.06)"}}>
+                      <td style={{padding:"6px 12px 6px 0",fontWeight:700}}>{u.name}</td>
+                      <td style={{padding:"6px 12px",color:"#6b7280"}}>{u.n}</td>
+                      {RATING_FIELDS.map(f => <td key={f.key} style={{padding:"6px 12px",fontWeight:700,color:"#002d6e"}}>{fmtAvg(u.avgs[f.key])}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {filtered.length === 0 ? (
+            <div style={{textAlign:"center",padding:30,color:"#888"}}>No evaluations found.</div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {filtered.map(r => (
+                <div key={r.id} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderLeft:"4px solid #002d6e",borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:200}}>
+                      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111"}}>
+                        {r.game_date || "—"}
+                        {r.game_time ? <span style={{color:"#888",fontWeight:400,fontSize:14}}> · {r.game_time}</span> : null}
+                        {r.field ? <span style={{color:"#888",fontWeight:400,fontSize:14}}> · {r.field}</span> : null}
+                      </div>
+                      <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>
+                        Submitted by <strong style={{color:"#2d6a4f"}}>{r.team || "?"}</strong>
+                        {" · Plate: "}<strong>{r.plate_umpire || "—"}</strong>
+                        {" · Base: "}<strong>{r.base_umpire || "—"}</strong>
+                      </div>
+                      <div style={{display:"flex",gap:14,flexWrap:"wrap",marginTop:8}}>
+                        {RATING_FIELDS.map(f => (
+                          <div key={f.key} style={{fontSize:12,color:"#374151"}}>
+                            {f.label}: <strong style={{color:"#002d6e",fontSize:14}}>{r[f.key] != null ? r[f.key] : "—"}</strong>
+                          </div>
+                        ))}
+                      </div>
+                      {r.notes ? <div style={{marginTop:8,fontSize:13,color:"#374151",background:"#f8f9fb",borderRadius:6,padding:"8px 10px"}}>{r.notes}</div> : null}
+                    </div>
+                    <button type="button" disabled={deleting===r.id} onClick={()=>deleteRow(r)} style={{padding:"6px 12px",background:"rgba(220,38,38,0.09)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:13,cursor:deleting===r.id?"default":"pointer",flexShrink:0}}>
+                      {deleting===r.id ? "…" : "🗑️ Delete"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function AdminPage({ onAlertChange }) {
   const [screen, setScreen] = useState("login"); // "login" | "admin" | "captain"
   const [pw, setPw] = useState("");
@@ -10664,6 +11076,14 @@ function AdminPage({ onAlertChange }) {
                   <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>See who's in for upcoming games</div>
                 </div>
               </button>
+              <button onClick={()=>setCaptainView("umpireeval")}
+                style={{background:"#0f766e",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
+                <div style={{fontSize:40}}>📋</div>
+                <div>
+                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase",marginBottom:4}}>Umpire Evaluation</div>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.6)"}}>Rate this week's umpires</div>
+                </div>
+              </button>
               <button onClick={()=>setCaptainView("instructions")}
                 style={{background:"#7c3aed",border:"none",borderRadius:14,padding:"28px 24px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:18}}>
                 <div style={{fontSize:40}}>📖</div>
@@ -10704,6 +11124,17 @@ function AdminPage({ onAlertChange }) {
               </div>
               <div style={{padding:"20px"}}>
                 <CaptainAvailabilityView teamName={captainTeam} />
+              </div>
+            </div>
+          )}
+          {captainView === "umpireeval" && (
+            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{padding:"14px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10}}>
+                <button onClick={()=>setCaptainView("menu")} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+                <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>📋 Umpire Evaluation</div>
+              </div>
+              <div style={{padding:"20px"}}>
+                <UmpireEvalForm teamName={captainTeam} />
               </div>
             </div>
           )}
@@ -11127,6 +11558,7 @@ function AdminPage({ onAlertChange }) {
          quickView==="email"        ? <WeeklyEmailPage onBack={()=>setQuickView(null)}/> :
          quickView==="live"         ? <LiveScorerPage onExit={()=>setQuickView(null)}/> :
          quickView==="teams"        ? <ManageTeamsPage onBack={()=>setQuickView(null)}/> :
+         quickView==="umpireevals"  ? <UmpireEvalsAdmin onBack={()=>setQuickView(null)}/> :
          quickView==="games"    ? (
           <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
             <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -11248,6 +11680,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"🏟️",title:"Field Directions",desc:"Edit field notes and addresses",accent:"#002d6e",action:()=>setScreen("admin_fields")},
                   {icon:"📞",title:"Contact Info",desc:"Email, phone, Venmo, QR, credits",accent:"#002d6e",action:()=>setScreen("admin_contact")},
                   {icon:"📋",title:"Player Sign-Ups",desc:"View all sign-up submissions",accent:"#16a34a",action:()=>setScreen("admin_signups")},
+                  {icon:"📋",title:"Umpire Evals",desc:"Review manager umpire ratings",accent:"#0f766e",action:()=>setQuickView("umpireevals")},
                 ].map((a,i)=>(
                   <div key={i} onClick={a.action} style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:`3px solid ${a.accent}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"box-shadow .15s",position:"relative"}}
                     onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,45,110,0.15)"}
@@ -11376,6 +11809,21 @@ async function battingHasPosColumn() {
     _BATTING_HAS_POS = false;
   }
   return _BATTING_HAS_POS;
+}
+
+// Feature-detect the umpire_evals table (ships as a SQL migration the admin runs).
+// Mirrors battingHasPosColumn(): probes the table and caches a boolean so nothing
+// crashes before the one-time migration is applied.
+let _UMPIRE_EVALS_EXISTS = null;
+async function umpireEvalsTableExists() {
+  if (_UMPIRE_EVALS_EXISTS !== null) return _UMPIRE_EVALS_EXISTS;
+  try {
+    await sbFetch("umpire_evals?select=id&limit=1");
+    _UMPIRE_EVALS_EXISTS = true;
+  } catch (e) {
+    _UMPIRE_EVALS_EXISTS = false;
+  }
+  return _UMPIRE_EVALS_EXISTS;
 }
 
 async function sbFetch(path) {
