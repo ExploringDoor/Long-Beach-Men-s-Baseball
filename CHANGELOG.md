@@ -35,6 +35,13 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ## [2026-06-18]
 
+### Fixed — Ticker lingered on the last played weekend
+
+**What:** the top ribbon picked the latest weekend ≤ today (most recent PAST weekend), so between weekends it stayed on the last played one all week (Daniel: "showing June 27 for a couple weeks").
+**Now:** shows the current/upcoming weekend, with a 2-day grace window so Sat–Mon still show that weekend's results, then it advances to the next upcoming weekend (which displays as matchups+times until scores are entered).
+**Verified:** unit-tested the date logic across 11 scenarios (game day → current; Sun/Mon → grace results; Tue+ → upcoming; season over → last; pre-season → first).
+**Where:** `src/App.jsx::Ticker` — weekIdx selection.
+
 ### Added — Umpire Evaluations (captain form + admin review)
 
 **What:** captains get a "📋 Umpire Evaluation" form in their portal (Date, Field, Time, Plate Umpire, Base Umpire, four 1–5 ratings — Game Control / Rule Interpretation / Accuracy / Attitude — and Notes). Admin → 📋 Umpire Evals lists every submission newest-first with per-umpire average ratings, filters, and delete.

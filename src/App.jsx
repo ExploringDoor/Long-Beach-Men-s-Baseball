@@ -870,11 +870,26 @@ function Ticker({ setTab }) {
         games: w.fields.flatMap(f => f.games.map(g => ({...g, field:f.name, date:w.label}))),
       }));
 
-  // Find the most recently played week (latest date <= today), fallback to next upcoming
-  let weekIdx = -1;
-  for (let i = satWeeks.length - 1; i >= 0; i--) { if (parseLabel(satWeeks[i].label) <= today) { weekIdx = i; break; } }
-  if (weekIdx < 0) { weekIdx = satWeeks.findIndex(w => parseLabel(w.label) >= today); }
-  if (weekIdx < 0) weekIdx = 0;
+  // Show the CURRENT or UPCOMING weekend's games. Keep showing a just-played
+  // weekend for a 2-day grace window (so Sat/Sun/Mon after games still show
+  // that weekend's results), then advance to the next upcoming weekend.
+  // Previously this locked onto the LATEST weekend <= today, so between
+  // weekends it lingered on the last played weekend for the whole week
+  // (e.g. stuck on Jun 27 until Jul 11 arrived).
+  const DAY_MS = 24 * 3600 * 1000;
+  const upcomingIdx = satWeeks.findIndex(w => parseLabel(w.label) >= today);
+  let pastIdx = -1;
+  for (let i = satWeeks.length - 1; i >= 0; i--) { if (parseLabel(satWeeks[i].label) < today) { pastIdx = i; break; } }
+  let weekIdx;
+  if (pastIdx >= 0 && (today - parseLabel(satWeeks[pastIdx].label)) <= 2 * DAY_MS) {
+    weekIdx = pastIdx;          // within 2 days of a weekend → still show its results
+  } else if (upcomingIdx >= 0) {
+    weekIdx = upcomingIdx;      // otherwise show the current/upcoming weekend
+  } else if (pastIdx >= 0) {
+    weekIdx = pastIdx;          // season over → last weekend played
+  } else {
+    weekIdx = 0;
+  }
   const week = satWeeks[weekIdx] || { label: "", games: [] };
 
   const satGames = week.games || [];
