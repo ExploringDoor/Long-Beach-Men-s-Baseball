@@ -12681,7 +12681,38 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       const displayHeadline = (headline||"").trim();
       const headlineVal = displayHeadline + submitterTag || null;
       let gid;
-      if(editGameId) {
+      // ── Identity guard ──────────────────────────────────────────────
+      // The edit path PATCHes away_team/home_team onto editGameId. If that
+      // id has gone stale (schedule reload, switching games in the picker,
+      // a cached saved-games list), the PATCH RE-LABELS a different game:
+      // that row silently becomes the matchup on screen, and whatever stats
+      // it already had are stranded on a game they don't belong to.
+      //
+      // That is exactly what hit the 7/18 Pirates@Brooklyn box score — its
+      // 12 batting + 3 pitching lines ended up on the Leones@Indios row,
+      // which had been re-labeled out from under them. Brooklyn's game was
+      // then re-created as a fresh row with no stats, so it looked to the
+      // commissioner like the entry simply "didn't save."
+      //
+      // So: re-read the target and confirm it is still the same matchup.
+      // If it isn't, DON'T re-label it — fall through to the normal
+      // find-or-create path, which writes to the correct row by
+      // date+teams+season.
+      let editTargetOk = false;
+      if (editGameId) {
+        const tk = (s) => cleanName(s || "").toLowerCase();
+        try {
+          const tgt = await sbFetch(`games?select=id,away_team,home_team&id=eq.${editGameId}&limit=1`);
+          const row = tgt?.[0];
+          editTargetOk = !!row
+            && tk(row.away_team) === tk(game.away)
+            && tk(row.home_team) === tk(game.home);
+          if (row && !editTargetOk) {
+            console.warn(`[boxscore] edit target #${editGameId} is "${row.away_team} @ ${row.home_team}" but the editor holds "${game.away} @ ${game.home}" — refusing to re-label; routing to the correct game row instead.`);
+          }
+        } catch { editTargetOk = false; }
+      }
+      if(editGameId && editTargetOk) {
         // UPDATE existing game — also stamp season_id so it's visible to season-filtered queries
         // Tournament games route to their own season; without this branch a
         // re-saved tournament game would be re-stamped into the Saturday/Boomers

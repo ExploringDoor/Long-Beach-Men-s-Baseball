@@ -33,6 +33,26 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-19]
+
+### Fixed — Box score edits could silently re-label a DIFFERENT game and strand its stats
+
+**What:**
+- The box score save's edit path PATCHes `away_team`/`home_team` onto `editGameId`. If that id went stale (schedule reload, switching games in the picker, cached saved-games list), the PATCH **re-labeled an unrelated game row** — that row silently became the matchup on screen, and the stats already attached to it were stranded on a game they don't belong to.
+- Added an identity guard: before taking the edit path, re-read the target row and confirm its teams still match the matchup in the editor. If they don't, the code refuses to re-label and falls through to the normal find-or-create path (by date + teams + season), so the write lands on the correct row.
+
+**Why (real incident):**
+- 7/18 Pirates @ Brooklyn. Daniel entered Brooklyn's full box score; it saved to game #2675. Something later edited #2675 and re-labeled it "Leones @ Indios," and Brooklyn's game was re-created as fresh row #2678 with **no stats**. To Daniel this looked like "I input my Brooklyn stats and they didn't save."
+- The 12 batting + 3 pitching lines were never lost — they were sitting on the Leones@Indios record the whole time. Confirmed by the pitching lines: Duane Welty (Pirates, L) and David Young (Brooklyn, W), which only make sense for Pirates@Brooklyn.
+- **Data repair:** repointed the 15 orphaned rows from game 2675 → 2678 via PATCH. Verified the box score renders in full.
+
+**Note:** `src/App.jsx:12722` is the only place in the app that writes `away_team`/`home_team` onto an existing game row. The other two PATCH sites (~15263, ~15560) look the row up *by* away+home+season+date, so their teams are self-consistent and can't re-label. That makes this guard a complete fix for the vector.
+
+**Where:**
+- `src/App.jsx::BoxScoreEntry::submit` — `editTargetOk` identity guard before the `if(editGameId)` branch
+
+---
+
 ## [2026-06-18]
 
 ### Fixed — Ticker lingered on the last played weekend
