@@ -68,6 +68,41 @@ const matchKey = (n) =>
     .trim()
     .toLowerCase();
 
+// ── Game-status vocabulary ────────────────────────────────────────────
+// The box-score entry form offers Final / Forfeit / Tie / Postponed, but
+// every consumer in the app was written to recognize only "Final" (plus
+// PPD/CAN). So a game saved as "Forfeit" or "Tie" — even with a final
+// score — was treated as UNPLAYED: it vanished from the top ticker, the
+// Schedule tab, and the standings (which filter status=eq.Final). This
+// bit the commissioner when a Wed forfeit didn't show up anywhere.
+//
+// Two helpers keep the whole app speaking one vocabulary:
+//
+// isNotPlayedStatus — the ONLY statuses that mean "no result to show" are
+//   postponed / canceled / scheduled. Everything else (Final, Forfeit,
+//   Tie, Playoff) is a decided game whose score should display.
+const isNotPlayedStatus = (s) => {
+  const t = (s || "").trim().toLowerCase();
+  return t.startsWith("ppd") || t.startsWith("postpone")
+      || t.startsWith("can") || t.startsWith("cancel")
+      || t.startsWith("sched");
+};
+
+// canonicalStatus — normalize at the WRITE boundary so a decided game is
+//   always stored as "Final" (Forfeit/Tie are finals with an official
+//   score), postponed as "PPD", canceled as "CAN". Playoff/Scheduled and
+//   anything already-canonical pass through untouched. Applied wherever a
+//   box score is saved so standings/ticker/schedule all just work — no
+//   need to teach the ~11 status=eq.Final query sites a new word.
+const canonicalStatus = (s) => {
+  const t = (s || "").trim().toLowerCase();
+  if (t === "forfeit" || t === "fft" || t === "tie" || t === "f" || t === "f*") return "Final";
+  if (t === "final") return "Final";
+  if (t.startsWith("postpone") || t === "ppd") return "PPD";
+  if (t.startsWith("cancel") || t === "can") return "CAN";
+  return s; // Playoff, Scheduled, and any unexpected value pass through
+};
+
 // Picks the better display variant between two cleaned names for the
 // same matchKey: keep whichever has the under-21 asterisk so the
 // marker isn't dropped if any captain typed it.
@@ -957,7 +992,11 @@ function Ticker({ setTab }) {
         <div className="ticker-scroll" style={{display:"flex",alignItems:"stretch",overflowX:"auto",overflowY:"hidden",scrollbarWidth:"none",msOverflowStyle:"none",flex:"1 1 0",minWidth:0,WebkitOverflowScrolling:"touch"}}>
           {games.map((g,i) => {
             const sc = liveScores[`${g.away}|${g.home}`];
-            const isFinal = sc && (sc.status==="Final"||sc.status==="final");
+            // `sc` only exists for rows fetched with away_score not null, so any
+            // sc means the game has a score. Show it as decided unless the row's
+            // own status marks it not-played — that way Forfeit and Tie games
+            // display their result instead of masquerading as an unplayed game.
+            const isFinal = !!sc && !isNotPlayedStatus(sc.status);
             const awayWin = isFinal && sc.away_score > sc.home_score;
             const homeWin = isFinal && sc.home_score > sc.away_score;
             const isPPD = !isFinal && (g.status==="PPD" || (g.status||"").toLowerCase().startsWith("postpone"));
@@ -2044,9 +2083,17 @@ function SchedulePage({ setTab, setTeamDetail }) {
   }, []);
 
   useEffect(() => {
-    if (games.length === 0 || !satSeasonId) return;
+    if (games.length === 0) return;
+    // Match scores by exact date + the week's team pairs + has-a-score. We do
+    // NOT filter by season_id here on purpose: the season id resolved by name
+    // has been unreliable (a duplicate empty "…Diamond Classics Saturdays"
+    // season once shadowed the real one, so this fetch returned nothing and
+    // finals — including a forfeit — never appeared on the Schedule tab). The
+    // full ISO date already pins the year and the team pair is unique for the
+    // day, so the season filter added no correctness, only a failure mode.
+    // This mirrors the top ticker's fetch, which never had the problem.
     const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
-    sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${satSeasonId}&game_date=eq.${toISODate(dateStr)}&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
+    sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status,headline&game_date=eq.${toISODate(dateStr)}&or=(${pairs})&away_score=not.is.null&order=id.desc&limit=40`)
       .then(rows => {
         const deduped = dedupGames(rows || []);
         const m = {};
@@ -2103,7 +2150,11 @@ function SchedulePage({ setTab, setTeamDetail }) {
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
             {games.map((g,i) => {
               const sc = schedScores[`${g.away}|${g.home}`];
-              if (sc && sc.status === 'Final') {
+              // Any scored row that isn't postponed/canceled is a decided game
+              // (Final, Forfeit, or Tie) — render its result card. Previously
+              // this checked status==='Final' exactly, so a forfeit fell through
+              // to the "upcoming" card and looked like it never happened.
+              if (sc && !isNotPlayedStatus(sc.status)) {
                 return <LiveBoxScoreFinalCard key={sc.id ?? `${g.away}|${g.home}|${dateStr}`} game={sc} onTeamClick={goTeam} />;
               }
               return <div key={`${g.away}|${g.home}|${dateStr}|${i}`} style={{width:"100%"}}><UpcomingCard away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} /></div>;
@@ -12746,7 +12797,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           game_date:toISODate(game.date), game_time:game.time, field:game.field,
           away_team:game.away, home_team:game.home,
           away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
-          headline:headlineVal, status:gameStatus,
+          headline:headlineVal, status:canonicalStatus(gameStatus),
           innings: inningsPayload,
         };
         if (seasonE) patchData.season_id = seasonE.id;
@@ -12789,7 +12840,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             season_id:season.id, game_date:_hsISODate, game_time:game.time, field:game.field,
             away_team:game.away, home_team:game.home,
             away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
-            headline:headlineVal, status:gameStatus,
+            headline:headlineVal, status:canonicalStatus(gameStatus),
           });
           // (deletion of stats deferred to the replace step below — only
           // fires when new INSERT has rows to write, so a re-submit in
@@ -12799,7 +12850,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
             season_id:season.id, game_date:_hsISODate, game_time:game.time, field:game.field,
             away_team:game.away, home_team:game.home,
             away_score:parseInt(awayScore)||0, home_score:parseInt(homeScore)||0,
-            headline:headlineVal, status:gameStatus,
+            headline:headlineVal, status:canonicalStatus(gameStatus),
             innings: {
               away: awayInn.map(i => i.r === "" || i.r == null ? null : (parseInt(i.r) || 0)),
               home: homeInn.map(i => i.r === "" || i.r == null ? null : (parseInt(i.r) || 0)),

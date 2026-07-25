@@ -33,6 +33,31 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-24]
+
+### Fixed — A forfeit (and any non-"Final" result) didn't show on the ticker or Schedule tab; plus a duplicate empty season that silently broke the Schedule tab's finals
+
+Daniel entered a Wed forfeit (Brooklyn 7 @ Generals 0). It showed nowhere: not the top ribbon, not the Schedule tab. **Two independent root causes**, both fixed:
+
+**1. Status vocabulary mismatch.**
+- The box-score entry form offers `Final / Forfeit / Tie / Postponed`, but every consumer in the app only recognized the literal `"Final"` (plus PPD/CAN). A game saved as "Forfeit" — even with a final score — was treated as *unplayed*: hidden from the ticker, the Schedule tab, and excluded from the standings queries (`status=eq.Final`).
+- Added two helpers (top of `App.jsx`):
+  - `canonicalStatus()` — normalizes at the **write** boundary: Forfeit/Tie → `Final` (a forfeit IS a final with an official score), Postponed → `PPD`, Cancelled → `CAN`. Applied to all three status writes in the box-score save. So standings/ticker/schedule "just work" without teaching the ~11 `status=eq.Final` query sites a new word.
+  - `isNotPlayedStatus()` — the display test. Ticker and Schedule now show a game's result unless its status is postponed/canceled/scheduled (defense-in-depth: even a stray non-canonical status still displays its score).
+- Repaired the live row: game 2679 status `Forfeit` → `Final` (kept headline "Generals Forfeit" so it reads as a forfeit).
+
+**2. Duplicate empty season shadowing the real one.**
+- There were TWO seasons for the 2026 Saturday league: **id 2 "Spring/Summer 2026"** (held all 44 games) and **id 31 "Spring/Summer 2026 Diamond Classics Saturdays"** (0 games, an accidental duplicate created by a save-path fallback that names the season differently than the primary insert path).
+- The app resolves this season by name in ~15 places with inconsistent heuristics. The Schedule page used `find("Diamond Classics Saturdays") || find("Spring"+"2026")`, which preferred the **empty** id 31 → its score fetch returned nothing → finals (forfeit or not) never appeared on the Schedule tab. The box-score save used a single-predicate `.find` that happened to land on id 2 — which is why games saved to 2 but the schedule read 31.
+- **Consolidated to one season:** deleted empty id 31, renamed id 2 → "Spring/Summer 2026 Diamond Classics Saturdays". Now every resolution heuristic (includes-Diamond-Classics, Spring+2026, single-find, and the create-if-missing fallbacks) converges on the one season that holds the games — so a save can't recreate a duplicate. Verified no games/config referenced 31; `player_payments.season` is an independent text column and was untouched.
+- **Hardened the Schedule fetch** to not depend on a name-resolved season id at all: it now matches by exact ISO date + team pair + has-score (same as the ticker, which never had the bug). Even if a duplicate season reappears, the Schedule tab keeps working.
+
+**Where:**
+- `src/App.jsx` — `canonicalStatus` / `isNotPlayedStatus` helpers; ticker `isFinal`; SchedulePage `schedScores` fetch (dropped `season_id` filter) and its `LiveBoxScoreFinalCard` gate; three `status:canonicalStatus(gameStatus)` writes in the box-score save.
+- DB: deleted season 31, renamed season 2, set game 2679 → Final.
+
+---
+
 ## [2026-07-19]
 
 ### Fixed — Box score edits could silently re-label a DIFFERENT game and strand its stats
