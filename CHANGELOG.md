@@ -33,6 +33,22 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-26]
+
+### Fixed — Ribbon (and Schedule tab) showed freshly-entered finals as "upcoming" when the live schedule differs from the hardcoded fallback
+
+Daniel entered 3 of the 4 Jul 25 finals Sunday morning; the top ribbon still showed them as game times (only the Brooklyn/Generals forfeit, entered earlier, showed as FINAL).
+
+**Root cause — a stale React effect dependency.** The ticker's score-overlay effect was keyed on `week.label` alone, but it builds its query from the week's **matchups** (`games`). On load, `liveSat` is null so `satWeeks` falls back to the hardcoded `SCHED`; the effect fetches scores for those *hardcoded* matchups. The live admin schedule then loads async and swaps in the current matchups **under the same "Jul 25" label** — so the dependency never changed and the score fetch never re-ran. The overlay stayed keyed to the stale hardcoded matchups. Brooklyn@Generals exists in both schedules → it mapped; Leones/Indios (teams added after the hardcoded `SCHED` was written) and the reshuffled Pirates@Tribe pairing did not → they rendered as "upcoming." This is why it only bites now that there are 8 teams and the live matchups diverge from the old fallback.
+
+**Fix.** Derive a `gamesKey` from the actual matchups (`away|home` joined) and add it to the effect's dependency array so the score fetch re-runs the moment the matchups change. Applied to BOTH the ticker and the Schedule page (`schedScores`), which had the identical latent bug.
+
+**Where:**
+- `src/App.jsx::Ticker` — `gamesKey`; score-overlay effect dep `[week.label, gamesKey]`
+- `src/App.jsx::SchedulePage` — `gamesKey`; `schedScores` effect dep `[wk, satSeasonId, gamesKey]`
+
+---
+
 ## [2026-07-24]
 
 ### Fixed — A forfeit (and any non-"Final" result) didn't show on the ticker or Schedule tab; plus a duplicate empty season that silently broke the Schedule tab's finals

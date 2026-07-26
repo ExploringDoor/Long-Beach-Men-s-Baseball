@@ -931,6 +931,14 @@ function Ticker({ setTab }) {
   const boomerList = liveBom || BOOMERS_SCHED;
   const boomerGame = boomerList.find(g => g.date === week.label);
   const games = boomerGame ? [...satGames, boomerGame] : satGames;
+  // Key on the actual matchups, not just the week label. The live admin
+  // schedule (liveSat) loads AFTER first paint and can swap in different
+  // matchups under the SAME "Jul 25" label — e.g. the newer Leones/Indios
+  // teams weren't in the hardcoded SCHED fallback. The score-overlay effect
+  // below keyed on week.label alone never re-ran when that swap happened, so
+  // it kept the scores it fetched for the stale hardcoded matchups and
+  // freshly-entered finals for the new matchups never appeared on the ribbon.
+  const gamesKey = games.map(g => `${g.away}|${g.home}`).join(",");
 
   useEffect(() => {
     // Pull the FULL admin-saved schedule (sat + bom). Status, venue, time, and added/
@@ -967,7 +975,7 @@ function Ticker({ setTab }) {
         setLiveScores(m);
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [week.label]);
+  }, [week.label, gamesKey]);
 
   const openFinalBox = async (sc) => {
     const [bat, pit] = await Promise.all([
@@ -2051,6 +2059,11 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const week = satWeeks[wk] || satWeeks[0];
   const games = week ? week.games : [];
   const dateStr = week ? week.label : "";
+  // Same guard as the ticker: satWeeks starts as the static schedule and the
+  // live admin schedule loads after first paint, swapping matchups under the
+  // same week index. Key the score fetch on the matchups so it re-runs when
+  // they change — otherwise finals for newly-added matchups never overlay.
+  const gamesKey = games.map(g => `${g.away}|${g.home}`).join(",");
   const boomerWeek = bomWeeks[boomerWk] || bomWeeks[0];
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const allTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
@@ -2101,7 +2114,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
         setSchedScores(m);
       }).catch(()=>{});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wk, satSeasonId]);
+  }, [wk, satSeasonId, gamesKey]);
 
   useEffect(() => {
     const bg = boomerWeek ? boomerWeek.games[0] : null;
