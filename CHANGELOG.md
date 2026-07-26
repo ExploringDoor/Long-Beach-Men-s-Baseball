@@ -33,6 +33,18 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-26] (2)
+
+### Changed — Rebuilt the hardcoded fallback schedule (`SCHED`) to match the current 8-team live schedule
+
+The `SCHED` constant is the built-in fallback the ticker and Schedule page show for the split second before the live admin schedule (`lbdc_schedules` id="sat") loads. It predated the Leones/Indios expansion — it had only the original 6 teams, stopped at Aug 8, and its matchups had drifted from the live schedule. That mismatch was the *content* half of the ribbon bug fixed earlier today (the dependency fix made the overlay recover once live data loaded; this makes the fallback itself accurate so there's nothing to recover from).
+
+Regenerated `SCHED` directly from the live `lbdc_schedules` "sat" blob: 17 weeks (Apr 11–Aug 15), 58 games, all 8 teams (Leones/Indios included from Jun 27 on), correct fields/times/matchups. `buildStaticSatWeeks()` (Schedule page) derives from `SCHED`, so both fallbacks update from this one change. Validated the literal parses to 17 weeks / 8 teams with balanced game counts (6 original teams ×17, Leones/Indios ×7).
+
+**Where:** `src/App.jsx::SCHED` (single source; ticker maps it directly, `buildStaticSatWeeks` derives from it).
+
+---
+
 ## [2026-07-26]
 
 ### Fixed — Ribbon (and Schedule tab) showed freshly-entered finals as "upcoming" when the live schedule differs from the hardcoded fallback
