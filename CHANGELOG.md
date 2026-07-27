@@ -33,6 +33,23 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-27] (2)
+
+### Changed — TWIB video moved onto the hero banner (right/first-base side) + music volume lowered
+
+Daniel asked for the weekly video to sit on the banner, opposite the league emblem (which is baked into the left of `hero111.jpg`), with the site music softer.
+
+- **Hero overlay:** the most recent TWIB video now renders on the RIGHT side of the field banner via `TwibHeroVideo`. Reels are portrait and the banner is only ~400px tall, so the embed is rendered at native size inside a wrapper and CSS `transform: scale(0.62)` shrinks the whole player to fit the banner height (scaling the wrapper, not the iframe width, avoids clipping TikTok/IG's side rail). A "🎥 This Week in Baseball" caption sits beneath it.
+- **Responsive:** on ≤820px the banner is too short to overlay, so the video drops just below the banner (full-width, centered) instead. Verified desktop overlay + mobile stack.
+- **Content column:** `TwibNotesSection` is now a "Past TWIB Notes" archive (previous clips only) since the latest lives on the hero; renders nothing until there are ≥2 videos.
+- **Music:** league anthem volume lowered 0.5 → 0.14 (much softer background).
+
+**Known limits (flagged to the commissioner, inherent to IG/TikTok embeds):** the embed can't autoplay with sound (browser rule — viewer taps once to hear the message), and the site can't detect when a cross-origin embed ends, so the music can't be sequenced to start *after* the video — it stays as low background. Both would require self-hosted/uploaded video instead of an IG/TikTok link.
+
+**Where:** `src/App.jsx` — `TwibHeroVideo`; HomePage `latestTwib` + hero overlay; `.hero-wrap`/`.hero-video-overlay`/`.hero-video-cap` CSS (+ ≤820px media query); `TwibNotesSection` (past-only); `AutoplayAnthem` volume.
+
+---
+
 ## [2026-07-27]
 
 ### Added — TWIB Notes: weekly video updates on the Home page (Instagram/TikTok)

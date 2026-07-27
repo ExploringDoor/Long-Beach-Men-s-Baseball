@@ -1254,48 +1254,75 @@ function TwibEmbed({ video }) {
   );
 }
 
+// The latest weekly video, sized to sit on the RIGHT (first-base) side of the
+// hero banner — opposite the league emblem baked into the left of the image.
+// Reels are portrait (~9:16) and the banner is only ~400px tall, so we render
+// the embed at its native size inside a wrapper and CSS-scale the whole thing
+// down to fit the banner height (transform:scale keeps the player intact —
+// shrinking width alone would clip TikTok/Instagram's side rail). These embeds
+// don't autoplay with sound (a browser rule); the viewer taps once to play the
+// commissioner's message.
+function TwibHeroVideo({ video }) {
+  const info = parseTwibUrl(video.url) || { platform:"link", embedUrl:null, watchUrl:video.url };
+  const label = twibPlatformLabel(info.platform);
+  if (!info.embedUrl) {
+    return (
+      <a href={info.watchUrl} target="_blank" rel="noopener noreferrer"
+        style={{display:"flex",alignItems:"center",gap:10,textDecoration:"none",background:"linear-gradient(90deg,#002d6e,#c8102e)",borderRadius:12,padding:"14px 18px",color:"#fff",boxShadow:"0 8px 30px rgba(0,0,0,0.45)"}}>
+        <span style={{fontSize:26}}>▶️</span>
+        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",lineHeight:1.1}}>Watch this week's update on {label}</span>
+      </a>
+    );
+  }
+  const isTok = info.platform === "tiktok";
+  const baseW = isTok ? 325 : 340, baseH = 555;
+  const scale = 0.62;                       // fit within the ~400px banner height
+  const w = Math.round(baseW * scale), h = Math.round(baseH * scale);
+  return (
+    <div style={{width:w,height:h,borderRadius:14,overflow:"hidden",background:"#000",boxShadow:"0 10px 34px rgba(0,0,0,0.5)",border:"2px solid rgba(255,255,255,0.9)"}}>
+      <div style={{width:baseW,height:baseH,transform:`scale(${scale})`,transformOrigin:"top left"}}>
+        <iframe
+          key={info.embedUrl}
+          src={info.embedUrl}
+          title={video.caption || `${label} video`}
+          loading="eager"
+          allow="autoplay; encrypted-media; clipboard-write; picture-in-picture; web-share; fullscreen"
+          allowFullScreen
+          scrolling="no"
+          style={{width:baseW,height:baseH,border:"none",display:"block"}}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Content-column archive of PAST weekly videos. The most recent clip now lives
+// on the hero banner (TwibHeroVideo), so this shows only the earlier ones and
+// renders nothing until there are at least two videos.
 function TwibNotesSection({ videos, formatDate }) {
-  if (!videos || !videos.length) return null;
+  if (!videos || videos.length < 2) return null;
   const sorted = [...videos].sort((a,b) => String(b.date||"").localeCompare(String(a.date||"")));
-  const latest = sorted[0];
-  const previous = sorted.slice(1, 5);
-  const info = parseTwibUrl(latest.url);
-  const label = twibPlatformLabel(info?.platform);
-  const icon = info?.platform === "instagram" ? "📸" : info?.platform === "tiktok" ? "🎵" : "🎬";
+  const previous = sorted.slice(1, 6);
   return (
     <div style={{marginBottom:32}}>
-      <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#c8102e",marginBottom:4}}>Diamond Classics · This Week in Baseball</div>
-          <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>🎥 TWIB Notes</h2>
-        </div>
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#c8102e",marginBottom:4}}>Diamond Classics · This Week in Baseball</div>
+        <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>🎥 Past TWIB Notes</h2>
       </div>
-      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:14,padding:"18px 18px 20px",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
-        {(latest.caption || latest.date) && (
-          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,marginBottom:12,flexWrap:"wrap"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:19,color:"#111",lineHeight:1.15,minWidth:0}}>{latest.caption || "Weekly Update"}</div>
-            {latest.date && <div style={{fontSize:11,color:"#c8102e",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap"}}>{icon} {formatDate ? formatDate(latest.date) : latest.date}</div>}
-          </div>
-        )}
-        <TwibEmbed video={latest} />
+      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.08)",borderRadius:12,overflow:"hidden"}}>
+        {previous.map((v,i) => {
+          const vi = parseTwibUrl(v.url);
+          return (
+            <a key={v.id||i} href={(vi&&vi.watchUrl)||v.url} target="_blank" rel="noopener noreferrer"
+              style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",textDecoration:"none",color:"#111",borderBottom:i<previous.length-1?"1px solid rgba(0,0,0,0.05)":"none",background:i%2?"#fafafa":"#fff"}}>
+              <span style={{fontSize:18,flexShrink:0}}>{vi?.platform==="instagram"?"📸":vi?.platform==="tiktok"?"🎵":"🎬"}</span>
+              <span style={{flex:1,minWidth:0,fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.caption || `${twibPlatformLabel(vi?.platform)} clip`}</span>
+              {v.date && <span style={{fontSize:12,color:"#888",whiteSpace:"nowrap"}}>{formatDate ? formatDate(v.date) : v.date}</span>}
+              <span style={{color:"#002d6e",fontWeight:700,fontSize:13,flexShrink:0}}>▶</span>
+            </a>
+          );
+        })}
       </div>
-      {previous.length > 0 && (
-        <div style={{marginTop:12,background:"#fff",border:"1px solid rgba(0,0,0,0.08)",borderRadius:12,overflow:"hidden"}}>
-          <div style={{padding:"9px 14px",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#666",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>Earlier Updates</div>
-          {previous.map((v,i) => {
-            const vi = parseTwibUrl(v.url);
-            return (
-              <a key={v.id||i} href={(vi&&vi.watchUrl)||v.url} target="_blank" rel="noopener noreferrer"
-                style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",textDecoration:"none",color:"#111",borderBottom:i<previous.length-1?"1px solid rgba(0,0,0,0.05)":"none",background:i%2?"#fafafa":"#fff"}}>
-                <span style={{fontSize:16,flexShrink:0}}>{vi?.platform==="instagram"?"📸":vi?.platform==="tiktok"?"🎵":"🎬"}</span>
-                <span style={{flex:1,minWidth:0,fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.caption || `${twibPlatformLabel(vi?.platform)} clip`}</span>
-                {v.date && <span style={{fontSize:12,color:"#888",whiteSpace:"nowrap"}}>{formatDate ? formatDate(v.date) : v.date}</span>}
-                <span style={{color:"#002d6e",fontWeight:700,fontSize:13,flexShrink:0}}>▶</span>
-              </a>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -1461,6 +1488,10 @@ function HomePage({ setTab, setTeamDetail }) {
     const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + "T12:00:00") : new Date(d + " 2026");
     return isNaN(dt) ? d : dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});
   };
+  // Most recent weekly video → shown on the hero banner (right side).
+  const latestTwib = twibVideos.length
+    ? [...twibVideos].sort((a,b) => String(b.date||"").localeCompare(String(a.date||"")))[0]
+    : null;
   const [previewGame, setPreviewGame] = useState(null);
   const goTeam = (name) => { setTeamDetail(name); };
 
@@ -1541,9 +1572,17 @@ function HomePage({ setTab, setTeamDetail }) {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {previewGame && <GamePreviewModal {...previewGame} onClose={()=>setPreviewGame(null)} />}
-      {/* HERO */}
-      <div style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0,overflow:"hidden"}}>
+      {/* HERO — league emblem is baked into the LEFT of the image; the weekly
+          TWIB video overlays the RIGHT (first-base) side. On phones the banner
+          is too short to overlay, so the video drops just below it (see CSS). */}
+      <div className="hero-wrap" style={{width:"100%",borderBottom:"4px solid #002d6e",lineHeight:0}}>
         <img src="/hero111.jpg" alt="Long Beach Diamond Classics" className="hero-img" fetchpriority="high" loading="eager" style={{display:"block"}} />
+        {latestTwib && (
+          <div className="hero-video-overlay">
+            <TwibHeroVideo video={latestTwib} />
+            <div className="hero-video-cap">🎥 This Week in Baseball{latestTwib.caption ? ` · ${latestTwib.caption}` : ""}</div>
+          </div>
+        )}
       </div>
       {/* SIGN-UP CTA — bold red/white/navy banner directly under the hero
           so players actually notice the sign-up form. Matches the site's
@@ -12350,7 +12389,7 @@ function AutoplayAnthem() {
     if (typeof window === 'undefined') return;
     if (sessionStorage.getItem('lbdc_anthem_played') === '1') return;
     const audio = new Audio('/diamond-classics.mp3');
-    audio.volume = 0.5;     // not jarring on first hit
+    audio.volume = 0.14;    // much lower — plays as gentle background under the weekly video (per commissioner)
     audio.preload = 'auto';
     audioRef.current = audio;
     let started = false;
@@ -16911,6 +16950,16 @@ export default function App() {
         .mobile-standings{display:none;}
         .desktop-standings{display:block;}
         .hero-img { width: 100%; max-height: 400px; object-fit: cover; object-position: center 80%; display: block; }
+        /* TWIB weekly video overlaid on the right (first-base) side of the banner */
+        .hero-wrap { position: relative; overflow: hidden; }
+        .hero-video-overlay { position: absolute; top: 50%; right: 3%; transform: translateY(-50%); z-index: 3; line-height: normal; display: flex; flex-direction: column; align-items: center; }
+        .hero-video-cap { margin-top: 6px; max-width: 260px; text-align: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 5px rgba(0,0,0,0.85); }
+        @media(max-width:820px){
+          /* Banner too short to overlay — let the video sit just below it */
+          .hero-wrap { overflow: visible; }
+          .hero-video-overlay { position: static; transform: none; right: auto; padding: 14px 0 2px; }
+          .hero-video-cap { color: #111; text-shadow: none; }
+        }
         @media(max-width:700px){
           .hero-img { width: 100%; max-height: 250px; object-fit: cover; object-position: center 80%; }
           .home-two-col{grid-template-columns:1fr!important;}
