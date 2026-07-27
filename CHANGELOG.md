@@ -33,6 +33,27 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-27]
+
+### Added — TWIB Notes: weekly video updates on the Home page (Instagram/TikTok)
+
+Daniel wanted a "Diamond Classics TWIB Notes" spot on the home page for weekly video updates he can make from his phone and share from Instagram/TikTok.
+
+**How it works for Daniel:** Admin → 🎥 TWIB Notes → paste an Instagram or TikTok share link (+ optional caption + date) → it publishes to the Home page. The most recent clip is embedded prominently under "News & Events"; older ones appear in an "Earlier Updates" list.
+
+**Implementation:**
+- **Embed via each platform's DIRECT iframe endpoint** (`instagram.com/<type>/<code>/embed/`, `tiktok.com/embed/v2/<id>`), parsed from the pasted URL — not the flaky embed.js `<script>` widgets, which need re-processing inside a React SPA. An iframe just renders. Verified the TikTok embed endpoint renders a real video standalone.
+- **Graceful fallback:** links we can't turn into an embed (TikTok `vm.*` short links, YouTube, etc.) render a "Watch on …" card instead, and every embed also carries a "▶ Watch on {Platform} ↗" link beneath it, so the section is never a dead blank box even if a platform is slow/blocked.
+- **Zero SQL setup:** data lives as a jsonb list under `lbdc_schedules` id="twib" (the same general keyed-JSON store that already holds `field_fees`). The Home section renders nothing until the first video is added, so this shipped dormant and appears the moment Daniel posts.
+- Admin manager auto-detects the platform, shows a live "✓ Instagram/TikTok detected" hint + inline preview, warns on non-IG/TikTok links, and lists posted videos with delete.
+
+**Where:**
+- `src/App.jsx` — `parseTwibUrl`/`twibPlatformLabel` helpers, `TwibEmbed` + `TwibNotesSection` (Home), `TwibNotesPage` (admin); HomePage fetch + render; admin tile + `quickView==="twib"`.
+
+**Note:** Instagram/TikTok posts must be **Public** to embed. Verified end-to-end: admin add/detect/delete, DB round-trip, Home render with correct iframe + earlier-updates list. (The in-app preview pane doesn't paint cross-origin iframes, but the embed endpoint renders correctly on a real browser — confirmed by loading it standalone.)
+
+---
+
 ## [2026-07-26] (2)
 
 ### Changed — Rebuilt the hardcoded fallback schedule (`SCHED`) to match the current 8-team live schedule

@@ -1180,6 +1180,258 @@ function Navbar({ tab, setTab }) {
   );
 }
 
+/* ─── TWIB NOTES (weekly video updates) ──────────────────────────────────────
+   Commissioner posts a short clip to Instagram/TikTok, pastes the share link,
+   and it shows on the Home page. We embed via each platform's DIRECT iframe
+   URL (instagram.com/<type>/<code>/embed, tiktok.com/embed/v2/<id>) rather than
+   their embed.js <script> widgets — an iframe renders reliably inside a React
+   SPA with no re-processing dance. Links we can't turn into an embed (TikTok
+   vm.* short links, YouTube, etc.) fall back to a "tap to watch" card so the
+   section never looks broken. Data lives in lbdc_schedules id="twib" (the same
+   general keyed-JSON store that already holds field_fees) so no new table /
+   SQL setup is needed — the section simply appears once a video is added. */
+function parseTwibUrl(raw) {
+  const url = (raw || "").trim();
+  if (!url) return null;
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  const host = u.hostname.replace(/^www\./, "").toLowerCase();
+  if (host === "instagram.com" || host.endsWith(".instagram.com")) {
+    const m = u.pathname.match(/\/(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/);
+    if (m) {
+      const type = m[1] === "reels" ? "reel" : m[1];
+      return { platform:"instagram", embedUrl:`https://www.instagram.com/${type}/${m[2]}/embed/`, watchUrl:url };
+    }
+    return { platform:"instagram", embedUrl:null, watchUrl:url };
+  }
+  if (host === "tiktok.com" || host.endsWith(".tiktok.com")) {
+    const m = u.pathname.match(/\/(?:video|photo)\/(\d+)/);
+    if (m) return { platform:"tiktok", embedUrl:`https://www.tiktok.com/embed/v2/${m[1]}`, watchUrl:url };
+    return { platform:"tiktok", embedUrl:null, watchUrl:url }; // short link → link-out card
+  }
+  return { platform:"link", embedUrl:null, watchUrl:url };
+}
+const twibPlatformLabel = (p) => p === "instagram" ? "Instagram" : p === "tiktok" ? "TikTok" : "Video";
+
+function TwibEmbed({ video }) {
+  const info = parseTwibUrl(video.url) || { platform:"link", embedUrl:null, watchUrl:video.url };
+  const label = twibPlatformLabel(info.platform);
+  if (info.embedUrl) {
+    const isTok = info.platform === "tiktok";
+    return (
+      <div>
+        <div style={{width:"100%",display:"flex",justifyContent:"center"}}>
+          <iframe
+            key={info.embedUrl}
+            src={info.embedUrl}
+            title={video.caption || `${label} video`}
+            loading="lazy"
+            allow="autoplay; encrypted-media; clipboard-write; picture-in-picture; web-share; fullscreen"
+            allowFullScreen
+            scrolling="no"
+            style={{width:"100%",maxWidth:isTok?325:440,height:isTok?745:640,border:"none",borderRadius:12,background:"#000",overflow:"hidden"}}
+          />
+        </div>
+        {/* Always-present escape hatch: if the embed is slow/blocked in some
+            browser, the viewer still has a one-tap way to watch the clip. */}
+        <div style={{textAlign:"center",marginTop:8}}>
+          <a href={info.watchUrl} target="_blank" rel="noopener noreferrer"
+            style={{fontSize:13,fontWeight:700,color:"#002d6e",textDecoration:"none"}}>▶ Watch on {label} ↗</a>
+        </div>
+      </div>
+    );
+  }
+  // Fallback: guaranteed-working link-out card (short links / unknown hosts)
+  return (
+    <a href={info.watchUrl} target="_blank" rel="noopener noreferrer"
+      style={{display:"flex",alignItems:"center",gap:14,textDecoration:"none",background:"linear-gradient(90deg,#002d6e,#c8102e)",borderRadius:12,padding:"18px 22px",color:"#fff"}}>
+      <span style={{fontSize:34,flexShrink:0}}>▶️</span>
+      <span style={{minWidth:0}}>
+        <span style={{display:"block",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",lineHeight:1.1}}>Watch on {label}</span>
+        <span style={{display:"block",fontSize:13,color:"rgba(255,255,255,0.9)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{info.watchUrl}</span>
+      </span>
+    </a>
+  );
+}
+
+function TwibNotesSection({ videos, formatDate }) {
+  if (!videos || !videos.length) return null;
+  const sorted = [...videos].sort((a,b) => String(b.date||"").localeCompare(String(a.date||"")));
+  const latest = sorted[0];
+  const previous = sorted.slice(1, 5);
+  const info = parseTwibUrl(latest.url);
+  const label = twibPlatformLabel(info?.platform);
+  const icon = info?.platform === "instagram" ? "📸" : info?.platform === "tiktok" ? "🎵" : "🎬";
+  return (
+    <div style={{marginBottom:32}}>
+      <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#c8102e",marginBottom:4}}>Diamond Classics · This Week in Baseball</div>
+          <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:34,textTransform:"uppercase",color:"#111",lineHeight:1}}>🎥 TWIB Notes</h2>
+        </div>
+      </div>
+      <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:14,padding:"18px 18px 20px",boxShadow:"0 2px 8px rgba(0,0,0,0.05)"}}>
+        {(latest.caption || latest.date) && (
+          <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:19,color:"#111",lineHeight:1.15,minWidth:0}}>{latest.caption || "Weekly Update"}</div>
+            {latest.date && <div style={{fontSize:11,color:"#c8102e",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap"}}>{icon} {formatDate ? formatDate(latest.date) : latest.date}</div>}
+          </div>
+        )}
+        <TwibEmbed video={latest} />
+      </div>
+      {previous.length > 0 && (
+        <div style={{marginTop:12,background:"#fff",border:"1px solid rgba(0,0,0,0.08)",borderRadius:12,overflow:"hidden"}}>
+          <div style={{padding:"9px 14px",fontSize:11,fontWeight:700,letterSpacing:".1em",textTransform:"uppercase",color:"#666",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>Earlier Updates</div>
+          {previous.map((v,i) => {
+            const vi = parseTwibUrl(v.url);
+            return (
+              <a key={v.id||i} href={(vi&&vi.watchUrl)||v.url} target="_blank" rel="noopener noreferrer"
+                style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",textDecoration:"none",color:"#111",borderBottom:i<previous.length-1?"1px solid rgba(0,0,0,0.05)":"none",background:i%2?"#fafafa":"#fff"}}>
+                <span style={{fontSize:16,flexShrink:0}}>{vi?.platform==="instagram"?"📸":vi?.platform==="tiktok"?"🎵":"🎬"}</span>
+                <span style={{flex:1,minWidth:0,fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.caption || `${twibPlatformLabel(vi?.platform)} clip`}</span>
+                {v.date && <span style={{fontSize:12,color:"#888",whiteSpace:"nowrap"}}>{formatDate ? formatDate(v.date) : v.date}</span>}
+                <span style={{color:"#002d6e",fontWeight:700,fontSize:13,flexShrink:0}}>▶</span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Admin manager for TWIB Notes — paste an Instagram/TikTok link, optional
+// caption + date, and it publishes to the Home page. List + delete below.
+function TwibNotesPage({ onBack }) {
+  const [videos, setVideos] = useState(null); // null = loading
+  const [url, setUrl] = useState("");
+  const [caption, setCaption] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0,10));
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(() => {
+    sbFetch("lbdc_schedules?id=eq.twib&select=data")
+      .then(rows => setVideos(Array.isArray(rows?.[0]?.data) ? rows[0].data : []))
+      .catch(() => setVideos([]));
+  }, []);
+
+  const persist = async (next) => {
+    setSaving(true); setMsg(null);
+    const prev = videos;
+    setVideos(next);
+    const r = await safeSave("TWIB Notes", () => sbUpsert("lbdc_schedules", { id:"twib", data:next }));
+    setSaving(false);
+    if (!r.ok) { setVideos(prev); setMsg({ok:false,text:"Couldn't save — please try again."}); return false; }
+    return true;
+  };
+
+  const info = url.trim() ? parseTwibUrl(url) : null;
+  const detected = info ? twibPlatformLabel(info.platform) : null;
+  const isEmbeddable = !!(info && info.embedUrl);
+  const isSupported = !!(info && (info.platform==="instagram" || info.platform==="tiktok"));
+
+  const add = async () => {
+    if (!url.trim() || !isSupported) return;
+    const vid = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,7),
+      url: url.trim(), platform: info.platform, caption: caption.trim(), date,
+    };
+    const ok = await persist([vid, ...(videos||[])]);
+    if (ok) { setUrl(""); setCaption(""); setMsg({ok:true,text:"✅ Posted to the Home page!"}); }
+  };
+  const remove = async (id) => {
+    if (!window.confirm("Remove this video from the site?")) return;
+    await persist((videos||[]).filter(v => v.id !== id));
+  };
+
+  const sorted = [...(videos||[])].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const fmt = (d) => { if(!d) return ""; const dt=/^\d{4}-\d{2}-\d{2}$/.test(d)?new Date(d+"T12:00:00"):new Date(d); return isNaN(dt)?d:dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); };
+
+  return (
+    <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:"1px solid rgba(0,0,0,0.08)"}}>
+        <button type="button" onClick={onBack} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
+        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>🎥 TWIB Notes — Weekly Videos</span>
+      </div>
+
+      <div style={{padding:"16px",display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{background:"#f0f6ff",border:"1px solid #cfe0f5",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#234",lineHeight:1.5}}>
+          <b>How to post a weekly video:</b> record it in Instagram or TikTok on your phone and post it (make sure the post is <b>Public</b>). Tap <b>Share → Copy link</b>, then paste the link below. It shows up on the Home page automatically.
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>Instagram / TikTok link</label>
+          <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://www.instagram.com/reel/…  or  https://www.tiktok.com/@…/video/…"
+            style={{padding:"9px 11px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+          {url.trim() && (
+            <div style={{fontSize:12,marginTop:2,color:isSupported?(isEmbeddable?"#16a34a":"#b45309"):"#dc2626"}}>
+              {isSupported
+                ? (isEmbeddable ? `✓ ${detected} video detected — will embed on the site.`
+                                 : `✓ ${detected} link detected. This looks like a short share link, so the site will show a "Watch on ${detected}" button. For an embedded player, paste the full link that contains "/video/…".`)
+                : "⚠ Not an Instagram or TikTok link. Paste a link from instagram.com or tiktok.com."}
+            </div>
+          )}
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 160px",gap:10}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>Caption (optional)</label>
+            <input value={caption} onChange={e=>setCaption(e.target.value)} placeholder="e.g. Week 12 recap & playoff picture"
+              style={{padding:"9px 11px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>Date</label>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{padding:"9px 11px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit"}}/>
+          </div>
+        </div>
+
+        {isEmbeddable && (
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",marginBottom:6}}>Preview</div>
+            <TwibEmbed video={{ url:url.trim(), caption }} />
+          </div>
+        )}
+
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <button type="button" onClick={add} disabled={!isSupported||saving}
+            style={{padding:"10px 20px",background:isSupported&&!saving?"#16a34a":"#9ca3af",color:"#fff",border:"none",borderRadius:8,fontWeight:800,fontSize:14,cursor:isSupported&&!saving?"pointer":"not-allowed"}}>
+            {saving?"Saving…":"＋ Post Video"}
+          </button>
+          {msg && <span style={{fontSize:13,fontWeight:600,color:msg.ok?"#16a34a":"#dc2626"}}>{msg.text}</span>}
+        </div>
+
+        <div style={{borderTop:"1px solid rgba(0,0,0,0.08)",paddingTop:14}}>
+          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#111",marginBottom:10}}>
+            Posted Videos {videos?`(${videos.length})`:""}
+          </div>
+          {videos === null ? <div style={{color:"#888",fontSize:13}}>Loading…</div>
+           : videos.length === 0 ? <div style={{color:"#888",fontSize:13}}>No videos yet. Paste a link above to post your first weekly update.</div>
+           : (
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {sorted.map((v,i) => {
+                const vi = parseTwibUrl(v.url);
+                return (
+                  <div key={v.id||i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",border:"1px solid rgba(0,0,0,0.08)",borderRadius:8,background:i%2?"#fafafa":"#fff"}}>
+                    <span style={{fontSize:20,flexShrink:0}}>{vi?.platform==="instagram"?"📸":vi?.platform==="tiktok"?"🎵":"🎬"}</span>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:14,color:"#111",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.caption || `${twibPlatformLabel(vi?.platform)} clip`}</div>
+                      <a href={(vi&&vi.watchUrl)||v.url} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:"#2563eb",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{v.url}</a>
+                    </div>
+                    {v.date && <span style={{fontSize:12,color:"#888",whiteSpace:"nowrap",flexShrink:0}}>{fmt(v.date)}</span>}
+                    <button type="button" onClick={()=>remove(v.id)} disabled={saving} style={{padding:"5px 10px",background:"#fef2f2",color:"#dc2626",border:"1px solid #fecaca",borderRadius:6,fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>Delete</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── HOME PAGE ──────────────────────────────────────────────────────────── */
 function HomePage({ setTab, setTeamDetail }) {
   const [topTeams, setTopTeams] = useState([...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => b.w!==a.w?b.w-a.w:a.l-b.l).slice(0,8));
@@ -1201,7 +1453,14 @@ function HomePage({ setTab, setTeamDetail }) {
   const nextGames = (upcomingByDate[nextDate] || []).slice(0,5);
   const [recentGames, setRecentGames] = useState([]);
   const [newsItems, setNewsItems] = useState([]);
+  const [twibVideos, setTwibVideos] = useState([]);
   const [standingsDiv, setStandingsDiv] = useState("SAT");
+  // Format a TWIB date (ISO "2026-07-26" or a "Jul 26" label) for display.
+  const fmtTwibDate = (d) => {
+    if (!d) return "";
+    const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + "T12:00:00") : new Date(d + " 2026");
+    return isNaN(dt) ? d : dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  };
   const [previewGame, setPreviewGame] = useState(null);
   const goTeam = (name) => { setTeamDetail(name); };
 
@@ -1268,6 +1527,11 @@ function HomePage({ setTab, setTeamDetail }) {
       .catch(() => {});
     sbFetch("news?select=id,title,body,event_date,pinned,style,created_at&order=pinned.desc,created_at.desc&limit=10")
       .then(data => setNewsItems(data || []))
+      .catch(() => {});
+    // Weekly video updates (TWIB Notes) — stored as a jsonb list under
+    // lbdc_schedules id="twib". Empty/absent → section renders nothing.
+    sbFetch("lbdc_schedules?id=eq.twib&select=data")
+      .then(rows => { if (rows && rows[0] && Array.isArray(rows[0].data)) setTwibVideos(rows[0].data); })
       .catch(() => {});
     // Live Saturday schedule (so admin venue/time/status edits flow through to Home)
     sbFetch("lbdc_schedules?id=eq.sat&select=data")
@@ -1343,6 +1607,7 @@ function HomePage({ setTab, setTeamDetail }) {
                 </div>
               </div>
             )}
+            <TwibNotesSection videos={twibVideos} formatDate={fmtTwibDate} />
             {nextGames.length > 0 && (
               <div style={{marginBottom:32}}>
                 <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
@@ -10871,7 +11136,7 @@ function AdminPage({ onAlertChange }) {
   const [alertHistory, setAlertHistory] = useState([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showBoxScore, setShowBoxScore] = useState(false);
-  const [quickView, setQuickView] = useState(null); // null | "alert" | "news" | "schedule" | "email" | "games" | "tournaments" | "eligibility"
+  const [quickView, setQuickView] = useState(null); // null | "alert" | "news" | "twib" | "schedule" | "email" | "games" | "tournaments" | "eligibility"
   const [preloadGame, setPreloadGame] = useState(null); // game object to preload into BoxScoreEntry
   // Live team list for the Captain Login dropdown. Sources:
   //   1. ALL built-in teams from TEAM_ROSTERS (Saturday + Boomers, hardcoded
@@ -11656,6 +11921,7 @@ function AdminPage({ onAlertChange }) {
          quickView==="live"         ? <LiveScorerPage onExit={()=>setQuickView(null)}/> :
          quickView==="teams"        ? <ManageTeamsPage onBack={()=>setQuickView(null)}/> :
          quickView==="umpireevals"  ? <UmpireEvalsAdmin onBack={()=>setQuickView(null)}/> :
+         quickView==="twib"         ? <TwibNotesPage onBack={()=>setQuickView(null)}/> :
          quickView==="games"    ? (
           <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
             <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -11762,6 +12028,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"⚡",title:"Score Live",desc:"Score a game in real time",accent:"#16a34a",action:()=>setQuickView("live")},
                   {icon:"🚨",title:"League Alert Banner",desc:"Post urgent site-wide notices",accent:hasAlert?"#dc2626":"#002d6e",badge:hasAlert?"ACTIVE":null,action:()=>setQuickView("alert")},
                   {icon:"📰",title:"News & Events",desc:"Post announcements to the Home page",accent:"#b45309",action:()=>{setQuickView("news");loadNews();}},
+                  {icon:"🎥",title:"TWIB Notes",desc:"Post weekly video updates (IG/TikTok)",accent:"#c8102e",action:()=>setQuickView("twib")},
                   {icon:"📊",title:"Enter Box Score",desc:"Enter this week's results",accent:"#002d6e",action:()=>{setPreloadGame(null);setShowBoxScore(true);}},
                   {icon:"🗂️",title:"Manage Games",desc:"Edit or delete saved games",accent:"#dc2626",action:()=>{setQuickView("games");loadAdminGames();}},
                   {icon:"🏆",title:"Tournaments",desc:"Add tournament games to schedule",accent:"#002d6e",action:()=>setQuickView("tournaments")},
