@@ -8,6 +8,25 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-28]
+
+### Changed — Registration fee $50 → $75; Player Sign-Up now collects Date of Birth + Positions Played
+
+**Fee:** the seasonal registration fee is now **$75** everywhere it's referenced as the 50's registration fee — the Sign-Up page fee box, the Rules "Registration & Playoff Eligibility" section, and the Admin eligibility tracker ("$75 fee paid" / "$75 Paid" column). Left untouched (different charges): Boomers 60/70 "$25 Registration & Insurance" and the separate "Seasonal Insurance (50's) $50" line item.
+
+**New sign-up fields:**
+- **Date of Birth** (date picker, required) — "used to confirm age eligibility for the division."
+- **Positions Played** (tap-to-toggle chips: P, C, 1B, 2B, 3B, SS, LF, CF, RF, DH; optional, multi-select).
+- Both are included in the sign-up email to Daniel and shown in Admin → Player Sign-Ups (🎂 DOB, 🧢 positions).
+
+**Safe rollout (no signups break before the DB migration):** `dob`/`positions` need two new columns on `lbdc_signups`, added by `sql-add-signup-fields-2026-07-28.sql`. The form feature-detects the columns (`signupsHaveExtraCols()`): before the SQL is run it folds DOB + positions into the `notes` field (so nothing is lost and they still show in Admin) and never sends unknown columns; after the SQL is run they save to their own columns and render as dedicated fields. Verified the probe 400s and the fallback insert succeeds.
+
+**Where:** `src/App.jsx` — RULES fee text; SignUp fee box + `dob`/`positions` state, fields, submit payload + email; `signupsHaveExtraCols()`; PlayerEligibilityPage fee labels; admin signups viewer row. Plus `sql-add-signup-fields-2026-07-28.sql`.
+
+**Note (needs Adam):** run `sql-add-signup-fields-2026-07-28.sql` once in Supabase for clean DOB/positions columns. Until then the data still flows via the email + notes. DOB is currently **required** — say the word to make it optional.
+
+---
+
 ## [2026-06-17]
 
 ### Added — Tournament schedule on team pages + styled tournament cards on Schedule page

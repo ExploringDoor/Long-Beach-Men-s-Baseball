@@ -520,8 +520,8 @@ const RULES_DATA = [
     "Those 3 players aged 45+ are NOT permitted to pitch.",
   ]},
   {section:"Registration & Playoff Eligibility",icon:"💰",items:[
-    "All players must pay a $50 registration fee to be eligible for the season.",
-    "Players must pay their $50 registration fee AND appear in a minimum of 4 regular season games to qualify for playoff eligibility.",
+    "All players must pay a $75 registration fee to be eligible for the season.",
+    "Players must pay their $75 registration fee AND appear in a minimum of 4 regular season games to qualify for playoff eligibility.",
     "Game appearances are tracked from official box scores submitted after each game.",
     "It is the responsibility of each player to ensure their fee is paid before the playoff cutoff date.",
     "Players who have not met both requirements (payment + 4 game appearances) will not be eligible for postseason play.",
@@ -5684,8 +5684,11 @@ function HistoryPage() {
 
 /* ─── PLAYER SIGN UP PAGE ────────────────────────────────────────────────── */
 function PlayerSignUpPage() {
-  const [form, setForm] = useState({name:"",team:"",email:"",phone:"",notes:""});
+  const [form, setForm] = useState({name:"",team:"",email:"",phone:"",dob:"",notes:""});
+  const [positions, setPositions] = useState([]); // e.g. ["SS","CF"]
   const [prefs, setPrefs] = useState({reminders:false,scores:false,playoffs:false,rainouts:false});
+  const POSITION_OPTS = ["P","C","1B","2B","3B","SS","LF","CF","RF","DH"];
+  const togglePosition = (p) => setPositions(cur => cur.includes(p) ? cur.filter(x=>x!==p) : [...cur, p]);
   const [status, setStatus] = useState(null); // null | "saving" | "done" | "error"
   // Live roster lookup: rosters[team] = [{name, number}, ...]
   // We pull on mount so the player can pick their name from a dropdown
@@ -5726,20 +5729,32 @@ function PlayerSignUpPage() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.team || !form.email || !form.phone) { alert("Please fill in all required fields."); return; }
+    if (!form.name || !form.team || !form.email || !form.phone || !form.dob) { alert("Please fill in all required fields."); return; }
     setStatus("saving");
     try {
+      const posStr = positions.join(", ");
+      // The dob/positions columns ship as a one-time SQL migration
+      // (sql-add-signup-fields-2026-07-28.sql). Until it's run, PostgREST
+      // would 400 on unknown columns and break the whole signup — so probe
+      // first, and if the columns aren't there yet, fold the two values into
+      // `notes` so nothing is lost and they still show in Admin. The email
+      // notification below always carries them regardless.
+      const hasExtra = await signupsHaveExtraCols();
+      const foldedNotes = hasExtra
+        ? (form.notes || "")
+        : [form.dob ? `DOB: ${form.dob}` : "", posStr ? `Positions: ${posStr}` : "", form.notes || ""].filter(Boolean).join(" | ");
       // Save to Supabase
       await sbPost("lbdc_signups", {
         name: form.name,
         team: form.team,
         email: form.email,
         phone: form.phone,
-        notes: form.notes || "",
+        notes: foldedNotes,
         reminders: prefs.reminders,
         scores: prefs.scores,
         playoffs: prefs.playoffs,
         rainouts: prefs.rainouts,
+        ...(hasExtra ? { dob: form.dob || null, positions: posStr || null } : {}),
       });
       // Auto-add to roster so they appear in availability, box scores & live
       // scoring — but ONLY if no row already exists for this name+team
@@ -5767,6 +5782,8 @@ function PlayerSignUpPage() {
           Team: form.team,
           Email: form.email,
           Phone: form.phone,
+          "Date of Birth": form.dob || "—",
+          "Positions Played": posStr || "—",
           "Reminders": prefs.reminders ? "Yes" : "No",
           "Score Alerts": prefs.scores ? "Yes" : "No",
           "Playoff Updates": prefs.playoffs ? "Yes" : "No",
@@ -5799,9 +5816,9 @@ function PlayerSignUpPage() {
         <div style={{background:"#fff",borderRadius:14,padding:"28px 24px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
           {/* Registration fee & payment info */}
           <div style={{background:"#f0f4ff",border:"1px solid rgba(0,45,110,0.2)",borderLeft:"4px solid #002d6e",borderRadius:8,padding:"14px 16px",marginBottom:20}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#002d6e",textTransform:"uppercase",marginBottom:6}}>💰 Registration Fee: $50</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,color:"#002d6e",textTransform:"uppercase",marginBottom:6}}>💰 Registration Fee: $75</div>
             <div style={{fontSize:13,color:"rgba(0,0,0,0.65)",lineHeight:1.6,marginBottom:10}}>
-              All players must pay the $50 seasonal registration fee to be eligible for the season and playoffs. Pay via:
+              All players must pay the $75 seasonal registration fee to be eligible for the season and playoffs. Pay via:
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               <div style={{display:"flex",alignItems:"center",gap:10,background:"#fff",borderRadius:8,padding:"10px 14px",border:"1px solid rgba(0,0,0,0.1)"}}>
@@ -5893,9 +5910,28 @@ function PlayerSignUpPage() {
               <label style={labelStyle}>Email Address <span style={{color:"#dc2626"}}>*</span></label>
               <input type="email" value={form.email} onChange={e=>set("email",e.target.value)} placeholder="you@email.com" style={inputStyle} />
             </div>
-            <div style={{marginBottom:24}}>
+            <div style={{marginBottom:18}}>
               <label style={labelStyle}>Cell Phone Number <span style={{color:"#dc2626"}}>*</span></label>
               <input type="tel" value={form.phone} onChange={e=>set("phone",e.target.value)} placeholder="(310) 555-1234" style={inputStyle} />
+            </div>
+            <div style={{marginBottom:18}}>
+              <label style={labelStyle}>Date of Birth <span style={{color:"#dc2626"}}>*</span></label>
+              <input type="date" value={form.dob} onChange={e=>set("dob",e.target.value)} max="2010-12-31" style={inputStyle} />
+              <div style={{fontSize:11,color:"rgba(0,0,0,0.45)",marginTop:6,lineHeight:1.4}}>Used to confirm age eligibility for the division.</div>
+            </div>
+            <div style={{marginBottom:24}}>
+              <label style={{...labelStyle,marginBottom:10}}>Positions Played <span style={{fontSize:11,color:"rgba(0,0,0,0.35)",fontWeight:400,textTransform:"none",letterSpacing:0}}>(tap all that apply)</span></label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {POSITION_OPTS.map(p => {
+                  const on = positions.includes(p);
+                  return (
+                    <button key={p} type="button" onClick={()=>togglePosition(p)}
+                      style={{padding:"9px 14px",borderRadius:999,border:`1.5px solid ${on?"#002d6e":"rgba(0,0,0,0.15)"}`,background:on?"#002d6e":"#fff",color:on?"#fff":"#111",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .1s",minWidth:44}}>
+                      {p}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={{marginBottom:24}}>
@@ -6736,7 +6772,7 @@ function PlayerEligibilityPage({ onBack }) {
           ))}
           <div style={{background:"#f8f9fb",border:"2px solid rgba(0,0,0,0.08)",borderRadius:10,padding:"12px 16px",textAlign:"center"}}>
             <div style={{fontSize:11,color:"rgba(0,0,0,0.45)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginBottom:6}}>Eligibility Requires</div>
-            <div style={{fontSize:12,color:"#333",lineHeight:1.5}}>✅ $50 fee paid<br/>✅ 4+ game appearances</div>
+            <div style={{fontSize:12,color:"#333",lineHeight:1.5}}>✅ $75 fee paid<br/>✅ 4+ game appearances</div>
           </div>
         </div>
 
@@ -6765,7 +6801,7 @@ function PlayerEligibilityPage({ onBack }) {
               <thead>
                 <tr style={{background:"#f8f9fb"}}>
                   <th style={{padding:"8px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Player</th>
-                  <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>$50 Paid</th>
+                  <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>$75 Paid</th>
                   <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Games</th>
                   <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Eligible</th>
                 </tr>
@@ -10253,6 +10289,8 @@ function AdminSignupsViewer({ onBack }) {
                   <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:13,color:"rgba(0,0,0,0.6)",marginBottom:8}}>
                     <span>📧 <a href={`mailto:${s.email}`} style={{color:"#002d6e",textDecoration:"none"}}>{s.email}</a></span>
                     {s.phone && <span>📱 <a href={`tel:${s.phone}`} style={{color:"#002d6e",textDecoration:"none"}}>{s.phone}</a></span>}
+                    {s.dob && <span>🎂 {s.dob}</span>}
+                    {s.positions && <span>🧢 {s.positions}</span>}
                   </div>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom: s.notes ? 8 : 0}}>
                     {badge("Reminders", s.reminders)}
@@ -12212,6 +12250,21 @@ async function battingHasPosColumn() {
     _BATTING_HAS_POS = false;
   }
   return _BATTING_HAS_POS;
+}
+
+// Feature-detect the dob/positions columns on lbdc_signups (added via
+// sql-add-signup-fields-2026-07-28.sql). Until the migration runs, the signup
+// form folds those values into `notes` instead so signups never break.
+let _SIGNUPS_HAS_EXTRA = null;
+async function signupsHaveExtraCols() {
+  if (_SIGNUPS_HAS_EXTRA !== null) return _SIGNUPS_HAS_EXTRA;
+  try {
+    await sbFetch("lbdc_signups?select=dob,positions&limit=1");
+    _SIGNUPS_HAS_EXTRA = true;
+  } catch (e) {
+    _SIGNUPS_HAS_EXTRA = false;
+  }
+  return _SIGNUPS_HAS_EXTRA;
 }
 
 // Feature-detect the umpire_evals table (ships as a SQL migration the admin runs).
