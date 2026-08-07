@@ -8,6 +8,28 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-29] (2)
+
+### Added — Player mugshots (headshots) on the Stats pages; captains upload them
+
+Daniel asked for player photos on the stats pages, uploaded by captains.
+
+**How it works:**
+- **Captains upload:** Captains Portal → Roster now shows a round headshot (initials until a photo is set) beside each player. Tap it → pick a photo (camera roll / camera on phone) → it's saved. A small ✎/＋ badge indicates change/add; a ✕ removes it.
+- **Where photos show:** a round thumbnail beside each name on the **Batting & Pitching leaderboards**, and a larger one in the **player profile** popups (both the Stats-page profile and the shared PlayerStatsModal used from Home/Standings). Players without a photo keep the initials badge, so nothing ever looks broken.
+
+**No storage setup needed:** each photo is center-cropped to a square and compressed in the browser to a ~220px JPEG (~15–30KB) stored as a data URL in a new `lbdc_rosters.photo` column — no Supabase Storage bucket. The leaderboards fetch only rows that actually have a photo (`photo=not.is.null`), lazily and non-blocking, so the page isn't slowed and the payload stays small.
+
+**Safe rollout:** the `photo` column is added by `sql-add-player-photos-2026-07-29.sql`. The app feature-detects it (`rostersHavePhoto()`): before the SQL runs, the upload UI is hidden and everyone shows initials (verified — the probes 400 and are caught); after, upload + display light up. Captains already have UPDATE rights on `lbdc_rosters` (they edit rosters), so no new policy is needed.
+
+**Verified:** leaderboards + profile render initials cleanly with the column absent; the browser image compressor turns a 1.1MB PNG into a 3KB square JPEG; no new console errors (only the expected feature-detect 400s).
+
+**Where:** `src/App.jsx` — `PlayerPhoto` + `compressImageFile`; `rostersHavePhoto()` + `fetchPlayerPhotoMap()`; `CaptainRosterEditor` upload UI; StatsPage `photoMap` + leaderboard thumbnails + profile header; `PlayerStatsModal` photo. Plus `sql-add-player-photos-2026-07-29.sql`.
+
+**Note (needs Adam):** run `sql-add-player-photos-2026-07-29.sql` once in Supabase to switch photos on. Until then everything shows initials.
+
+---
+
 ## [2026-07-29]
 
 ### Added — "TBD" selectable for teams AND venues in Manage Schedule (post playoff games before matchups are set)

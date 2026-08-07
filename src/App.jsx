@@ -582,6 +582,44 @@ function TLogo({ name, size=80 }) {
   );
 }
 
+// Round player headshot with an initials fallback. `src` is a compressed
+// JPEG data URL stored on the roster row (see CaptainRosterEditor upload).
+function PlayerPhoto({ src, name, size=32 }) {
+  const common = { width:size, height:size, borderRadius:"50%", flexShrink:0, objectFit:"cover" };
+  if (src) return <img src={src} alt={name||"player"} loading="lazy" style={{...common, border:"1px solid rgba(0,0,0,0.12)", background:"#eef1f6"}} />;
+  const initials = (name||"").trim().split(/\s+/).map(w=>w[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
+  return (
+    <div style={{...common, display:"flex", alignItems:"center", justifyContent:"center", background:"#e5e9f0", color:"#002d6e", fontFamily:"'Barlow Condensed',sans-serif", fontWeight:800, fontSize:Math.max(9,size*0.42), lineHeight:1}}>
+      {initials || "⚾"}
+    </div>
+  );
+}
+
+// Read an <input type=file> image, center-crop to a square, resize to `maxPx`,
+// and return a compressed JPEG data URL. Keeps stored headshots tiny (~15-30KB)
+// so they live in the DB with no separate storage/bucket setup.
+function compressImageFile(file, maxPx=220, quality=0.78) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) { reject(new Error("Not an image")); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      try {
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = maxPx; canvas.height = maxPx;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, maxPx, maxPx);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read image")); };
+    img.src = url;
+  });
+}
+
 function PageHero({ label, title, subtitle, children }) {
   return (
     <div style={{background:"#fff",borderBottom:"3px solid #002d6e",padding:"28px clamp(12px,3vw,40px) 0",overflow:"hidden",width:"100%"}}>
@@ -2982,6 +3020,8 @@ function PlayerStatsModal({ playerName, onClose }) {
   const [pitSeasons, setPitSeasons] = useState(null);
   const [showAllSeasons, setShowAllSeasons] = useState(false);
   const [showAllGames, setShowAllGames] = useState(false);
+  const [photo, setPhoto] = useState(null);
+  useEffect(() => { let ok=true; fetchPlayerPhotoMap().then(m => { if(ok) setPhoto(m[matchKey(playerName)] || null); }); return () => { ok=false; }; }, [playerName]);
 
   const SEASON_GAMES = 15;
 
@@ -3237,10 +3277,11 @@ function PlayerStatsModal({ playerName, onClose }) {
 
         {/* Header */}
         <div style={{position:"sticky",top:0,background:"#002d6e",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0",zIndex:1}}>
-          <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#fff",lineHeight:1}}>{playerName}</div>
+          <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+            <PlayerPhoto src={photo} name={playerName} size={48} />
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#fff",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis"}}>{playerName}</div>
           </div>
-          <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontSize:22,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+          <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontSize:22,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
         </div>
 
         {allSeasons === null ? (
@@ -4838,13 +4879,17 @@ function CaptainRosterEditor({ teamName }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [photosEnabled, setPhotosEnabled] = useState(false);
+  const [uploadingId, setUploadingId] = useState(null);
+
+  useEffect(() => { rostersHavePhoto().then(setPhotosEnabled); }, []);
 
   // Load this team's players from Supabase on mount
   useEffect(() => {
     setLoading(true);
     sbFetch(`lbdc_rosters?select=*&team=eq.${encodeURIComponent(teamName)}&order=id.asc`)
       .then(rows => {
-        setPlayers((rows || []).map(r => ({id: r.id, number: r.number || "", name: r.name || "", status: r.status || "Active"})));
+        setPlayers((rows || []).map(r => ({id: r.id, number: r.number || "", name: r.name || "", status: r.status || "Active", photo: r.photo || ""})));
         setLoading(false);
       })
       .catch(() => {
@@ -4896,13 +4941,37 @@ function CaptainRosterEditor({ teamName }) {
     setSaving(false);
   };
 
+  const uploadPhoto = async (idx, file) => {
+    const p = players[idx];
+    if (!p || !p.id || !file) return;
+    setUploadingId(p.id); setError("");
+    try {
+      const dataUrl = await compressImageFile(file);
+      await sbPatch(`lbdc_rosters?id=eq.${p.id}`, { photo: dataUrl });
+      setPlayers(pl => pl.map((x,i)=> i===idx ? {...x, photo:dataUrl} : x));
+    } catch(e) {
+      setError("Couldn't save that photo — try a different image.");
+    }
+    setUploadingId(null);
+  };
+  const removePhoto = async (idx) => {
+    const p = players[idx];
+    if (!p || !p.id || !window.confirm(`Remove ${p.name}'s photo?`)) return;
+    setUploadingId(p.id);
+    try {
+      await sbPatch(`lbdc_rosters?id=eq.${p.id}`, { photo: null });
+      setPlayers(pl => pl.map((x,i)=> i===idx ? {...x, photo:""} : x));
+    } catch(e) { setError("Couldn't remove the photo."); }
+    setUploadingId(null);
+  };
+
   if (loading) return <div style={{textAlign:"center",padding:"24px",color:"rgba(0,0,0,0.4)",fontSize:14}}>Loading roster…</div>;
 
   return (
     <div>
       {error && <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:6,padding:"8px 12px",marginBottom:10,color:"#dc2626",fontWeight:600,fontSize:13}}>{error}</div>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div style={{fontSize:13,color:"rgba(0,0,0,0.45)"}}>{players.length} players</div>
+        <div style={{fontSize:13,color:"rgba(0,0,0,0.45)"}}>{players.length} players{photosEnabled ? " · tap a headshot to add/change a photo" : ""}</div>
         <button onClick={()=>{ setEditId(-1); setEditForm({number:"",name:""}); }} style={{padding:"7px 16px",background:"#2d6a4f",border:"none",borderRadius:8,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>+ Add Player</button>
       </div>
 
@@ -4933,6 +5002,17 @@ function CaptainRosterEditor({ teamName }) {
       ) : (
         players.map((p,i) => (
           <div key={p.id ?? i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderBottom:"1px solid rgba(0,0,0,0.06)",background:i%2===0?"#fff":"#fafafa",opacity:p.status==="Released"?0.5:1}}>
+            {photosEnabled && (
+              <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                <label style={{position:"relative",cursor:uploadingId===p.id?"wait":"pointer",display:"inline-flex"}} title={p.photo?"Change photo":"Add photo"}>
+                  <PlayerPhoto src={p.photo} name={p.name} size={36} />
+                  <input type="file" accept="image/*" disabled={uploadingId===p.id} style={{display:"none"}}
+                    onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(f) uploadPhoto(i,f); e.target.value=""; }} />
+                  <span style={{position:"absolute",bottom:-3,right:-3,background:uploadingId===p.id?"#94a3b8":"#002d6e",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #fff",lineHeight:1}}>{uploadingId===p.id?"…":(p.photo?"✎":"+")}</span>
+                </label>
+                {p.photo && uploadingId!==p.id && <button onClick={()=>removePhoto(i)} title="Remove photo" style={{background:"none",border:"none",color:"#dc2626",fontSize:12,cursor:"pointer",padding:"0 2px"}}>✕</button>}
+              </div>
+            )}
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,color:"rgba(0,0,0,0.3)",width:28,textAlign:"right",flexShrink:0}}>#{p.number||"—"}</span>
             <span style={{flex:1,fontWeight:600,color:p.status==="Released"?"#9ca3af":"#111"}}>{p.name}</span>
             {p.status && p.status !== "Active" && (
@@ -12273,6 +12353,35 @@ async function signupsHaveExtraCols() {
   return _SIGNUPS_HAS_EXTRA;
 }
 
+// Feature-detect the lbdc_rosters.photo column (added via
+// sql-add-player-photos-2026-07-29.sql). Captains upload headshots there;
+// stats/profile pages read them. Until the migration runs, the photo UI stays
+// hidden and everything falls back to initials.
+let _ROSTERS_HAS_PHOTO = null;
+async function rostersHavePhoto() {
+  if (_ROSTERS_HAS_PHOTO !== null) return _ROSTERS_HAS_PHOTO;
+  try {
+    await sbFetch("lbdc_rosters?select=photo&limit=1");
+    _ROSTERS_HAS_PHOTO = true;
+  } catch (e) {
+    _ROSTERS_HAS_PHOTO = false;
+  }
+  return _ROSTERS_HAS_PHOTO;
+}
+
+// Fetch every roster row that HAS a photo (small payload — only players a
+// captain has actually uploaded) and return a matchKey → dataURL map. Used by
+// the stats leaderboards and player-profile modals. Returns {} if the column
+// isn't there yet.
+async function fetchPlayerPhotoMap() {
+  try {
+    const rows = await sbFetch("lbdc_rosters?select=name,photo&photo=not.is.null&limit=2000");
+    const map = {};
+    (rows || []).forEach(r => { if (r.name && r.photo) map[matchKey(r.name)] = r.photo; });
+    return map;
+  } catch (e) { return {}; }
+}
+
 // Feature-detect the umpire_evals table (ships as a SQL migration the admin runs).
 // Mirrors battingHasPosColumn(): probes the table and caches a boolean so nothing
 // crashes before the one-time migration is applied.
@@ -14520,9 +14629,14 @@ function StatsPage() {
   const [error, setError] = useState(null);
   const [playerSearch, setPlayerSearch] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [photoMap, setPhotoMap] = useState({}); // matchKey → headshot dataURL
   const [playerGames, setPlayerGames] = useState([]);
   const [playerGameLog, setPlayerGameLog] = useState([]);
   const [playerCurSid, setPlayerCurSid] = useState(null);
+  // Load player headshots once, lazily (non-blocking) — only rows WITH a photo
+  // are returned, so the payload stays small. Names on the leaderboards get a
+  // round thumbnail; players without one keep the initials fallback.
+  useEffect(() => { fetchPlayerPhotoMap().then(setPhotoMap); }, []);
   const [playerLoading, setPlayerLoading] = useState(false);
   const [showAllSeasons, setShowAllSeasons] = useState(false);
   const [showAllGames, setShowAllGames] = useState(false);
@@ -15071,8 +15185,11 @@ function StatsPage() {
             <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={() => setSelectedPlayer(null)}>
               <div style={{background:"#fff",borderRadius:14,maxWidth:720,width:"100%",maxHeight:"92vh",overflow:"auto"}} onClick={e => e.stopPropagation()}>
                 <div style={{position:"sticky",top:0,background:"#002d6e",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderRadius:"14px 14px 0 0",zIndex:1}}>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#fff",textTransform:"uppercase"}}>{selectedPlayer.playerName}</div>
-                  <button onClick={() => setSelectedPlayer(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16}}>✕</button>
+                  <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+                    <PlayerPhoto src={photoMap[matchKey(selectedPlayer.playerName)]} name={selectedPlayer.playerName} size={48} />
+                    <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#fff",textTransform:"uppercase",overflow:"hidden",textOverflow:"ellipsis"}}>{selectedPlayer.playerName}</div>
+                  </div>
+                  <button onClick={() => setSelectedPlayer(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,flexShrink:0}}>✕</button>
                 </div>
                 {playerLoading ? (
                   <div style={{textAlign:"center",padding:60,color:"rgba(0,0,0,0.4)"}}>Loading stats…</div>
@@ -15199,8 +15316,11 @@ function StatsPage() {
                         onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}
                         onClick={() => loadPlayer(p.player_name, p.team)}>
                         <td style={{padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap"}}>
-                          <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",marginRight:8,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>{i+1}</span>
-                          {p.player_name}
+                          <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,minWidth:14,textAlign:"right"}}>{i+1}</span>
+                            <PlayerPhoto src={photoMap[matchKey(p.player_name)]} name={p.player_name} size={28} />
+                            {p.player_name}
+                          </span>
                         </td>
                         <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                           <span style={{background:`${TEAM_COLOR(p.team)}18`,color:TEAM_COLOR(p.team),border:`1px solid ${TEAM_COLOR(p.team)}40`,borderRadius:4,padding:"2px 6px",fontSize:11,fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase"}}>{p.team}</span>
@@ -15252,8 +15372,11 @@ function StatsPage() {
                         onMouseLeave={e => e.currentTarget.style.background=i%2===0?"#fff":"#fafafa"}
                         onClick={() => loadPlayer(p.player_name, p.team)}>
                         <td style={{padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap"}}>
-                          <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",marginRight:8,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700}}>{i+1}</span>
-                          {p.player_name}
+                          <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,minWidth:14,textAlign:"right"}}>{i+1}</span>
+                            <PlayerPhoto src={photoMap[matchKey(p.player_name)]} name={p.player_name} size={28} />
+                            {p.player_name}
+                          </span>
                         </td>
                         <td style={{padding:"9px 8px",whiteSpace:"nowrap"}}>
                           <span style={{background:`${TEAM_COLOR(p.team)}18`,color:TEAM_COLOR(p.team),border:`1px solid ${TEAM_COLOR(p.team)}40`,borderRadius:4,padding:"2px 6px",fontSize:11,fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase"}}>{p.team}</span>
