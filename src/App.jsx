@@ -8373,6 +8373,12 @@ function ManageSchedulePage({ onBack }) {
 
   const inputStyle = {padding:"6px 8px",border:"1px solid #ddd",borderRadius:6,fontSize:13,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
   const selStyle = {...inputStyle};
+  // Allow "TBD" as a team AND venue so upcoming playoff games can be posted
+  // before the matchups/field are set. The rest of the app already treats
+  // "TBD" as a placeholder (kept out of standings/team lists; TLogo shows a
+  // plain "TBD" badge), so a TBD game displays cleanly and pollutes nothing.
+  const teamOptsTBD = [...TEAMS, "TBD"];
+  const fieldOptsTBD = fieldOptions.includes("TBD") ? fieldOptions : [...fieldOptions, "TBD"];
 
   return (
     <div>
@@ -8430,19 +8436,19 @@ function ManageSchedulePage({ onBack }) {
                     </td>
                     <td style={{padding:"4px 8px"}}>
                       <select value={row.field} onChange={e=>setBulkRows(rs=>rs.map((r,j)=>j===i?{...r,field:e.target.value}:r))} style={{...selStyle,minWidth:160}}>
-                        {fieldOptions.map(f=><option key={f}>{f}</option>)}
+                        {fieldOptsTBD.map(f=><option key={f}>{f}</option>)}
                       </select>
                     </td>
                     <td style={{padding:"4px 8px"}}>
                       <select value={row.away} onChange={e=>setBulkRows(rs=>rs.map((r,j)=>j===i?{...r,away:e.target.value}:r))} style={{...selStyle,minWidth:120}}>
                         <option value="">— pick —</option>
-                        {TEAMS.map(t=><option key={t}>{t}</option>)}
+                        {teamOptsTBD.map(t=><option key={t}>{t}</option>)}
                       </select>
                     </td>
                     <td style={{padding:"4px 8px"}}>
                       <select value={row.home} onChange={e=>setBulkRows(rs=>rs.map((r,j)=>j===i?{...r,home:e.target.value}:r))} style={{...selStyle,minWidth:120}}>
                         <option value="">— pick —</option>
-                        {TEAMS.map(t=><option key={t}>{t}</option>)}
+                        {teamOptsTBD.map(t=><option key={t}>{t}</option>)}
                       </select>
                     </td>
                     <td style={{padding:"4px 8px",textAlign:"center"}}>
@@ -8482,7 +8488,7 @@ function ManageSchedulePage({ onBack }) {
             ))}
             <div><label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:3}}>Field</label>
               <select value={addForm.field} onChange={e=>setAddForm(f=>({...f,field:e.target.value}))} style={selStyle}>
-                {(fieldOptions.includes(addForm.field) || !addForm.field ? fieldOptions : [addForm.field, ...fieldOptions]).map(f=><option key={f}>{f}</option>)}
+                {(fieldOptsTBD.includes(addForm.field) || !addForm.field ? fieldOptsTBD : [addForm.field, ...fieldOptsTBD]).map(f=><option key={f}>{f}</option>)}
               </select>
               <div style={{fontSize:10,color:"#888",marginTop:3}}>Need a new field? Add it in <strong>Admin → Field Directions</strong>.</div>
             </div>
@@ -8491,7 +8497,7 @@ function ManageSchedulePage({ onBack }) {
             {[["Away","away"],["Home","home"]].map(([l,k])=>(
               <div key={k}><label style={{fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:3}}>{l}</label>
                 <select value={addForm[k]} onChange={e=>setAddForm(f=>({...f,[k]:e.target.value}))} style={selStyle}>
-                  {TEAMS.map(t=><option key={t}>{t}</option>)}
+                  {teamOptsTBD.map(t=><option key={t}>{t}</option>)}
                 </select></div>
             ))}
           </div>
@@ -8522,7 +8528,7 @@ function ManageSchedulePage({ onBack }) {
                       ))}
                       <div><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>Field</label>
                         <select value={editForm.field||""} onChange={e=>setEditForm(f=>({...f,field:e.target.value}))} style={selStyle}>
-                          {(editForm.field && !fieldOptions.includes(editForm.field) ? [editForm.field, ...fieldOptions] : fieldOptions).map(f=><option key={f}>{f}</option>)}
+                          {(editForm.field && !fieldOptsTBD.includes(editForm.field) ? [editForm.field, ...fieldOptsTBD] : fieldOptsTBD).map(f=><option key={f}>{f}</option>)}
                         </select>
                       </div>
                     </div>
@@ -8530,7 +8536,7 @@ function ManageSchedulePage({ onBack }) {
                       {[["Away Team","away"],["Home Team","home"]].map(([l,k])=>(
                         <div key={k}><label style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase",display:"block",marginBottom:2}}>{l}</label>
                           <select value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={selStyle}>
-                            {TEAMS.map(t=><option key={t}>{t}</option>)}
+                            {teamOptsTBD.map(t=><option key={t}>{t}</option>)}
                           </select></div>
                       ))}
                     </div>

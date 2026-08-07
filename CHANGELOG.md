@@ -8,6 +8,18 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-29]
+
+### Added — "TBD" selectable for teams AND venues in Manage Schedule (post playoff games before matchups are set)
+
+Daniel wanted to post a couple of upcoming playoff games but two teams (and their fields) are still undetermined. The Manage Schedule editor's team/venue dropdowns only listed real teams/fields, so there was no way to enter a placeholder.
+
+Added **"TBD"** as a selectable option in every team dropdown (single Add Game, bulk "Add Many", and inline edit) and every venue dropdown in `ManageSchedulePage`, via local `teamOptsTBD` / `fieldOptsTBD` lists. The app already treats "TBD"/"TBA" as placeholders everywhere — kept out of standings and team lists, and `TLogo` renders a plain "TBD" badge instead of a broken logo — so a TBD game displays cleanly and pollutes nothing. `addGame` only requires a date, so a TBD-vs-TBD matchup saves fine. Left the other (non-schedule) team dropdown at ~13952 untouched.
+
+**Where:** `src/App.jsx::ManageSchedulePage` — `teamOptsTBD`/`fieldOptsTBD`; the 4 team selects + 3 venue selects.
+
+---
+
 ## [2026-07-28]
 
 ### Changed — Registration fee $50 → $75; Player Sign-Up now collects Date of Birth + Positions Played
