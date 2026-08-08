@@ -8,6 +8,21 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-30]
+
+### Fixed — Player photos were lopping off heads (center-crop → keep the whole photo)
+
+Daniel's uploaded headshots (e.g. Joe Barrett) had the heads cut off. `compressImageFile` was center-cropping every upload to a square, which discards the top/bottom — so on a portrait photo the head (up top) got thrown away, permanently, at upload time.
+
+- **Stopped cropping at upload:** `compressImageFile` now resizes the WHOLE image to fit within 380px (preserving aspect ratio, no crop) so the full head is always kept in the stored file. Still small (~20-40KB JPEG).
+- **Bias the circular view toward the top:** `PlayerPhoto` renders the round avatar with `object-position: center 20%`, so when a portrait is shown in a circle the face stays in frame instead of centering on the torso. Verified side-by-side (portrait test image: new setting keeps the face; old center-crop pushed it out).
+
+**Note:** photos uploaded before this fix were already square-cropped (head gone from the stored data), so those need a quick re-upload to benefit. New uploads are correct automatically.
+
+**Where:** `src/App.jsx` — `compressImageFile` (no crop), `PlayerPhoto` (`objectPosition`).
+
+---
+
 ## [2026-07-29] (2)
 
 ### Added — Player mugshots (headshots) on the Stats pages; captains upload them

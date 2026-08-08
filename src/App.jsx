@@ -586,7 +586,9 @@ function TLogo({ name, size=80 }) {
 // JPEG data URL stored on the roster row (see CaptainRosterEditor upload).
 function PlayerPhoto({ src, name, size=32 }) {
   const common = { width:size, height:size, borderRadius:"50%", flexShrink:0, objectFit:"cover" };
-  if (src) return <img src={src} alt={name||"player"} loading="lazy" style={{...common, border:"1px solid rgba(0,0,0,0.12)", background:"#eef1f6"}} />;
+  // objectPosition biased toward the top so heads/faces stay in frame when a
+  // portrait photo is shown in the round crop (fixes "heads getting lopped off").
+  if (src) return <img src={src} alt={name||"player"} loading="lazy" style={{...common, objectPosition:"center 20%", border:"1px solid rgba(0,0,0,0.12)", background:"#eef1f6"}} />;
   const initials = (name||"").trim().split(/\s+/).map(w=>w[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
   return (
     <div style={{...common, display:"flex", alignItems:"center", justifyContent:"center", background:"#e5e9f0", color:"#002d6e", fontFamily:"'Barlow Condensed',sans-serif", fontWeight:800, fontSize:Math.max(9,size*0.42), lineHeight:1}}>
@@ -595,10 +597,13 @@ function PlayerPhoto({ src, name, size=32 }) {
   );
 }
 
-// Read an <input type=file> image, center-crop to a square, resize to `maxPx`,
-// and return a compressed JPEG data URL. Keeps stored headshots tiny (~15-30KB)
-// so they live in the DB with no separate storage/bucket setup.
-function compressImageFile(file, maxPx=220, quality=0.78) {
+// Read an <input type=file> image, resize it to fit within `maxPx` (preserving
+// the WHOLE photo — no cropping), and return a compressed JPEG data URL. We used
+// to center-crop to a square, which lopped the head off portrait photos; instead
+// we keep the full image and let PlayerPhoto position the circular view toward
+// the top (where faces are). Still tiny (~20-40KB) so it lives in the DB with no
+// storage bucket.
+function compressImageFile(file, maxPx=380, quality=0.82) {
   return new Promise((resolve, reject) => {
     if (!file || !/^image\//.test(file.type)) { reject(new Error("Not an image")); return; }
     const url = URL.createObjectURL(file);
@@ -606,12 +611,13 @@ function compressImageFile(file, maxPx=220, quality=0.78) {
     img.onload = () => {
       URL.revokeObjectURL(url);
       try {
-        const side = Math.min(img.width, img.height);
-        const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
         const canvas = document.createElement("canvas");
-        canvas.width = maxPx; canvas.height = maxPx;
+        canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, sx, sy, side, side, 0, 0, maxPx, maxPx);
+        ctx.drawImage(img, 0, 0, w, h);
         resolve(canvas.toDataURL("image/jpeg", quality));
       } catch (e) { reject(e); }
     };
