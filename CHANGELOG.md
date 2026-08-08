@@ -8,6 +8,22 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-07-30] (2)
+
+### Added — Drag-to-position photo cropper + larger headshots
+
+Follow-up to Daniel: he wanted to preview and manually center each photo, and the photos read a bit small.
+
+- **`PhotoCropper`:** after a captain picks a photo (Captains Portal → Roster → tap a headshot), a circular preview opens that they **drag to center the face** and a **Zoom slider** to scale in. Pointer-events based (works with touch on phones; `touchAction:none`). On save it bakes exactly that framing to a 340px square JPEG — so the stored image is already framed and display is foolproof (no guessing at object-position). Verified the bake math maps drag/zoom → the correct source region.
+- **Bigger everywhere:** leaderboard thumbnails 28→36px; profile-header photos 48→72px (both the Stats-page profile and PlayerStatsModal). Verified live with a test headshot — reads clearly on the leaderboard and looks sharp in the profile.
+- The old auto-compress (`compressImageFile`) is no longer used for uploads (the cropper handles sizing) but is left in place.
+
+**Note:** the ~7 photos already uploaded were framed by the old code; re-uploading them through the new cropper lets the captain position each one properly.
+
+**Where:** `src/App.jsx` — `PhotoCropper`; `CaptainRosterEditor` (crop flow, `savePhoto`, 44px row avatar); leaderboard/profile photo sizes.
+
+---
+
 ## [2026-07-30]
 
 ### Fixed — Player photos were lopping off heads (center-crop → keep the whole photo)

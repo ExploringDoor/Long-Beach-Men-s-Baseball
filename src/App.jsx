@@ -626,6 +626,78 @@ function compressImageFile(file, maxPx=380, quality=0.82) {
   });
 }
 
+// Drag-to-position headshot cropper. Shows the picked photo in a circular
+// viewport the user can DRAG (and zoom) to frame the face, then bakes exactly
+// that framing to a square JPEG data URL via onSave. Because the crop is baked
+// in, display everywhere is trivial (the stored image is already framed).
+function PhotoCropper({ file, onSave, onCancel }) {
+  const V = 260, OUT = 340; // viewport px, output square px
+  const [img, setImg] = useState(null); // {el, w, h}
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [busy, setBusy] = useState(false);
+  const drag = useRef(null);
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    const el = new Image();
+    el.onload = () => setImg({ el, w: el.naturalWidth || 1, h: el.naturalHeight || 1 });
+    el.onerror = () => { onCancel && onCancel(); };
+    el.src = url;
+    return () => URL.revokeObjectURL(url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file]);
+
+  const coverScale = img ? Math.max(V / img.w, V / img.h) : 1;
+  const scale = coverScale * zoom;
+  const dispW = img ? img.w * scale : V, dispH = img ? img.h * scale : V;
+  const clamp = (o) => ({ x: Math.min(0, Math.max(V - dispW, o.x)), y: Math.min(0, Math.max(V - dispH, o.y)) });
+
+  // Center the image when it first loads; keep it in-bounds when zoom changes.
+  useEffect(() => { if (img) setOffset({ x: (V - dispW) / 2, y: (V - dispH) / 2 }); /* eslint-disable-next-line */ }, [img]);
+  useEffect(() => { setOffset(o => clamp(o)); /* eslint-disable-next-line */ }, [zoom]);
+
+  const save = () => {
+    if (!img) return;
+    setBusy(true);
+    try {
+      const sSize = V / scale, sx = -offset.x / scale, sy = -offset.y / scale;
+      const c = document.createElement("canvas"); c.width = OUT; c.height = OUT;
+      c.getContext("2d").drawImage(img.el, sx, sy, sSize, sSize, 0, 0, OUT, OUT);
+      onSave(c.toDataURL("image/jpeg", 0.85));
+    } catch (e) { setBusy(false); }
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onCancel}>
+      <div style={{background:"#fff",borderRadius:14,padding:"18px",maxWidth:340,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,textTransform:"uppercase",color:"#111",marginBottom:3}}>Position Photo</div>
+        <div style={{fontSize:12,color:"rgba(0,0,0,0.5)",marginBottom:12}}>Drag to center the face · slide to zoom.</div>
+        <div style={{display:"flex",justifyContent:"center"}}>
+          <div
+            onPointerDown={e=>{ e.currentTarget.setPointerCapture(e.pointerId); drag.current={sx:e.clientX,sy:e.clientY,ox:offset.x,oy:offset.y}; }}
+            onPointerMove={e=>{ if(!drag.current)return; setOffset(clamp({x:drag.current.ox+(e.clientX-drag.current.sx),y:drag.current.oy+(e.clientY-drag.current.sy)})); }}
+            onPointerUp={()=>{ drag.current=null; }}
+            onPointerCancel={()=>{ drag.current=null; }}
+            style={{position:"relative",width:V,height:V,borderRadius:"50%",overflow:"hidden",cursor:"grab",touchAction:"none",background:"#000",boxShadow:"0 0 0 3px rgba(0,45,110,0.18)"}}
+          >
+            {img && <img src={img.el.src} alt="" draggable={false} style={{position:"absolute",left:offset.x,top:offset.y,width:dispW,height:dispH,maxWidth:"none",userSelect:"none",pointerEvents:"none"}} />}
+            {!img && <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:13}}>Loading…</div>}
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 4px 2px"}}>
+          <span style={{fontSize:13,color:"#888"}}>Zoom</span>
+          <input type="range" min="1" max="3" step="0.01" value={zoom} onChange={e=>setZoom(parseFloat(e.target.value))} style={{flex:1}} />
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:14}}>
+          <button type="button" onClick={save} disabled={!img||busy} style={{flex:1,padding:"11px",background:(img&&!busy)?"#16a34a":"#9ca3af",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:15,cursor:(img&&!busy)?"pointer":"default"}}>{busy?"Saving…":"Save Photo"}</button>
+          <button type="button" onClick={onCancel} disabled={busy} style={{padding:"11px 16px",background:"rgba(0,0,0,0.08)",border:"none",borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer"}}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PageHero({ label, title, subtitle, children }) {
   return (
     <div style={{background:"#fff",borderBottom:"3px solid #002d6e",padding:"28px clamp(12px,3vw,40px) 0",overflow:"hidden",width:"100%"}}>
@@ -3284,7 +3356,7 @@ function PlayerStatsModal({ playerName, onClose }) {
         {/* Header */}
         <div style={{position:"sticky",top:0,background:"#002d6e",padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0",zIndex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-            <PlayerPhoto src={photo} name={playerName} size={48} />
+            <PlayerPhoto src={photo} name={playerName} size={72} />
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,textTransform:"uppercase",color:"#fff",lineHeight:1,overflow:"hidden",textOverflow:"ellipsis"}}>{playerName}</div>
           </div>
           <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:6,color:"#fff",fontSize:22,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
@@ -4887,6 +4959,7 @@ function CaptainRosterEditor({ teamName }) {
   const [error, setError] = useState("");
   const [photosEnabled, setPhotosEnabled] = useState(false);
   const [uploadingId, setUploadingId] = useState(null);
+  const [cropTarget, setCropTarget] = useState(null); // { idx, file } while positioning
 
   useEffect(() => { rostersHavePhoto().then(setPhotosEnabled); }, []);
 
@@ -4947,12 +5020,13 @@ function CaptainRosterEditor({ teamName }) {
     setSaving(false);
   };
 
-  const uploadPhoto = async (idx, file) => {
+  // Called by the PhotoCropper with the already-framed square data URL.
+  const savePhoto = async (idx, dataUrl) => {
     const p = players[idx];
-    if (!p || !p.id || !file) return;
+    setCropTarget(null);
+    if (!p || !p.id || !dataUrl) return;
     setUploadingId(p.id); setError("");
     try {
-      const dataUrl = await compressImageFile(file);
       await sbPatch(`lbdc_rosters?id=eq.${p.id}`, { photo: dataUrl });
       setPlayers(pl => pl.map((x,i)=> i===idx ? {...x, photo:dataUrl} : x));
     } catch(e) {
@@ -4975,6 +5049,7 @@ function CaptainRosterEditor({ teamName }) {
 
   return (
     <div>
+      {cropTarget && <PhotoCropper file={cropTarget.file} onSave={(url)=>savePhoto(cropTarget.idx, url)} onCancel={()=>setCropTarget(null)} />}
       {error && <div style={{background:"#fee2e2",border:"1px solid #fca5a5",borderRadius:6,padding:"8px 12px",marginBottom:10,color:"#dc2626",fontWeight:600,fontSize:13}}>{error}</div>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div style={{fontSize:13,color:"rgba(0,0,0,0.45)"}}>{players.length} players{photosEnabled ? " · tap a headshot to add/change a photo" : ""}</div>
@@ -5011,10 +5086,10 @@ function CaptainRosterEditor({ teamName }) {
             {photosEnabled && (
               <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
                 <label style={{position:"relative",cursor:uploadingId===p.id?"wait":"pointer",display:"inline-flex"}} title={p.photo?"Change photo":"Add photo"}>
-                  <PlayerPhoto src={p.photo} name={p.name} size={36} />
+                  <PlayerPhoto src={p.photo} name={p.name} size={44} />
                   <input type="file" accept="image/*" disabled={uploadingId===p.id} style={{display:"none"}}
-                    onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(f) uploadPhoto(i,f); e.target.value=""; }} />
-                  <span style={{position:"absolute",bottom:-3,right:-3,background:uploadingId===p.id?"#94a3b8":"#002d6e",color:"#fff",borderRadius:"50%",width:16,height:16,fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #fff",lineHeight:1}}>{uploadingId===p.id?"…":(p.photo?"✎":"+")}</span>
+                    onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(f) setCropTarget({idx:i,file:f}); e.target.value=""; }} />
+                  <span style={{position:"absolute",bottom:-3,right:-3,background:uploadingId===p.id?"#94a3b8":"#002d6e",color:"#fff",borderRadius:"50%",width:18,height:18,fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid #fff",lineHeight:1}}>{uploadingId===p.id?"…":(p.photo?"✎":"+")}</span>
                 </label>
                 {p.photo && uploadingId!==p.id && <button onClick={()=>removePhoto(i)} title="Remove photo" style={{background:"none",border:"none",color:"#dc2626",fontSize:12,cursor:"pointer",padding:"0 2px"}}>✕</button>}
               </div>
@@ -15192,7 +15267,7 @@ function StatsPage() {
               <div style={{background:"#fff",borderRadius:14,maxWidth:720,width:"100%",maxHeight:"92vh",overflow:"auto"}} onClick={e => e.stopPropagation()}>
                 <div style={{position:"sticky",top:0,background:"#002d6e",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",borderRadius:"14px 14px 0 0",zIndex:1}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-                    <PlayerPhoto src={photoMap[matchKey(selectedPlayer.playerName)]} name={selectedPlayer.playerName} size={48} />
+                    <PlayerPhoto src={photoMap[matchKey(selectedPlayer.playerName)]} name={selectedPlayer.playerName} size={72} />
                     <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#fff",textTransform:"uppercase",overflow:"hidden",textOverflow:"ellipsis"}}>{selectedPlayer.playerName}</div>
                   </div>
                   <button onClick={() => setSelectedPlayer(null)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:8,width:32,height:32,cursor:"pointer",fontSize:16,flexShrink:0}}>✕</button>
@@ -15324,7 +15399,7 @@ function StatsPage() {
                         <td style={{padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap"}}>
                           <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
                             <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,minWidth:14,textAlign:"right"}}>{i+1}</span>
-                            <PlayerPhoto src={photoMap[matchKey(p.player_name)]} name={p.player_name} size={28} />
+                            <PlayerPhoto src={photoMap[matchKey(p.player_name)]} name={p.player_name} size={36} />
                             {p.player_name}
                           </span>
                         </td>
@@ -15380,7 +15455,7 @@ function StatsPage() {
                         <td style={{padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap"}}>
                           <span style={{display:"inline-flex",alignItems:"center",gap:8}}>
                             <span style={{fontSize:11,color:"rgba(0,0,0,0.3)",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,minWidth:14,textAlign:"right"}}>{i+1}</span>
-                            <PlayerPhoto src={photoMap[matchKey(p.player_name)]} name={p.player_name} size={28} />
+                            <PlayerPhoto src={photoMap[matchKey(p.player_name)]} name={p.player_name} size={36} />
                             {p.player_name}
                           </span>
                         </td>
