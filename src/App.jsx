@@ -1323,23 +1323,65 @@ function parseTwibUrl(raw) {
   if (host === "tiktok.com" || host.endsWith(".tiktok.com")) {
     const m = u.pathname.match(/\/(?:video|photo)\/(\d+)/);
     if (m) return { platform:"tiktok", embedUrl:`https://www.tiktok.com/embed/v2/${m[1]}`, watchUrl:url };
-    return { platform:"tiktok", embedUrl:null, watchUrl:url }; // short link → link-out card
+    // Short link (e.g. tiktok.com/t/XXXX, vm.tiktok.com/XXXX) — the numeric video
+    // id isn't in the URL. Mark it resolvable so the embed components look it up
+    // via TikTok's oEmbed (which accepts short links and returns the id).
+    return { platform:"tiktok", embedUrl:null, resolvable:true, watchUrl:url };
   }
   return { platform:"link", embedUrl:null, watchUrl:url };
 }
 const twibPlatformLabel = (p) => p === "instagram" ? "Instagram" : p === "tiktok" ? "TikTok" : "Video";
 
+// Resolve a TikTok SHORT link to its numeric video id via TikTok's public
+// oEmbed endpoint (CORS-open, works from the browser). Cached per-url so the
+// hero + list don't re-fetch. Returns null on failure → link-out fallback.
+const _tiktokIdCache = new Map();
+async function resolveTiktokId(url) {
+  if (_tiktokIdCache.has(url)) return _tiktokIdCache.get(url);
+  let id = null;
+  try {
+    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+    const j = await res.json();
+    id = (j && (j.embed_product_id || (j.html || "").match(/\/video\/(\d+)/)?.[1])) || null;
+  } catch (e) { id = null; }
+  _tiktokIdCache.set(url, id);
+  return id;
+}
+
+// Given parseTwibUrl() output, return the final { embedUrl, resolving }. If the
+// url is a TikTok short link, this kicks off the async oEmbed resolve and flips
+// `resolving` false once done (embedUrl set, or null if it couldn't resolve).
+function useTwibEmbedUrl(info) {
+  const [embedUrl, setEmbedUrl] = useState(info.embedUrl || null);
+  const [resolving, setResolving] = useState(!!(info.resolvable && !info.embedUrl));
+  useEffect(() => {
+    let ok = true;
+    if (info.embedUrl) { setEmbedUrl(info.embedUrl); setResolving(false); return; }
+    if (info.resolvable && info.watchUrl) {
+      setEmbedUrl(null); setResolving(true);
+      resolveTiktokId(info.watchUrl).then(id => {
+        if (!ok) return;
+        setEmbedUrl(id ? `https://www.tiktok.com/embed/v2/${id}` : null);
+        setResolving(false);
+      });
+    } else { setEmbedUrl(null); setResolving(false); }
+    return () => { ok = false; };
+  }, [info.embedUrl, info.resolvable, info.watchUrl]);
+  return { embedUrl, resolving };
+}
+
 function TwibEmbed({ video }) {
   const info = parseTwibUrl(video.url) || { platform:"link", embedUrl:null, watchUrl:video.url };
   const label = twibPlatformLabel(info.platform);
-  if (info.embedUrl) {
+  const { embedUrl, resolving } = useTwibEmbedUrl(info);
+  if (embedUrl) {
     const isTok = info.platform === "tiktok";
     return (
       <div>
         <div style={{width:"100%",display:"flex",justifyContent:"center"}}>
           <iframe
-            key={info.embedUrl}
-            src={info.embedUrl}
+            key={embedUrl}
+            src={embedUrl}
             title={video.caption || `${label} video`}
             loading="lazy"
             allow="autoplay; encrypted-media; clipboard-write; picture-in-picture; web-share; fullscreen"
@@ -1357,6 +1399,7 @@ function TwibEmbed({ video }) {
       </div>
     );
   }
+  if (resolving) return <div style={{padding:"28px 16px",textAlign:"center",color:"rgba(0,0,0,0.4)",fontSize:13}}>Loading video…</div>;
   // Fallback: guaranteed-working link-out card (short links / unknown hosts)
   return (
     <a href={info.watchUrl} target="_blank" rel="noopener noreferrer"
@@ -1381,34 +1424,38 @@ function TwibEmbed({ video }) {
 function TwibHeroVideo({ video }) {
   const info = parseTwibUrl(video.url) || { platform:"link", embedUrl:null, watchUrl:video.url };
   const label = twibPlatformLabel(info.platform);
-  if (!info.embedUrl) {
-    return (
-      <a href={info.watchUrl} target="_blank" rel="noopener noreferrer"
-        style={{display:"flex",alignItems:"center",gap:10,textDecoration:"none",background:"linear-gradient(90deg,#002d6e,#c8102e)",borderRadius:12,padding:"14px 18px",color:"#fff",boxShadow:"0 8px 30px rgba(0,0,0,0.45)"}}>
-        <span style={{fontSize:26}}>▶️</span>
-        <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",lineHeight:1.1}}>Watch this week's update on {label}</span>
-      </a>
-    );
-  }
+  const { embedUrl, resolving } = useTwibEmbedUrl(info);
   const isTok = info.platform === "tiktok";
   const baseW = isTok ? 325 : 340, baseH = 555;
   const scale = 0.62;                       // fit within the ~400px banner height
   const w = Math.round(baseW * scale), h = Math.round(baseH * scale);
-  return (
-    <div style={{width:w,height:h,borderRadius:14,overflow:"hidden",background:"#000",boxShadow:"0 10px 34px rgba(0,0,0,0.5)",border:"2px solid rgba(255,255,255,0.9)"}}>
-      <div style={{width:baseW,height:baseH,transform:`scale(${scale})`,transformOrigin:"top left"}}>
-        <iframe
-          key={info.embedUrl}
-          src={info.embedUrl}
-          title={video.caption || `${label} video`}
-          loading="eager"
-          allow="autoplay; encrypted-media; clipboard-write; picture-in-picture; web-share; fullscreen"
-          allowFullScreen
-          scrolling="no"
-          style={{width:baseW,height:baseH,border:"none",display:"block"}}
-        />
+  if (embedUrl) {
+    return (
+      <div style={{width:w,height:h,borderRadius:14,overflow:"hidden",background:"#000",boxShadow:"0 10px 34px rgba(0,0,0,0.5)",border:"2px solid rgba(255,255,255,0.9)"}}>
+        <div style={{width:baseW,height:baseH,transform:`scale(${scale})`,transformOrigin:"top left"}}>
+          <iframe
+            key={embedUrl}
+            src={embedUrl}
+            title={video.caption || `${label} video`}
+            loading="eager"
+            allow="autoplay; encrypted-media; clipboard-write; picture-in-picture; web-share; fullscreen"
+            allowFullScreen
+            scrolling="no"
+            style={{width:baseW,height:baseH,border:"none",display:"block"}}
+          />
+        </div>
       </div>
-    </div>
+    );
+  }
+  if (resolving) {
+    return <div style={{width:w,height:h,borderRadius:14,background:"#000",boxShadow:"0 10px 34px rgba(0,0,0,0.5)",border:"2px solid rgba(255,255,255,0.9)",display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(255,255,255,0.7)",fontSize:12}}>Loading…</div>;
+  }
+  return (
+    <a href={info.watchUrl} target="_blank" rel="noopener noreferrer"
+      style={{display:"flex",alignItems:"center",gap:10,textDecoration:"none",background:"linear-gradient(90deg,#002d6e,#c8102e)",borderRadius:12,padding:"14px 18px",color:"#fff",boxShadow:"0 8px 30px rgba(0,0,0,0.45)"}}>
+      <span style={{fontSize:26}}>▶️</span>
+      <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",lineHeight:1.1}}>Watch this week's update on {label}</span>
+    </a>
   );
 }
 
@@ -1471,7 +1518,9 @@ function TwibNotesPage({ onBack }) {
 
   const info = url.trim() ? parseTwibUrl(url) : null;
   const detected = info ? twibPlatformLabel(info.platform) : null;
-  const isEmbeddable = !!(info && info.embedUrl);
+  // Embeddable if we have a direct embed URL OR it's a resolvable TikTok short
+  // link (the display components resolve those via oEmbed).
+  const isEmbeddable = !!(info && (info.embedUrl || info.resolvable));
   const isSupported = !!(info && (info.platform==="instagram" || info.platform==="tiktok"));
 
   const add = async () => {

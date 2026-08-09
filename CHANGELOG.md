@@ -8,6 +8,20 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-08-08]
+
+### Fixed — TWIB now embeds TikTok SHORT links (tiktok.com/t/… , vm.tiktok.com/…)
+
+Daniel posts with TikTok's short share link (e.g. `tiktok.com/t/ZTAcVgrUt/`), which has no numeric video id in the URL, so TWIB fell back to a "Watch on TikTok" button instead of embedding the video.
+
+- Short links are now **resolved via TikTok's public oEmbed** endpoint (`/oembed?url=…`), which accepts short links and returns the video id (`embed_product_id`). Confirmed oEmbed is CORS-open, so this runs entirely in the browser — no server/proxy, works on localhost and prod, and handles the already-posted link with no re-posting.
+- `parseTwibUrl` marks short links `resolvable`; a `useTwibEmbedUrl` hook (with a per-URL cache) does the async lookup and swaps in `embed/v2/{id}`. `TwibEmbed` and `TwibHeroVideo` show a brief "Loading…" then the real player; if resolution ever fails they still fall back to the watch-link card. The admin's live detection now shows "✓ TikTok video detected — will embed" for short links too.
+- Verified end-to-end with Daniel's exact link: `tiktok.com/t/ZTAcVgrUt/` → resolved to `embed/v2/7671817038616202510` → the video rendered on the hero. No console errors.
+
+**Where:** `src/App.jsx` — `resolveTiktokId` + `_tiktokIdCache`; `parseTwibUrl` (`resolvable`); `useTwibEmbedUrl`; `TwibEmbed`, `TwibHeroVideo`; admin `isEmbeddable`.
+
+---
+
 ## [2026-07-30] (2)
 
 ### Added — Drag-to-position photo cropper + larger headshots
