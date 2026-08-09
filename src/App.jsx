@@ -1307,8 +1307,11 @@ function Navbar({ tab, setTab }) {
    general keyed-JSON store that already holds field_fees) so no new table /
    SQL setup is needed — the section simply appears once a video is added. */
 function parseTwibUrl(raw) {
-  const url = (raw || "").trim();
+  let url = (raw || "").trim();
   if (!url) return null;
+  // Accept links pasted without a scheme (e.g. "tiktok.com/t/…") — new URL()
+  // needs one, so prepend https:// when it's missing.
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url.replace(/^\/+/, "");
   let u;
   try { u = new URL(url); } catch { return null; }
   const host = u.hostname.replace(/^www\./, "").toLowerCase();
@@ -1338,9 +1341,15 @@ const twibPlatformLabel = (p) => p === "instagram" ? "Instagram" : p === "tiktok
 const _tiktokIdCache = new Map();
 async function resolveTiktokId(url) {
   if (_tiktokIdCache.has(url)) return _tiktokIdCache.get(url);
+  // TikTok's oEmbed is picky about the url param: it only resolves
+  // "https://www.tiktok.com/…". A pasted "http://tiktok.com/t/…" (no https,
+  // no www) returns nothing, so canonicalize before asking.
+  let norm = (url || "").trim().replace(/^http:\/\//i, "https://");
+  if (!/^https?:\/\//i.test(norm)) norm = "https://" + norm.replace(/^\/+/, "");
+  norm = norm.replace(/^https:\/\/(?:www\.)?tiktok\.com/i, "https://www.tiktok.com");
   let id = null;
   try {
-    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+    const res = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(norm)}`);
     const j = await res.json();
     id = (j && (j.embed_product_id || (j.html || "").match(/\/video\/(\d+)/)?.[1])) || null;
   } catch (e) { id = null; }

@@ -8,6 +8,18 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-08-09]
+
+### Fixed — TWIB rejected scheme-less links + didn't embed http/non-www TikTok short links
+
+Two follow-on bugs from the short-link work:
+- **"⚠ Not an Instagram or TikTok link":** Daniel pasted `tiktok.com/t/…` **without** `http(s)://`. `parseTwibUrl` uses `new URL()`, which requires a scheme, so it rejected the link. Now it prepends `https://` when the scheme is missing.
+- **Preview showed the "Watch on TikTok" card instead of the video:** his link was `http://tiktok.com/t/…` (http, no www). TikTok's oEmbed only resolves `https://www.tiktok.com/…` — `http://tiktok.com/…` returns nothing (and, being an error response, has no CORS header, so the browser blocked it). `resolveTiktokId` now canonicalizes the url to `https://www.tiktok.com/…` before calling oEmbed. Verified all three forms (`http://tiktok.com/t/…`, bare `tiktok.com/t/…`, `https://www.tiktok.com/t/…`) resolve to the video with no errors, and the admin preview embeds the real player.
+
+**Where:** `src/App.jsx` — `parseTwibUrl` (scheme prepend), `resolveTiktokId` (https+www normalization).
+
+---
+
 ## [2026-08-08]
 
 ### Fixed — TWIB now embeds TikTok SHORT links (tiktok.com/t/… , vm.tiktok.com/…)
