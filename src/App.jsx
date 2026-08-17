@@ -766,10 +766,11 @@ function FinalCard({ g, onTeamClick }) {
   );
 }
 
-function UpcomingCard({ away, home, time, date, field, isNext, status, onTeamClick, onPreview }) {
+function UpcomingCard({ away, home, time, date, field, isNext, status, label, onTeamClick, onPreview }) {
   const isPPD = status === "PPD" || (status||"").toLowerCase().startsWith("postpone");
   const isCAN = status === "CAN" || (status||"").toLowerCase().startsWith("cancel");
   const statusLabel = isCAN ? "CANCELED" : isPPD ? "POSTPONED" : null;
+  const roundLabel = (label||"").trim(); // e.g. "Playoffs", "Championship"
   return (
     <div onClick={() => !statusLabel && onPreview?.({away, home, time, date, field})}
       style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderTop:statusLabel?"3px solid #c8102e":"3px solid #002d6e",borderLeft:isNext&&!statusLabel?"4px solid #c8102e":"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.04)",cursor:onPreview&&!statusLabel?"pointer":"default",transition:"box-shadow .12s",width:"100%",minWidth:280,opacity:statusLabel?0.72:1,position:"relative"}}
@@ -777,6 +778,9 @@ function UpcomingCard({ away, home, time, date, field, isNext, status, onTeamCli
       onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.04)";}}>
       {statusLabel && (
         <div style={{position:"absolute",top:8,right:8,background:"#c8102e",color:"#fff",padding:"3px 10px",borderRadius:4,fontSize:10,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",zIndex:2}}>{statusLabel}</div>
+      )}
+      {roundLabel && !statusLabel && (
+        <div style={{position:"absolute",top:8,left:8,background:"#FFD700",color:"#5c4400",padding:"3px 10px",borderRadius:4,fontSize:10,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",zIndex:2,boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}>🏆 {roundLabel}</div>
       )}
       <div style={{display:"flex",alignItems:"center",padding:"12px 14px",gap:60}}>
         <div style={{display:"flex",flexDirection:"column",gap:8,flex:"0 0 auto",minWidth:0}}>
@@ -1757,7 +1761,7 @@ function HomePage({ setTab, setTeamDetail }) {
                   <span onClick={() => setTab("schedule")} style={{color:"#002d6e",fontWeight:700,fontSize:13,cursor:"pointer"}}>Full Schedule →</span>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(min(380px,100%),1fr))",gap:10}}>
-                  {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={nextWeekLabel ? `${nextWeekLabel}, 2026` : ""} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} />)}
+                  {nextGames.map((g,i) => <UpcomingCard key={i} away={g.away} home={g.home} time={g.time} date={nextWeekLabel ? `${nextWeekLabel}, 2026` : ""} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} label={g.notes} onPreview={setPreviewGame} />)}
                 </div>
               </div>
             )}
@@ -2454,7 +2458,11 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const allTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
   const playingTeams = new Set(games.flatMap(g => [g.away, g.home]));
-  const byeTeams = allTeams.filter(t => !playingTeams.has(t));
+  // Only compute byes from REAL matchups. On a playoff/championship week the
+  // games are TBD-vs-TBD, so no real team is listed — showing every team as
+  // "bye" there is wrong, so suppress the bye row when nobody real is scheduled.
+  const realPlayingCount = allTeams.filter(t => playingTeams.has(t)).length;
+  const byeTeams = realPlayingCount === 0 ? [] : allTeams.filter(t => !playingTeams.has(t));
 
   useEffect(() => {
     sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=tournament_name.asc,game_date.asc,game_time.asc")
@@ -2541,7 +2549,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
               if (sc && !isNotPlayedStatus(sc.status)) {
                 return <LiveBoxScoreFinalCard key={sc.id ?? `${g.away}|${g.home}|${dateStr}`} game={sc} onTeamClick={goTeam} />;
               }
-              return <div key={`${g.away}|${g.home}|${dateStr}|${i}`} style={{width:"100%"}}><UpcomingCard away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} onPreview={setPreviewGame} /></div>;
+              return <div key={`${g.away}|${g.home}|${dateStr}|${i}`} style={{width:"100%"}}><UpcomingCard away={g.away} home={g.home} time={g.time} date={dateStr} onTeamClick={goTeam} field={g.field} isNext={i===0} status={g.status} label={g.notes} onPreview={setPreviewGame} /></div>;
             })}
           </div>
           {byeTeams.length > 0 && (

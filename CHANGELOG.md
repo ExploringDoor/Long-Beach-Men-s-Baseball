@@ -8,6 +8,22 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-08-16]
+
+### Added — Playoff (8/22) + Championship (9/12) games on the schedule, with round badges
+
+Daniel: "2 playoff games 8/22, times/fields TBD, championship 9/12 TBD."
+
+- Posted 3 games to the Saturday schedule (`lbdc_schedules` "sat"): two **Aug 22** playoff games and one **Sep 12** championship, all **TBD** teams / time / field (Daniel edits them in Manage Schedule as seeding + fields lock in).
+- **Round badge:** `UpcomingCard` now shows a gold "🏆 PLAYOFFS" / "🏆 CHAMPIONSHIP" pill driven by the game's `notes` field, so these read clearly as postseason instead of blank TBD cards. Passed `label={g.notes}` at the Home "This Week" and Schedule-tab call sites.
+- **Bye-week fix:** the Schedule page was listing all 8 teams as "BYE WEEK" on the playoff weeks (because TBD-vs-TBD means no real team is scheduled). Now the bye row is suppressed when no real matchup is set for the week.
+
+Verified: Aug 22 shows two 🏆 PLAYOFFS cards, Sep 12 shows the 🏆 CHAMPIONSHIP card, no bogus bye row, build + no console errors.
+
+**Where:** `src/App.jsx` — `UpcomingCard` (`label` badge), SchedulePage bye logic + two UpcomingCard call sites; DB `lbdc_schedules` "sat".
+
+---
+
 ## [2026-08-15]
 
 ### Removed — the Boomers 60/70 division (abandoned experiment), everywhere
