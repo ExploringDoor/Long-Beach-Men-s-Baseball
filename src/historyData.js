@@ -3,29 +3,6 @@
 
 export const HISTORY_DATA = [
   {
-    "name": "2026 BOOMERS 60/70 Division",
-    "divisionId": "1064571",
-    "games": [],
-    "standings": [
-      {
-        "team": "Eddie Murray Mashers '56",
-        "w": 0,
-        "l": 0,
-        "t": 0,
-        "pts": 0,
-        "gb": "--"
-      },
-      {
-        "team": "Greg Maddux Magicians '66",
-        "w": 0,
-        "l": 0,
-        "t": 0,
-        "pts": 0,
-        "gb": "--"
-      }
-    ]
-  },
-  {
     "name": "2026 Diamond Classics Memorial",
     "divisionId": "1065143",
     "games": [],

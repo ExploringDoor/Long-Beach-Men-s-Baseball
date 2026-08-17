@@ -77,18 +77,6 @@ const DEFAULT_SAT = [
   ]},
 ];
 
-const DEFAULT_BOM = [
-  {date:"Apr 11", time:"2:00 PM", away:"Eddie Murray Mashers '56", home:"Greg Maddux Magicians '66", field:"St Pius X — Downey"},
-  {date:"Apr 25", time:"3:00 PM", away:"Greg Maddux Magicians '66", home:"Eddie Murray Mashers '56", field:"St Pius X — Downey"},
-  {date:"May 9",  time:"3:00 PM", away:"Eddie Murray Mashers '56", home:"Greg Maddux Magicians '66", field:"St Pius X — Downey"},
-  {date:"Jun 6",  time:"3:00 PM", away:"Greg Maddux Magicians '66", home:"Eddie Murray Mashers '56", field:"St Pius X — Downey"},
-  {date:"Jun 20", time:"2:00 PM", away:"Eddie Murray Mashers '56", home:"Greg Maddux Magicians '66", field:"St Pius X — Downey"},
-  {date:"Jul 11", time:"3:00 PM", away:"Greg Maddux Magicians '66", home:"Eddie Murray Mashers '56", field:"Clark Field — Long Beach"},
-  {date:"Jul 25", time:"3:00 PM", away:"Eddie Murray Mashers '56", home:"Greg Maddux Magicians '66", field:"Clark Field — Long Beach"},
-  {date:"Aug 8",  time:"12:00 PM",away:"Greg Maddux Magicians '66", home:"Eddie Murray Mashers '56", field:"Clark Field — Long Beach"},
-  {date:"Aug 22", time:"8:00 AM", away:"Greg Maddux Magicians '66", home:"Eddie Murray Mashers '56", field:"Clark Field — Long Beach"},
-];
-
 // ── Helpers ────────────────────────────────────────────────────────────────
 const MONTH_NUM = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
 
@@ -161,21 +149,13 @@ function flattenSat(weeks) {
   return games;
 }
 
-function flattenBom(list) {
-  return list.map(g => {
-    const { month, day } = parseDate(g.date);
-    return { month, day, field: g.field, time: g.time, away: g.away, home: g.home };
-  });
-}
-
 // ── Generate full .ics content ─────────────────────────────────────────────
-function buildICS(satGames, bomGames, teamFilter) {
+function buildICS(satGames, teamFilter) {
   const YEAR = 2026;
   const events = [];
 
   const allGames = [
     ...satGames.map(g => ({ ...g, league: 'Diamond Classics' })),
-    ...bomGames.map(g => ({ ...g, league: 'Boomers 60/70' })),
   ];
 
   for (const g of allGames) {
@@ -247,25 +227,21 @@ export default async function handler(req, res) {
 
   // Load live schedule from Supabase (admin edits write here)
   let satSchedule = DEFAULT_SAT;
-  let bomSchedule = DEFAULT_BOM;
 
   try {
     const r = await fetch(
-      `${SB_URL}/rest/v1/lbdc_schedules?id=in.(sat,bom)&select=id,data`,
+      `${SB_URL}/rest/v1/lbdc_schedules?id=eq.sat&select=id,data`,
       { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Accept: 'application/json' } }
     );
     if (r.ok) {
       const rows = await r.json();
       const sat = rows.find(x => x.id === 'sat');
-      const bom = rows.find(x => x.id === 'bom');
       if (sat?.data) satSchedule = sat.data;
-      if (bom?.data) bomSchedule = bom.data;
     }
   } catch (_) { /* use defaults */ }
 
   const satGames = flattenSat(satSchedule);
-  const bomGames = flattenBom(bomSchedule);
-  const ics = buildICS(satGames, bomGames, teamFilter);
+  const ics = buildICS(satGames, teamFilter);
 
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
   res.setHeader('Content-Disposition', 'inline; filename="lbdc-schedule.ics"');

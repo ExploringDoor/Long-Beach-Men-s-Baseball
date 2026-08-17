@@ -23,11 +23,7 @@ const TEAM_LOGOS = {
   "Black Sox": "/blacksox.png",
   "Leones":   "/17.png",
   "Indios":   "/18.png",
-  "Eddie Murray Mashers '56":   "/20.png",
-  "Greg Maddux Magicians '66":  "/21.png",
 };
-
-const BOOMERS_TEAMS = new Set(["Eddie Murray Mashers '56", "Greg Maddux Magicians '66"]);
 
 // ── Convert "Apr 11" / "Apr 11, 2026" → "2026-04-11" for Supabase ──
 const toISODate = (str) => {
@@ -141,12 +137,6 @@ const DIV = {
       {seed:7,name:"Leones",full:"Leones",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
       {seed:8,name:"Indios",full:"Indios",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
     ]},
-  BOM: {
-    name: "Boomers 60/70", accent: "#7c3aed",
-    teams: [
-      {seed:1,name:"Eddie Murray Mashers '56",full:"Eddie Murray Mashers '56",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
-      {seed:2,name:"Greg Maddux Magicians '66",full:"Greg Maddux Magicians '66",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
-    ]},
 };
 
 const ALL_TEAMS = Object.entries(DIV).flatMap(([dk,div]) =>
@@ -157,7 +147,6 @@ const TEAM_COLORS = {
   "Tribe":"#002d6e","Dodgers":"#005a9c","Pirates":"#1d2d44","Titans":"#4a1d96",
   "Brooklyn":"#b45309","Generals":"#374151","Black Sox":"#111111",
   "Leones":"#dc2626","Indios":"#15803d",
-  "Eddie Murray Mashers '56":"#1a5276","Greg Maddux Magicians '66":"#6b21a8",
 };
 
 const TEAM_ROSTERS = {
@@ -297,19 +286,11 @@ const TEAM_CAL_ICS = {
   "Brooklyn": "webcal://calendar.google.com/calendar/ical/0474cdc6fd4e9341b1638d7b458b4a3c498c53a42e489a72c652e0c61a58559d%40group.calendar.google.com/public/basic.ics",
   "Generals": "webcal://calendar.google.com/calendar/ical/87c7cc1dfa649ad6095d8daaaf95db1f1ecb222aeab8849eb6681b3c62f2a8cc%40group.calendar.google.com/public/basic.ics",
   "Black Sox":"webcal://calendar.google.com/calendar/ical/72509ee387916b56600af826b8e0fd6c11e4227a7c1eee79dae873650a260b29%40group.calendar.google.com/public/basic.ics",
-  "Eddie Murray Mashers '56":  "webcal://calendar.google.com/calendar/ical/1641f48afa62a1d531486a44b949f194f1dde2eeeb020eb5fb4845b07d70881a%40group.calendar.google.com/public/basic.ics",
-  "Greg Maddux Magicians '66": "webcal://calendar.google.com/calendar/ical/6d97cb2c2833f83718aa1144af4402b990e998dcbeb4dd9a5d233a3781e8bff5%40group.calendar.google.com/public/basic.ics",
 };
 
 const SCORES = [
   {
     season:"Spring/Summer 2026",
-    weeks:[
-      {week:"Season opens Apr 11, 2026", games:[]},
-    ]
-  },
-  {
-    season:"Boomers 60/70",
     weeks:[
       {week:"Season opens Apr 11, 2026", games:[]},
     ]
@@ -477,18 +458,6 @@ const SCHED = [
   ]},
 ];
 
-const BOOMERS_SCHED = [
-  {date:"Apr 11",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
-  {date:"Apr 25",time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey",status:"PPD"},
-  {date:"May 9", time:"3:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
-  {date:"Jun 6", time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"St Pius X — Downey"},
-  {date:"Jun 20",time:"2:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"St Pius X — Downey"},
-  {date:"Jul 11",time:"3:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
-  {date:"Jul 25",time:"3:00 PM",away:"Eddie Murray Mashers '56",home:"Greg Maddux Magicians '66",field:"Clark Field — Long Beach"},
-  {date:"Aug 8", time:"12:00 PM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
-  {date:"Aug 22",time:"8:00 AM",away:"Greg Maddux Magicians '66",home:"Eddie Murray Mashers '56",field:"Clark Field — Long Beach"},
-];
-
 const RULES_DATA = [
   {section:"Playoff Eligibility",icon:"🏆",items:[
     "To qualify for playoffs, players must participate in a minimum of 4 games (verified by completed box scores). Effective 9/9/22 by league vote.",
@@ -533,29 +502,6 @@ const RULES_DATA = [
     "Please keep the dugout fences closed to keep more balls in play (this applies also to the softball field in center field).",
     "Restrooms are located down the left field line.",
     "Parking is off Consuelo Street (behind the church at the end of the street).",
-  ]},
-  {section:"Boomers 60/70 — Game Rules",icon:"🟣",items:[
-    "2:15 hour time limit — finish by 2:30.",
-    "Games are 7 innings, or as many as possible within 2½ hours.",
-    "Free substitution on defense.",
-    "No stealing.",
-    "No advancement on wild pitches.",
-    "Batted ball that hits outfield grass: batter CANNOT be thrown out at first base.",
-    "Overthrows are ONE base only.",
-    "Everyone bats! If someone is injured or must leave, crunch the lineup.",
-    "Unlimited Courtesy Runners (please use as necessary) — Courtesy Runner is the last RECORDED OUT.",
-    "Must be 60 or older to pitch.",
-    "Players 70+ may opt to use aluminum bats.",
-  ]},
-  {section:"Boomers 60/70 — Age & Eligibility",icon:"🎂",items:[
-    "Age is based on Year of Birth: 2026 − YOB = Age.",
-    "2026 − 1966 = 60  |  2026 − 1967 = 59  |  2026 − 1968 = 58",
-    "Age exemptions: teams may carry up to two (2) players who are 58 or 59 years old.",
-    "Exemption players (age 58/59) are NOT permitted to pitch.",
-  ]},
-  {section:"Boomers 60/70 — Costs",icon:"💵",items:[
-    "$25 per player — Registration & Insurance (one-time charge per year).",
-    "$20 per player, per game — covers field rental and umpire. Prepaid is preferred.",
   ]},
 ];
 
@@ -878,12 +824,9 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
     async function load() {
       try {
         const allSeasons = await sbFetch("seasons?select=id,name&limit=50");
-        const isBoomers = BOOMERS_TEAMS.has(away) || BOOMERS_TEAMS.has(home);
         const satIds = getSatSeasonFilter(allSeasons);
-        const bomSeason = allSeasons.find(x => x.name.toLowerCase().includes("boomers"));
-        if (isBoomers && !bomSeason) { setLoading(false); return; }
-        if (!isBoomers && !satIds.length) { setLoading(false); return; }
-        const seasonFilter = isBoomers ? `season_id=eq.${bomSeason.id}` : `season_id=in.(${satIds.join(",")})`;
+        if (!satIds.length) { setLoading(false); return; }
+        const seasonFilter = `season_id=in.(${satIds.join(",")})`;
         const rawGames = await sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&${seasonFilter}&status=eq.Final&limit=200`);
         const games = dedupGames(rawGames || []);
         const rec = {};
@@ -1019,7 +962,6 @@ function Ticker({ setTab }) {
   const [liveScores, setLiveScores] = useState({}); // key: "away|home" → {away_score, home_score, status}
   // Live admin-saved schedule (lbdc_schedules). null = not loaded yet → fall back to hardcoded.
   const [liveSat, setLiveSat] = useState(null);
-  const [liveBom, setLiveBom] = useState(null);
   const today = new Date(); today.setHours(0,0,0,0);
   const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
 
@@ -1062,9 +1004,7 @@ function Ticker({ setTab }) {
   const week = satWeeks[weekIdx] || { label: "", games: [] };
 
   const satGames = week.games || [];
-  const boomerList = liveBom || BOOMERS_SCHED;
-  const boomerGame = boomerList.find(g => g.date === week.label);
-  const games = boomerGame ? [...satGames, boomerGame] : satGames;
+  const games = satGames;
   // Key on the actual matchups, not just the week label. The live admin
   // schedule (liveSat) loads AFTER first paint and can swap in different
   // matchups under the SAME "Jul 25" label — e.g. the newer Leones/Indios
@@ -1080,10 +1020,8 @@ function Ticker({ setTab }) {
     // grafted on top of the hardcoded SCHED.
     Promise.all([
       sbFetch("lbdc_schedules?id=eq.sat&select=data"),
-      sbFetch("lbdc_schedules?id=eq.bom&select=data"),
-    ]).then(([sr, br]) => {
+    ]).then(([sr]) => {
       if (sr && sr[0] && Array.isArray(sr[0].data)) setLiveSat(sr[0].data);
-      if (br && br[0] && Array.isArray(br[0].data)) setLiveBom(br[0].data);
     }).catch(()=>{});
   }, []);
 
@@ -1636,7 +1574,6 @@ function TwibNotesPage({ onBack }) {
 /* ─── HOME PAGE ──────────────────────────────────────────────────────────── */
 function HomePage({ setTab, setTeamDetail }) {
   const [topTeams, setTopTeams] = useState([...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => b.w!==a.w?b.w-a.w:a.l-b.l).slice(0,8));
-  const [boomersTeams, setBoomersTeams] = useState([...ALL_TEAMS].filter(t=>t.divKey==="BOM").sort((a,b) => b.w!==a.w?b.w-a.w:a.l-b.l));
   const today = new Date(); today.setHours(0,0,0,0);
   const parseSchedLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
   // Live admin-saved Saturday schedule (lbdc_schedules id=sat). null = not yet loaded; falls back to hardcoded SCHED.
@@ -1655,7 +1592,6 @@ function HomePage({ setTab, setTeamDetail }) {
   const [recentGames, setRecentGames] = useState([]);
   const [newsItems, setNewsItems] = useState([]);
   const [twibVideos, setTwibVideos] = useState([]);
-  const [standingsDiv, setStandingsDiv] = useState("SAT");
   // Format a TWIB date (ISO "2026-07-26" or a "Jul 26" label) for display.
   const fmtTwibDate = (d) => {
     if (!d) return "";
@@ -1696,14 +1632,11 @@ function HomePage({ setTab, setTeamDetail }) {
     };
     sbFetch("seasons?select=id,name&limit=50").then(seasons => {
       const satIds = getSatSeasonFilter(seasons);
-      const bomSeason = seasons.find(x => x.name.toLowerCase().includes("boomers"));
       return Promise.all([
         satIds.length ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&season_id=in.(${satIds.join(",")})&status=eq.Final&limit=200`) : [],
-        bomSeason ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&season_id=eq.${bomSeason.id}&status=eq.Final&limit=200`) : [],
       ]);
-    }).then(([satGames, bomGames]) => {
+    }).then(([satGames]) => {
       if (satGames.length) setTopTeams(calcRows(satGames, DIV.SAT.teams).slice(0,8));
-      if (bomGames.length) setBoomersTeams(calcRows(bomGames, DIV.BOM.teams));
     }).catch(()=>{});
   }, []);
 
@@ -1711,18 +1644,11 @@ function HomePage({ setTab, setTeamDetail }) {
     // Filter by known Saturday team names — avoids season record confusion
     const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
     const tf = satTeams.map(t=>`away_team.eq.${encodeURIComponent(t)}`).join(",");
-    const bomTeamList = [...BOOMERS_TEAMS];
-    const bf = bomTeamList.map(t=>`away_team.eq.${encodeURIComponent(t)}`).join(",");
     Promise.all([
       sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${tf})&status=not.in.(PPD,CAN)&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=30`)
         .then(data => data.filter(g => satTeams.includes(g.home_team))),
-      sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${bf})&status=eq.Final&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=10`)
-        .then(data => data.filter(g => BOOMERS_TEAMS.has(g.home_team))),
-    ]).then(([satData, bomData]) => {
-        const bomDeduped = dedupGames(bomData || []);
-        const p1 = dedupGames(satData || []);
-        // Merge Boomers + Saturday, sort by date desc then id desc, cap at 6
-        const combined = [...p1, ...bomDeduped].sort((a,b) => {
+    ]).then(([satData]) => {
+        const combined = dedupGames(satData || []).sort((a,b) => {
           if (a.game_date && b.game_date) return a.game_date < b.game_date ? 1 : a.game_date > b.game_date ? -1 : b.id - a.id;
           if (a.game_date) return -1; if (b.game_date) return 1;
           return b.id - a.id;
@@ -1863,22 +1789,11 @@ function HomePage({ setTab, setTeamDetail }) {
                 <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Standings</span>
                 <span onClick={() => setTab("standings")} style={{color:"#002d6e",fontSize:13,fontWeight:700,cursor:"pointer"}}>Full →</span>
               </div>
-              <div style={{display:"flex",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
-                {[["SAT","Saturday"],["BOM","Boomers"]].map(([key,label]) => (
-                  <div key={key} onClick={() => setStandingsDiv(key)}
-                    style={{flex:1,padding:"8px 0",textAlign:"center",cursor:"pointer",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:13,textTransform:"uppercase",letterSpacing:".06em",
-                      color: standingsDiv===key ? (key==="BOM"?"#7c3aed":"#002d6e") : "rgba(0,0,0,0.4)",
-                      borderBottom: standingsDiv===key ? `2px solid ${key==="BOM"?"#7c3aed":"#002d6e"}` : "2px solid transparent",
-                      transition:"color .15s"}}>
-                    {label}
-                  </div>
-                ))}
-              </div>
-              {(standingsDiv==="SAT" ? topTeams : boomersTeams).map((t,i) => (
+              {topTeams.map((t,i) => (
                 <div key={t.name+t.divKey} onClick={() => goTeam(t.name)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid rgba(0,0,0,0.04)",transition:"background .15s",cursor:"pointer"}}
                   onMouseEnter={e => e.currentTarget.style.background="rgba(0,45,110,0.03)"}
                   onMouseLeave={e => e.currentTarget.style.background="transparent"}>
-                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color: standingsDiv==="BOM"?"#7c3aed":"#002d6e",width:22,textAlign:"center",flexShrink:0}}>{i+1}</span>
+                  <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#002d6e",width:22,textAlign:"center",flexShrink:0}}>{i+1}</span>
                   <TLogo name={t.name} size={110} />
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:16,color:"#111",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase"}}>{t.name}</div>
@@ -2307,7 +2222,7 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
 }
 
 function ScoresPage({ setTab, setTeamDetail }) {
-  // Tab indices: 0=Spring/Summer 2026, 1=Boomers 60/70
+  // Tab indices: 0=Spring/Summer 2026, 1=Tournaments
   const [seasonIdx, setSeasonIdx] = useState(0);
   const [weekIdx, setWeekIdx] = useState(0);
   const [fwWeeks, setFwWeeks] = useState([]);
@@ -2316,8 +2231,8 @@ function ScoresPage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const season = SCORES[seasonIdx];
   const week = season?.weeks?.[weekIdx];
-  const isLive = seasonIdx === 0 || seasonIdx === 1; // Spring/Summer (0) and Boomers (1) load from Supabase
-  const isTourn = seasonIdx === 2; // Tournaments tab — loads by season_id, not team list
+  const isLive = seasonIdx === 0; // Spring/Summer (0) loads from Supabase
+  const isTourn = seasonIdx === 1; // Tournaments tab — loads by season_id, not team list
   const isFW = false;
   const [tournGroups, setTournGroups] = useState([]);
   const [tournLoading, setTournLoading] = useState(false);
@@ -2330,17 +2245,10 @@ function ScoresPage({ setTab, setTeamDetail }) {
     setFwWeeks([]);
     // Filter by known team names instead of season lookup — avoids season record confusion
     const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
-    const bomTeams = [...BOOMERS_TEAMS];
-    const teams = seasonIdx === 0 ? satTeams : bomTeams;
-    const teamFilter = teams.map(t => `away_team.eq.${encodeURIComponent(t)}`).join(",");
+    const teamFilter = satTeams.map(t => `away_team.eq.${encodeURIComponent(t)}`).join(",");
     Promise.resolve(
       sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${teamFilter})&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=200`)
-        .then(rows => rows.filter(g => {
-          const inLeague = seasonIdx === 0
-            ? (satTeams.includes(g.away_team) && satTeams.includes(g.home_team))
-            : (BOOMERS_TEAMS.has(g.away_team) && BOOMERS_TEAMS.has(g.home_team));
-          return inLeague;
-        }))
+        .then(rows => rows.filter(g => satTeams.includes(g.away_team) && satTeams.includes(g.home_team)))
     )
       .then(games => {
         const deduped = dedupGames(games);
@@ -2368,7 +2276,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
   // predate April), group by tournament name. One-sided games render fine via
   // LiveBoxScoreFinalCard (opponent has no batting/pitching lines).
   useEffect(() => {
-    if (seasonIdx !== 2) return;
+    if (seasonIdx !== 1) return;
     setTournLoading(true);
     setTournGroups([]);
     Promise.all([
@@ -2518,11 +2426,6 @@ const buildStaticSatWeeks = () => SCHED.map(week => ({
   label: week.label,
   games: week.fields.flatMap(f => f.games.map(g => ({...g, field: f.name}))),
 }));
-const buildStaticBomWeeks = () => BOOMERS_SCHED.map(g => ({
-  label: g.date,
-  games: [g],
-}));
-
 function SchedulePage({ setTab, setTeamDetail }) {
   const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
   const todayMidnight = () => { const t = new Date(); t.setHours(0,0,0,0); return t; };
@@ -2532,25 +2435,13 @@ function SchedulePage({ setTab, setTeamDetail }) {
     const idx = weeks.findIndex(w => parseLabel(w.label) >= t);
     return idx >= 0 ? idx : weeks.length - 1;
   };
-  const currentBomIdx = () => {
-    const t = todayMidnight();
-    const weeks = buildStaticBomWeeks();
-    const idx = weeks.findIndex(w => parseLabel(w.label) >= t);
-    return idx >= 0 ? idx : weeks.length - 1;
-  };
-
-  const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers, 2=Tournaments
+  const [league, setLeague] = useState(0); // 0=Saturday, 1=Tournaments
   const [wk,setWk] = useState(currentSatIdx);
-  const [boomerWk, setBoomerWk] = useState(currentBomIdx);
   const [tournGames, setTournGames] = useState([]);
   const [previewGame, setPreviewGame] = useState(null);
   const [schedScores, setSchedScores] = useState({});
-  const [boomerScore, setBoomerScore] = useState(null);
   const [satSeasonId, setSatSeasonId] = useState(null);
-  const [bomSeasonId, setBomSeasonId] = useState(null);
   const [satWeeks, setSatWeeks] = useState(buildStaticSatWeeks);
-  const [bomWeeks, setBomWeeks] = useState(buildStaticBomWeeks);
-  const [rsvpGame, setRsvpGame] = useState(null);
 
   const week = satWeeks[wk] || satWeeks[0];
   const games = week ? week.games : [];
@@ -2560,7 +2451,6 @@ function SchedulePage({ setTab, setTeamDetail }) {
   // same week index. Key the score fetch on the matchups so it re-runs when
   // they change — otherwise finals for newly-added matchups never overlay.
   const gamesKey = games.map(g => `${g.away}|${g.home}`).join(",");
-  const boomerWeek = bomWeeks[boomerWk] || bomWeeks[0];
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const allTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
   const playingTeams = new Set(games.flatMap(g => [g.away, g.home]));
@@ -2572,12 +2462,10 @@ function SchedulePage({ setTab, setTeamDetail }) {
       .catch(() => {});
     sbFetch("seasons?select=id,name&limit=50").then(seasons => {
       const sat = seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
-      const bom = seasons.find(x => x.name.toLowerCase().includes("boomers"));
       if (sat) setSatSeasonId(sat.id);
-      if (bom) setBomSeasonId(bom.id);
     }).catch(() => {});
     // Load live schedule overrides from lbdc_schedules
-    sbFetch("lbdc_schedules?id=in.(sat,bom)&select=id,data").then(rows => {
+    sbFetch("lbdc_schedules?id=eq.sat&select=id,data").then(rows => {
       rows.forEach(r => {
         if (!r.data || !r.data.length) return;
         const byDate = {};
@@ -2586,7 +2474,6 @@ function SchedulePage({ setTab, setTeamDetail }) {
           .sort((a,b)=>(toISODate(a[0])||a[0])<(toISODate(b[0])||b[0])?-1:1)
           .map(([label,gs])=>({label,games:gs}));
         if (r.id === "sat") setSatWeeks(weeks);
-        if (r.id === "bom") setBomWeeks(weeks);
       });
     }).catch(() => {});
   }, []);
@@ -2612,28 +2499,16 @@ function SchedulePage({ setTab, setTeamDetail }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wk, satSeasonId, gamesKey]);
 
-  useEffect(() => {
-    const bg = boomerWeek ? boomerWeek.games[0] : null;
-    if (!bg || !bomSeasonId) return;
-    sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status,headline&season_id=eq.${bomSeasonId}&game_date=eq.${toISODate(boomerWeek.label)}&away_team=eq.${encodeURIComponent(bg.away)}&home_team=eq.${encodeURIComponent(bg.home)}&away_score=not.is.null&order=id.desc&limit=10`)
-      .then(rows => {
-        const best = dedupGames(rows || [])[0] || null;
-        setBoomerScore(best);
-      }).catch(()=>{});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boomerWk, bomSeasonId, bomWeeks]);
-
   const byTournament = {};
   tournGames.forEach(g => { if (!byTournament[g.tournament_name]) byTournament[g.tournament_name] = []; byTournament[g.tournament_name].push(g); });
 
-  const handleLeagueChange = (i) => { setLeague(i); if(i===0) setWk(currentSatIdx()); else if(i===1) setBoomerWk(currentBomIdx()); };
+  const handleLeagueChange = (i) => { setLeague(i); if(i===0) setWk(currentSatIdx()); };
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       {previewGame && <GamePreviewModal {...previewGame} onClose={()=>setPreviewGame(null)} />}
       <PageHero label="2026 Season" title="Schedule" subtitle="Away team listed first · Home team listed second">
-        <TabBar items={["Saturday Division","Boomers 60/70","Tournaments"]} active={league} onChange={handleLeagueChange} />
+        <TabBar items={["Saturday Division","Tournaments"]} active={league} onChange={handleLeagueChange} />
       </PageHero>
 
       {league === 0 && <>
@@ -2685,50 +2560,7 @@ function SchedulePage({ setTab, setTeamDetail }) {
         </div>
       </>}
 
-      {league === 1 && <>
-        {/* Boomers date tab bar */}
-        <div style={{borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fff",padding:"0 clamp(12px,3vw,40px)"}}>
-          <div style={{maxWidth:1400,margin:"0 auto",overflowX:"auto",display:"flex",gap:0,scrollbarWidth:"none"}}>
-            {bomWeeks.map((w,i) => {
-              const isPast = parseLabel(w.label) < todayMidnight();
-              return (
-              <button key={i} onClick={()=>setBoomerWk(i)} style={{
-                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:15,
-                textTransform:"uppercase",
-                color:boomerWk===i?"#111":isPast?"rgba(0,0,0,0.22)":"rgba(0,0,0,0.38)",
-                padding:"12px 16px",background:"none",border:"none",
-                borderBottom:boomerWk===i?"3px solid #111":"3px solid transparent",
-                cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,
-                textDecoration:isPast&&boomerWk!==i?"line-through":"none",
-              }}>{w.label}</button>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
-          {(() => {
-            const g = boomerWeek ? boomerWeek.games[0] : null;
-            if (!g) return null;
-            return (
-              <div>
-                {boomerScore && boomerScore.status === 'Final'
-                  ? <LiveBoxScoreFinalCard game={boomerScore} onTeamClick={goTeam} />
-                  : <UpcomingCard away={g.away} home={g.home} time={g.time} date={boomerWeek.label} field={g.field} isNext={false} status={g.status} onTeamClick={goTeam} onPreview={p=>setPreviewGame(p)} />
-                }
-                {rsvpGame && <BoomersRSVPModal game={rsvpGame} onClose={()=>setRsvpGame(null)} />}
-                {!(g.status === "PPD" || g.status === "CAN" || (g.status||"").toLowerCase().startsWith("postpone") || (g.status||"").toLowerCase().startsWith("cancel")) && (
-                  <button onClick={()=>setRsvpGame(g)}
-                    style={{marginTop:12,width:"100%",padding:"12px",background:"#7c3aed",border:"none",borderRadius:10,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,textTransform:"uppercase",letterSpacing:".06em",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-                    👥 Who's Playing This Week?
-                  </button>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      </>}
-
-      {league === 2 && (
+      {league === 1 && (
         <div style={{maxWidth:1400,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
           {Object.keys(byTournament).length === 0 ? (
             <div style={{textAlign:"center",padding:"60px 20px",color:"#aaa",fontSize:16}}>No tournaments scheduled yet.</div>
@@ -2908,13 +2740,11 @@ const STANDINGS_HISTORY = [
 ];
 
 function StandingsPage({ setTab, setTeamDetail }) {
-  const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers
+  const [league, setLeague] = useState(0); // 0=Saturday
   const [view, setView] = useState("current"); // "current" | "history"
   const [histIdx, setHistIdx] = useState(0);
   const [liveTeams, setLiveTeams] = useState(null);
-  const [boomersTeams, setBoomersTeams] = useState(null);
   const [loadingSat, setLoadingSat] = useState(true);
-  const [loadingBom, setLoadingBom] = useState(true);
   const div = DIV["SAT"];
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); } };
   const hist = STANDINGS_HISTORY[histIdx];
@@ -2957,46 +2787,6 @@ function StandingsPage({ setTab, setTeamDetail }) {
       })
       .catch(()=>{})
       .finally(() => setLoadingSat(false));
-  }, []);
-
-  // Load Boomers standings
-  useEffect(() => {
-    sbFetch("seasons?select=id,name&limit=50")
-      .then(allSeasons => {
-        const s = allSeasons.find(x => x.name.toLowerCase().includes("boomers"));
-        if (!s) return null;
-        return sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&season_id=eq.${s.id}&status=eq.Final&limit=200`);
-      })
-      .then(rawGames => {
-        if (!rawGames || !rawGames.length) return;
-        const games = dedupGames(rawGames);
-        const tm = {};
-        DIV.BOM.teams.forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
-        games.forEach(g => {
-          if (!g.away_score && g.away_score !== 0) return;
-          if (g.status === "PPD" || g.status === "CAN") return;
-          const a=g.away_team, h=g.home_team, as=+g.away_score, hs=+g.home_score;
-          if(!tm[a]||!tm[h]) return;
-          tm[a].rs+=as; tm[a].ra+=hs; tm[a].gp++;
-          tm[h].rs+=hs; tm[h].ra+=as; tm[h].gp++;
-          if(as>hs){tm[a].w++;tm[h].l++;}
-          else if(hs>as){tm[h].w++;tm[a].l++;}
-          else{tm[a].t++;tm[h].t++;}
-        });
-        const rows = Object.entries(tm).map(([name,s]) => {
-          const pts=s.w*2+s.t, max=(s.gp||1)*2;
-          const pct=s.gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"");
-          const d=s.rs-s.ra;
-          return {name,full:name,w:s.w,l:s.l,t:s.t,pct,gp:s.gp,rs:s.rs,ra:s.ra,diff:d>=0?`+${d}`:`${d}`,seed:0};
-        }).sort((a,b)=>{
-          if(b.w!==a.w) return b.w-a.w;
-          if(b.l!==a.l) return a.l-b.l;
-          return (b.rs-b.ra)-(a.rs-a.ra);
-        }).map((t,i)=>({...t,seed:i+1}));
-        setBoomersTeams(rows);
-      })
-      .catch(()=>{})
-      .finally(() => setLoadingBom(false));
   }, []);
 
   const StandingsTable = ({ teams, accent="#002d6e" }) => {
@@ -3052,7 +2842,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics" title="Standings">
-        <TabBar items={["Saturday Division","Boomers 60/70"]} active={league} onChange={i=>{setLeague(i);setView("current");}} />
+        <TabBar items={["Saturday Division"]} active={league} onChange={i=>{setLeague(i);setView("current");}} />
       </PageHero>
 
       {/* ── SATURDAY DIVISION ── */}
@@ -3121,28 +2911,6 @@ function StandingsPage({ setTab, setTeamDetail }) {
         </div>
       )}
 
-      {/* ── BOOMERS 60/70 ── */}
-      {league === 1 && (
-        <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
-          <div style={{background:"#f3e8ff",border:"1px solid #d8b4fe",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#6b21a8",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:18}}>👴</span>
-            <span><strong>Boomers 60/70 Division</strong> — Eddie Murray Mashers '56 vs Greg Maddux Magicians '66 · 2026 season</span>
-          </div>
-          {loadingBom ? (
-            <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:10,padding:"40px 20px",textAlign:"center",color:"#888",fontSize:14}}>
-              <span style={{fontSize:24,display:"block",marginBottom:8}}>⚾</span>
-              Loading standings…
-            </div>
-          ) : (<>
-            {!boomersTeams && (
-              <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
-                ⚾ <strong>Season underway</strong> — standings will update after each game is entered.
-              </div>
-            )}
-            <StandingsTable teams={boomersTeams || DIV.BOM.teams} accent="#7c3aed" />
-          </>)}
-        </div>
-      )}
     </div>
   );
 }
@@ -3761,16 +3529,11 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   }, [teamName]);
   // Fetch inline batting stats + recent results for this team
   useEffect(() => {
-    const isBoomers = BOOMERS_TEAMS.has(teamName);
     const enc = encodeURIComponent;
     sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
       const satIds = getSatSeasonFilter(seasons);
-      const s = isBoomers
-        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
-        : null;
-      const seasonFilter = isBoomers ? `season_id=eq.${s?.id}` : `season_id=in.(${satIds.join(",")})`;
-      if (isBoomers && !s) return;
-      if (!isBoomers && !satIds.length) return;
+      const seasonFilter = `season_id=in.(${satIds.join(",")})`;
+      if (!satIds.length) return;
       const [games, recentRaw] = await Promise.all([
         sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&${seasonFilter}&limit=200`),
         sbFetch(`games?select=id,away_team,home_team,away_score,home_score,game_date,status&${seasonFilter}&or=(away_team.eq.${enc(teamName)},home_team.eq.${enc(teamName)})&status=eq.Final&order=game_date.desc&limit=20`),
@@ -3904,16 +3667,11 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   // team, dedupe by gameKey (in case of duplicate game rows), and sum per
   // player. Drives the "Pitching" stats card below the roster.
   useEffect(() => {
-    const isBoomers = BOOMERS_TEAMS.has(teamName);
     const enc = encodeURIComponent;
     sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
       const satIds = getSatSeasonFilter(seasons);
-      const s = isBoomers
-        ? seasons.find(x => x.name.toLowerCase().includes("boomers"))
-        : null;
-      const seasonFilter = isBoomers ? `season_id=eq.${s?.id}` : `season_id=in.(${satIds.join(",")})`;
-      if (isBoomers && !s) return;
-      if (!isBoomers && !satIds.length) return;
+      const seasonFilter = `season_id=in.(${satIds.join(",")})`;
+      if (!satIds.length) return;
       const games = await sbFetch(`games?select=id,game_date,away_team,home_team&${seasonFilter}&limit=200`);
       if (!games || !games.length) return;
       // Same orphan-duplicate handling as the batting aggregation above:
@@ -3996,13 +3754,10 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
     }).catch(() => {});
   }, [teamName]);
   useEffect(() => {
-    const isBoomers = BOOMERS_TEAMS.has(teamName);
     sbFetch("seasons?select=id,name&limit=50").then(seasons => {
       const satIds = getSatSeasonFilter(seasons);
-      const bomS = seasons.find(x => x.name.toLowerCase().includes("boomers"));
-      if (isBoomers && !bomS) return null;
-      if (!isBoomers && !satIds.length) return null;
-      const filter = isBoomers ? `season_id=eq.${bomS.id}` : `season_id=in.(${satIds.join(",")})`;
+      if (!satIds.length) return null;
+      const filter = `season_id=in.(${satIds.join(",")})`;
       return sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&${filter}&status=eq.Final&limit=200`);
     }).then(rawGames => {
       if (!rawGames) return;
@@ -4033,8 +3788,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   }, [teamName]);
   const [liveSchedule, setLiveSchedule] = useState(null); // null = not loaded yet
   useEffect(() => {
-    const schedId = BOOMERS_TEAMS.has(teamName) ? "bom" : "sat";
-    sbFetch(`lbdc_schedules?id=eq.${schedId}&select=data`)
+    sbFetch(`lbdc_schedules?id=eq.sat&select=data`)
       .then(rows => { if (rows?.[0]?.data?.length) setLiveSchedule(rows[0].data); })
       .catch(() => {});
   }, [teamName]);
@@ -4245,11 +3999,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   const rec = liveRecord || {w:team.w,l:team.l,t:team.t,pct:team.pct,rs:team.rs,ra:team.ra};
 
   // Build full season schedule for this team — prefer live Supabase data over static SCHED
-  const rawSchedule = BOOMERS_TEAMS.has(teamName)
-    ? (liveSchedule || BOOMERS_SCHED.map(g => ({...g, away:g.away, home:g.home})))
-        .filter(g => g.away===teamName || g.home===teamName)
-        .map(g => ({date:g.date, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:g.field, status:g.status||"", notes:g.notes||""}))
-    : liveSchedule
+  const rawSchedule = liveSchedule
       ? liveSchedule
           .filter(g => g.away===teamName || g.home===teamName)
           .map(g => ({date:g.date, time:g.time, isHome:g.home===teamName, opponent:g.home===teamName?g.away:g.home, field:g.field, status:g.status||"", notes:g.notes||""}))
@@ -4591,7 +4341,7 @@ function TeamsPage({ setTab, setTeamDetail }) {
         ? metaRows[0].data.flatMap(m => Array.isArray(m.teams) ? m.teams : [])
         : [];
       const union = [...new Set([...fromExtras, ...fromTourns])].filter(n =>
-        n && n !== "TBD" && n !== "TBA" && !BOOMERS_TEAMS.has(n) && !Object.keys(TEAM_ROSTERS).includes(n)
+        n && n !== "TBD" && n !== "TBA" && !Object.keys(TEAM_ROSTERS).includes(n)
       );
       setExtraTeams(union.sort((a,b) => a.localeCompare(b)));
     });
@@ -4616,16 +4366,13 @@ function TeamsPage({ setTab, setTeamDetail }) {
     };
     sbFetch("seasons?select=id,name&limit=50").then(seasons => {
       const satIds = getSatSeasonFilter(seasons);
-      const bomS = seasons.find(x => x.name.toLowerCase().includes("boomers"));
       return Promise.all([
         satIds.length ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score&season_id=in.(${satIds.join(",")})&status=eq.Final&limit=200`) : [],
-        bomS ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score&season_id=eq.${bomS.id}&status=eq.Final&limit=200`) : [],
       ]);
-    }).then(([satGames, bomGames]) => {
+    }).then(([satGames]) => {
       const recs = {};
       const satRecs = calcRows(satGames, DIV.SAT.teams);
-      const bomRecs = calcRows(bomGames, DIV.BOM.teams);
-      Object.assign(recs, satRecs, bomRecs);
+      Object.assign(recs, satRecs);
       Object.entries(recs).forEach(([name, s]) => {
         const pts=s.w*2+s.t, max=(s.gp||1)*2;
         recs[name] = {...s, pct: s.gp===0?"---":Number(pts/max).toFixed(3).replace(/^0/,"")};
@@ -5408,53 +5155,19 @@ function getFieldsData() {
 /* ─── RULES PAGE ─────────────────────────────────────────────────────────── */
 function RulesPage() {
   const [allRules, setAllRules] = useState(RULES_DATA);
-  const [division, setDivision] = useState("saturday");
   useEffect(() => {
     sbFetch("lbdc_rules?id=eq.main&select=data")
       .then(rows => { if (rows && rows[0] && rows[0].data) setAllRules(rows[0].data); })
       .catch(() => {});
   }, []);
 
-  const saturdayRules = allRules.filter(r => !r.section.toLowerCase().startsWith("boomers"));
-  const boomersRules  = allRules.filter(r => r.section.toLowerCase().startsWith("boomers"));
-  const rules = division === "saturday" ? saturdayRules : boomersRules;
-
-  const tabBtn = (key, label, icon) => (
-    <button key={key} onClick={() => setDivision(key)} style={{
-      flex:1, padding:"16px 10px", border:"none", cursor:"pointer",
-      background: division===key ? "#002d6e" : "#fff",
-      color: division===key ? "#fff" : "#002d6e",
-      fontFamily:"'Barlow Condensed',sans-serif", fontWeight:900,
-      fontSize:"clamp(16px,4vw,22px)", textTransform:"uppercase", letterSpacing:".04em",
-      borderRadius: key==="saturday" ? "12px 0 0 12px" : "0 12px 12px 0",
-      borderTop: division===key ? "none" : "2px solid rgba(0,45,110,0.2)",
-      borderBottom: division===key ? "none" : "2px solid rgba(0,45,110,0.2)",
-      borderLeft: key==="saturday" ? (division===key ? "none" : "2px solid rgba(0,45,110,0.2)") : "1px solid rgba(0,45,110,0.15)",
-      borderRight: key==="boomers"  ? (division===key ? "none" : "2px solid rgba(0,45,110,0.2)") : "1px solid rgba(0,45,110,0.15)",
-      transition:"all .2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-      boxShadow: division===key ? "0 4px 18px rgba(0,45,110,0.25)" : "none",
-    }}>
-      <span style={{fontSize:"clamp(18px,5vw,28px)"}}>{icon}</span>
-      <div style={{textAlign:"left"}}>
-        <div>{label}</div>
-        <div style={{fontSize:"clamp(10px,2.5vw,13px)",fontWeight:600,opacity:.7,letterSpacing:".02em",textTransform:"none"}}>
-          {key==="saturday" ? "Saturday League" : "60/70 Division"}
-        </div>
-      </div>
-    </button>
-  );
+  const rules = allRules.filter(r => !r.section.toLowerCase().startsWith("boomers"));
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="Diamond Classics Baseball" title="Field Guide" subtitle="Official rules and guidelines for the 2026 season" />
       {getPageContent("rules_intro") && <div style={{maxWidth:900,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={sanitizeHTML(getPageContent("rules_intro"))} />}
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
-
-        {/* Division picker */}
-        <div style={{display:"flex",marginBottom:24,boxShadow:"0 2px 12px rgba(0,0,0,0.1)",borderRadius:12,overflow:"hidden"}}>
-          {tabBtn("saturday","Saturday Division","⚾")}
-          {tabBtn("boomers","Boomers Rules","🟣")}
-        </div>
 
         {/* Jump-to nav */}
         <Card style={{marginBottom:24}}>
@@ -6472,8 +6185,6 @@ function ContactPage() {
 /* ─── PAYMENTS PAGE ──────────────────────────────────────────────────────── */
 const PAYMENT_CATEGORIES = [
   { id: "seasonal_ins",  label: "Seasonal Insurance (50's)",  amount: "$50", note: "Required for all 50's division players each season." },
-  { id: "annual_ins",    label: "Annual Insurance (Boomers)", amount: "$25", note: "Required for all Boomers 60/70 division players annually." },
-  { id: "game_fee_bom",  label: "Game Fee — Boomers",         amount: "$20", note: "Per-game fee for Boomers 60/70 division players." },
   { id: "game_fee_co",   label: "Game Fee — Crossover",       amount: "$10", note: "Per-game fee when playing a crossover game." },
   { id: "tourn_regional",label: "Regional Tournament",        amount: "$125",note: "Entry fee per player for regional tournament participation." },
   { id: "tourn_national",label: "National Tournament",        amount: "$175",note: "Entry fee per player for national tournament participation." },
@@ -6586,12 +6297,7 @@ function PlayerEligibilityPage({ onBack }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filterTeam, setFilterTeam] = useState("All");
-  const [activeDiv, setActiveDiv] = useState("SAT"); // "SAT" | "BOM"
-  const [bomPayments, setBomPayments] = useState([]);
-  const [bomRosters, setBomRosters] = useState({}); // {teamName: [playerName,...]}
-  const [bomSaving, setBomSaving] = useState(false);
-  const BOM_SEASON = "Boomers 2026";
-  const BOM_TEAMS = ["Eddie Murray Mashers '56", "Greg Maddux Magicians '66"];
+  const [activeDiv, setActiveDiv] = useState("SAT"); // "SAT" | "T:<tournament>"
 
   // Tournament eligibility: each tournament gets its own tab + roster + paid
   // tracking. Tournaments come from lbdc_tournament_meta (same source the
@@ -6649,21 +6355,6 @@ function PlayerEligibilityPage({ onBack }) {
       const flat = {};
       Object.entries(counts).forEach(([name, games]) => { flat[name] = games.size; });
       setAppearances(flat);
-    } catch(e) {}
-    setLoading(false);
-  };
-
-  const loadBoomers = async () => {
-    setLoading(true);
-    try {
-      const [payData, ...rosterArrays] = await Promise.all([
-        sbFetch(`player_payments?select=id,player_name,team_name,paid,notes&season=eq.${encodeURIComponent(BOM_SEASON)}&order=team_name.asc,player_name.asc`),
-        ...BOM_TEAMS.map(t => sbFetch(`lbdc_rosters?select=name&team=eq.${encodeURIComponent(t)}&order=id.asc`)),
-      ]);
-      setBomPayments(payData || []);
-      const ros = {};
-      BOM_TEAMS.forEach((t,i) => { ros[t] = (rosterArrays[i]||[]).map(r=>r.name); });
-      setBomRosters(ros);
     } catch(e) {}
     setLoading(false);
   };
@@ -6730,15 +6421,14 @@ function PlayerEligibilityPage({ onBack }) {
       // from the rosters we already loaded for Saturday + Boomers.
       const allNames = new Set();
       Object.values(satRosters || {}).forEach(roster => roster.forEach(p => p.name && allNames.add(p.name)));
-      Object.values(bomRosters || {}).forEach(roster => roster.forEach(n => n && allNames.add(n)));
       setAllLbdcPlayers([...allNames].sort());
     } catch(e) {}
   };
 
-  useEffect(() => { load(); loadBoomers(); }, []);
-  // Run loadTournaments after sat+bom rosters are populated so the autocomplete
+  useEffect(() => { load(); }, []);
+  // Run loadTournaments after sat rosters are populated so the autocomplete
   // has names available. Re-runs whenever those rosters update.
-  useEffect(() => { loadTournaments(); /* eslint-disable-next-line */ }, [satRosters, bomRosters]);
+  useEffect(() => { loadTournaments(); /* eslint-disable-next-line */ }, [satRosters]);
 
   // ── Tournament eligibility helpers ──
   const addTournamentPlayer = async (tournName, playerName, teamName) => {
@@ -6847,36 +6537,6 @@ function PlayerEligibilityPage({ onBack }) {
     setTournSaving(false);
   };
 
-  const toggleBomInsurance = async (playerName, teamName) => {
-    setBomSaving(true);
-    const rec = bomPayments.find(r => r.player_name===playerName && r.team_name===teamName);
-    const newPaid = !(rec?.paid||false);
-    try {
-      if (rec?.id) {
-        await sbPatch(`player_payments?id=eq.${rec.id}`, {paid: newPaid});
-      } else {
-        await sbPost("player_payments", {player_name:playerName, team_name:teamName, season:BOM_SEASON, paid:newPaid, notes:"0"});
-      }
-      await loadBoomers();
-    } catch(e) { alert("Save failed: "+e.message); }
-    setBomSaving(false);
-  };
-
-  const setBomGamesPaid = async (playerName, teamName, count) => {
-    setBomSaving(true);
-    const rec = bomPayments.find(r => r.player_name===playerName && r.team_name===teamName);
-    const c = Math.max(0, count);
-    try {
-      if (rec?.id) {
-        await sbPatch(`player_payments?id=eq.${rec.id}`, {notes: String(c)});
-      } else {
-        await sbPost("player_payments", {player_name:playerName, team_name:teamName, season:BOM_SEASON, paid:false, notes:String(c)});
-      }
-      await loadBoomers();
-    } catch(e) { alert("Save failed: "+e.message); }
-    setBomSaving(false);
-  };
-
   // Build roster rows merging rosters + any saved payment records
   const buildRows = () => {
     const rows = [];
@@ -6934,10 +6594,10 @@ function PlayerEligibilityPage({ onBack }) {
       <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <button type="button" onClick={onBack} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>🏅 Player Eligibility</div>
-        <button type="button" onClick={()=>{load();loadBoomers();}} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
+        <button type="button" onClick={()=>{load();}} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
       </div>
 
-      {/* Division tabs — Saturday, Boomers, then one per tournament from
+      {/* Division tabs — Saturday, then one per tournament from
           lbdc_tournament_meta. Tournament names are long ("NABA Arizona
           World Series Father/Son/Daughter Wood National/American - October
           1-4") so we shorten them with a heuristic and stash the full name
@@ -6946,7 +6606,6 @@ function PlayerEligibilityPage({ onBack }) {
       <div style={{display:"flex",borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fafbfc",overflowX:"auto"}}>
         {[
           {k:"SAT",label:"Saturday League",fullName:"Saturday League",color:"#002d6e"},
-          {k:"BOM",label:"Boomers",fullName:"Boomers",color:"#7c3aed"},
           ...tournMeta.map(t => {
             const f = (t.name||"").toLowerCase();
             let short = t.name;
@@ -7061,105 +6720,6 @@ function PlayerEligibilityPage({ onBack }) {
       </div>
       )}
 
-      {activeDiv === "BOM" && (() => {
-        const allBomPlayers = BOM_TEAMS.flatMap(t => (bomRosters[t]||[]).map(p => ({player_name:p, team_name:t})));
-        const getRec = (p, t) => bomPayments.find(r => r.player_name===p && r.team_name===t);
-        const getCount = (p, t) => {
-          const rec = getRec(p, t);
-          const n = parseInt(rec?.notes || "0", 10);
-          return isNaN(n) ? 0 : n;
-        };
-        const totalPlayers = allBomPlayers.length;
-        const insuredCount = allBomPlayers.filter(x => getRec(x.player_name, x.team_name)?.paid).length;
-        const totalGamesPaid = allBomPlayers.reduce((s,x) => s + getCount(x.player_name, x.team_name), 0);
-        const totalRevenue = insuredCount*25 + totalGamesPaid*20;
-        return (
-          <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
-            {/* Summary bar */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10}}>
-              {[
-                {label:"Players",value:totalPlayers,color:"#7c3aed"},
-                {label:"Insurance Paid",value:`${insuredCount} / ${totalPlayers}`,color:"#16a34a"},
-                {label:"Game Fees Prepaid",value:totalGamesPaid,color:"#b45309"},
-                {label:"Collected",value:`$${totalRevenue}`,color:"#065f46"},
-              ].map(s => (
-                <div key={s.label} style={{background:"#f8f9fb",border:`2px solid ${s.color}22`,borderRadius:10,padding:"12px 16px",textAlign:"center"}}>
-                  <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:26,color:s.color,lineHeight:1}}>{s.value}</div>
-                  <div style={{fontSize:11,color:"rgba(0,0,0,0.45)",fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",marginTop:3}}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{background:"#f3f0ff",border:"1px solid #ddd6fe",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#5b21b6",lineHeight:1.7}}>
-              <strong>Boomers prepay model:</strong> $25 annual insurance (one-time) + $20 per-game fee. Boomers pay ahead of each game — use the +/− buttons to bank paid game credits as players hand over cash/Venmo.
-            </div>
-
-            {loading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading…</div>}
-
-            {!loading && BOM_TEAMS.map(team => {
-              const roster = bomRosters[team] || [];
-              return (
-                <div key={team} style={{border:"1px solid rgba(0,0,0,0.09)",borderRadius:10,overflow:"hidden"}}>
-                  <div style={{background:"#3b1d6e",padding:"10px 18px",display:"flex",alignItems:"center",gap:12}}>
-                    <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:"#fff",textTransform:"uppercase"}}>{team}</span>
-                    <span style={{fontSize:12,color:"rgba(255,255,255,0.55)"}}>
-                      {roster.filter(p => getRec(p, team)?.paid).length} insured · {roster.reduce((s,p)=>s+getCount(p,team),0)} game credits
-                    </span>
-                  </div>
-                  {roster.length === 0 ? (
-                    <div style={{padding:"20px",textAlign:"center",color:"#aaa",fontSize:13}}>No roster found for {team}.</div>
-                  ) : (
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                    <thead>
-                      <tr style={{background:"#f8f9fb"}}>
-                        <th style={{padding:"8px 16px",textAlign:"left",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Player</th>
-                        <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Insurance $25</th>
-                        <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Games Prepaid ($20 each)</th>
-                        <th style={{padding:"8px 12px",textAlign:"center",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:11,textTransform:"uppercase",color:"rgba(0,0,0,0.4)",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>Total Paid</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {roster.map((p, i) => {
-                        const rec = getRec(p, team);
-                        const insured = !!rec?.paid;
-                        const gCount = getCount(p, team);
-                        const total = (insured?25:0) + gCount*20;
-                        return (
-                          <tr key={p} style={{borderBottom:"1px solid rgba(0,0,0,0.05)",background:i%2===0?"#fff":"#fafafa"}}>
-                            <td style={{padding:"10px 16px",fontWeight:600,color:"#111"}}>{p}</td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>
-                              <input type="checkbox" checked={insured} disabled={bomSaving} onChange={()=>toggleBomInsurance(p, team)}
-                                style={{width:18,height:18,cursor:bomSaving?"wait":"pointer",accentColor:"#7c3aed"}}/>
-                            </td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>
-                              <div style={{display:"inline-flex",alignItems:"center",gap:8}}>
-                                <button type="button" disabled={bomSaving||gCount<=0} onClick={()=>setBomGamesPaid(p, team, gCount-1)}
-                                  style={{width:26,height:26,borderRadius:6,border:"1px solid rgba(0,0,0,0.15)",background:gCount<=0?"#f3f4f6":"#fff",color:gCount<=0?"#ccc":"#111",fontWeight:900,fontSize:14,cursor:gCount<=0||bomSaving?"not-allowed":"pointer"}}>−</button>
-                                <span style={{display:"inline-block",minWidth:30,fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:gCount>0?"#7c3aed":"#ccc"}}>{gCount}</span>
-                                <button type="button" disabled={bomSaving} onClick={()=>setBomGamesPaid(p, team, gCount+1)}
-                                  style={{width:26,height:26,borderRadius:6,border:"1px solid #7c3aed",background:"#7c3aed",color:"#fff",fontWeight:900,fontSize:14,cursor:bomSaving?"wait":"pointer"}}>+</button>
-                              </div>
-                            </td>
-                            <td style={{padding:"10px 12px",textAlign:"center"}}>
-                              <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:17,color:total>0?"#065f46":"#ccc"}}>${total}</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  )}
-                </div>
-              );
-            })}
-
-            <div style={{background:"#f8f9fb",border:"1px solid rgba(0,0,0,0.09)",borderRadius:8,padding:"12px 16px",fontSize:12,color:"rgba(0,0,0,0.45)",lineHeight:1.8}}>
-              <strong style={{color:"#333"}}>Tip:</strong> Toggle the <span style={{color:"#7c3aed",fontWeight:700}}>insurance checkbox</span> once per player per year. Use <span style={{color:"#7c3aed",fontWeight:700}}>+ / −</span> to add or remove prepaid game credits as players pay.
-            </div>
-          </div>
-        );
-      })()}
-
       {/* Tournament eligibility — one block per tournament tab. Reads
           lbdc_tournament_meta to know which tournaments exist; player_payments
           rows where season = tournament name are this tournament's roster. */}
@@ -7192,16 +6752,6 @@ function PlayerEligibilityPage({ onBack }) {
             label: team,
             count: rows.length,
             players: rows.map(p => ({ name: p.name, team })),
-          });
-        });
-        // Boomers teams
-        Object.entries(bomRosters || {}).forEach(([team, names]) => {
-          if (!names?.length) return;
-          copySources.push({
-            group: "Boomers Team",
-            label: team,
-            count: names.length,
-            players: names.map(n => ({ name: n, team })),
           });
         });
         return (
@@ -7239,7 +6789,7 @@ function FieldFeesPage({ onBack }) {
   const [filterTeam, setFilterTeam] = useState("All");
   const [filterField, setFilterField] = useState("All");
   const [filterStatus, setFilterStatus] = useState("all"); // all | paid | unpaid
-  const [filterDiv, setFilterDiv] = useState("All"); // All | Saturday | Boomers | Tournaments
+  const [filterDiv, setFilterDiv] = useState("All"); // All | Saturday | Tournaments
 
   // Reuse BoxScoreEntry's chronological sort (toISODate then time-of-day).
   const _timeMin = (t) => {
@@ -7256,10 +6806,9 @@ function FieldFeesPage({ onBack }) {
   const load = async () => {
     setLoading(true);
     try {
-      const [ffRows, satRows, bomRows, fieldRows, tournRows] = await Promise.all([
+      const [ffRows, satRows, fieldRows, tournRows] = await Promise.all([
         sbFetch("lbdc_schedules?id=eq.field_fees&select=data"),
         sbFetch("lbdc_schedules?id=eq.sat&select=data"),
-        sbFetch("lbdc_schedules?id=eq.bom&select=data"),
         sbFetch("lbdc_fields?id=eq.main&select=data"),
         sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=game_date.asc,game_time.asc"),
       ]);
@@ -7271,10 +6820,8 @@ function FieldFeesPage({ onBack }) {
 
       // Normalize the games union.
       const satData = Array.isArray(satRows?.[0]?.data) ? satRows[0].data : [];
-      const bomData = Array.isArray(bomRows?.[0]?.data) ? bomRows[0].data : [];
       const union = [
         ...satData.map(g => ({ date: g.date, time: g.time, field: g.field || "", away: g.away, home: g.home, division: "Saturday" })),
-        ...bomData.map(g => ({ date: g.date, time: g.time, field: g.field || "", away: g.away, home: g.home, division: "Boomers" })),
         ...(tournRows || [])
           .filter(g => g.notes !== "__placeholder__")
           .map(g => ({ date: g.game_date, time: g.game_time || "", field: g.field || "", away: g.away_team, home: g.home_team, division: "Tournaments", tournament_name: g.tournament_name })),
@@ -7503,7 +7050,7 @@ function FieldFeesPage({ onBack }) {
                 { label: "Team", value: filterTeam, set: setFilterTeam, opts: ["All", ...allTeams] },
                 { label: "Field", value: filterField, set: setFilterField, opts: ["All", ...allFields] },
                 { label: "Status", value: filterStatus, set: setFilterStatus, opts: ["all", "paid", "unpaid"] },
-                { label: "Division", value: filterDiv, set: setFilterDiv, opts: ["All", "Saturday", "Boomers", "Tournaments"] },
+                { label: "Division", value: filterDiv, set: setFilterDiv, opts: ["All", "Saturday", "Tournaments"] },
               ].map(f => (
                 <label key={f.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "rgba(0,0,0,0.5)" }}>
                   <span style={{ textTransform: "uppercase" }}>{f.label}:</span>
@@ -8482,20 +8029,17 @@ const SCHEDULE_FIELDS = [
 
 function ManageSchedulePage({ onBack }) {
   const TEAMS = Object.keys(TEAM_ROSTERS);
-  const [league, setLeague] = useState(0); // 0=Saturday, 1=Boomers
 
   const buildDefaultSat = () => SCHED.flatMap(week =>
     week.fields.flatMap(f =>
       f.games.map(g => ({ id: Math.random().toString(36).slice(2), date: week.label, time: g.time, field: f.name, away: g.away, home: g.home, status: g.status||"", source: "sched" }))
     )
   );
-  const buildDefaultBom = () => BOOMERS_SCHED.map(g => ({ id: Math.random().toString(36).slice(2), date: g.date, time: g.time, field: g.field, away: g.away, home: g.home, status: g.status||"", source: "sched" }));
 
   const [satGames, setSatGames] = useState([]);
-  const [bomGames, setBomGames] = useState([]);
   const [schedLoading, setSchedLoading] = useState(true);
   const [fieldOptions, setFieldOptions] = useState(SCHEDULE_FIELDS);
-  const games = league === 1 ? bomGames : satGames;
+  const games = satGames;
 
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -8520,11 +8064,9 @@ function ManageSchedulePage({ onBack }) {
   useEffect(() => {
     Promise.all([
       sbFetch("lbdc_schedules?id=eq.sat&select=data"),
-      sbFetch("lbdc_schedules?id=eq.bom&select=data"),
       sbFetch("lbdc_fields?id=eq.main&select=data"),
-    ]).then(([sr, br, fr]) => {
+    ]).then(([sr, fr]) => {
       setSatGames(sr && sr[0] ? sr[0].data : buildDefaultSat());
-      setBomGames(br && br[0] ? br[0].data : buildDefaultBom());
       const fdata = fr && fr[0] && Array.isArray(fr[0].data) ? fr[0].data : FIELDS_INFO;
       const opts = fdata.map(f => f.location ? `${f.name} — ${f.location.split(",")[0].trim()}` : f.name);
       setFieldOptions(opts.length ? opts : SCHEDULE_FIELDS);
@@ -8532,20 +8074,18 @@ function ManageSchedulePage({ onBack }) {
       setSchedLoading(false);
     }).catch(() => {
       setSatGames(buildDefaultSat());
-      setBomGames(buildDefaultBom());
       setSchedLoading(false);
     });
   }, []);
 
   const persist = async (list) => {
-    const key = league === 1 ? "bom" : "sat";
-    const prev = league === 1 ? bomGames : satGames;
-    if (league === 1) setBomGames(list); else setSatGames(list);
+    const prev = satGames;
+    setSatGames(list);
     setSaving(true);
-    const r = await safeSave("Schedule", () => sbUpsert("lbdc_schedules", {id:key, data:list}));
+    const r = await safeSave("Schedule", () => sbUpsert("lbdc_schedules", {id:"sat", data:list}));
     setSaving(false);
     // Roll local state back if the DB write failed so the UI doesn't lie about success.
-    if (!r.ok) { if (league === 1) setBomGames(prev); else setSatGames(prev); }
+    if (!r.ok) { setSatGames(prev); }
   };
 
   const startEdit = (g) => { setEditId(g.id); setEditForm({date:g.date,time:g.time,field:g.field,away:g.away,home:g.home,status:g.status||"",notes:g.notes||""}); };
@@ -8604,17 +8144,8 @@ function ManageSchedulePage({ onBack }) {
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
         <button type="button" onClick={onBack} style={{padding:"6px 14px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:13}}>← Back</button>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,textTransform:"uppercase",color:"#111"}}>Manage Schedule</div>
-        <div style={{display:"flex",gap:6,marginLeft:8}}>
-          {["Saturday","Boomers 60/70"].map((label,i) => (
-            <button key={i} type="button" onClick={()=>{setLeague(i);setEditId(null);setShowAdd(false);}} style={{
-              padding:"4px 12px",borderRadius:12,cursor:"pointer",border:"1px solid",fontWeight:700,fontSize:12,
-              background:league===i?"#002d6e":"#fff",color:league===i?"#fff":"#555",
-              borderColor:league===i?"#002d6e":"rgba(0,0,0,0.15)",
-            }}>{label}</button>
-          ))}
-        </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8}}>
-          <button type="button" disabled={saving} onClick={async()=>{ if(window.confirm("Reset schedule back to original?")){ const prev = league===1?bomGames:satGames; const d=league===1?buildDefaultBom():buildDefaultSat(); if(league===1)setBomGames(d);else setSatGames(d); setSaving(true); const r=await safeSave("Schedule reset",()=>sbUpsert("lbdc_schedules",{id:league===1?"bom":"sat",data:d})); setSaving(false); if(!r.ok){ if(league===1)setBomGames(prev);else setSatGames(prev); } }}}
+          <button type="button" disabled={saving} onClick={async()=>{ if(window.confirm("Reset schedule back to original?")){ const prev = satGames; const d=buildDefaultSat(); setSatGames(d); setSaving(true); const r=await safeSave("Schedule reset",()=>sbUpsert("lbdc_schedules",{id:"sat",data:d})); setSaving(false); if(!r.ok){ setSatGames(prev); } }}}
             style={{padding:"7px 14px",background:"rgba(220,38,38,0.1)",border:"1px solid rgba(220,38,38,0.25)",borderRadius:6,color:"#dc2626",fontWeight:700,fontSize:12,cursor:saving?"wait":"pointer"}}>Reset</button>
           <button type="button" onClick={()=>{setShowBulk(s=>!s);setShowAdd(false);}}
             style={{padding:"8px 16px",background:showBulk?"#b45309":"rgba(180,83,9,0.1)",border:`1px solid #b45309`,borderRadius:8,color:showBulk?"#fff":"#b45309",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>📋 Add Many for One Date</button>
@@ -8730,7 +8261,7 @@ function ManageSchedulePage({ onBack }) {
       <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.09)",borderRadius:12,overflow:"hidden"}}>
         <div style={{background:"#001a3e",padding:"12px 18px"}}>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:15,color:"#FFD700",textTransform:"uppercase",letterSpacing:".06em"}}>
-            {league===1 ? "Boomers 60/70" : "Spring/Summer 2026"} — {games.length} Games · Click any game to edit
+            Spring/Summer 2026 — {games.length} Games · Click any game to edit
           </div>
         </div>
         {Object.entries(byDate).map(([date, dateGames]) => (
@@ -9692,12 +9223,10 @@ function AdminContactEditor({ onBack }) {
 // through the public UI.
 //
 // Default starter set (used if the DB row doesn't exist yet) mirrors the
-// hardcoded DIV constant — Saturday + Boomers — so nothing ever looks empty.
+// hardcoded DIV constant — Saturday — so nothing ever looks empty.
 const DEFAULT_DIVISIONS = [
   { id: "sat", name: "Saturday Division (50's)", accent: "#002d6e", season: "Spring/Summer 2026", active: true,
     teams: ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"] },
-  { id: "bom", name: "Boomers 60/70", accent: "#7c3aed", season: "Boomers 2026", active: true,
-    teams: ["Eddie Murray Mashers '56","Greg Maddux Magicians '66"] },
 ];
 
 // ── Live divisions (Phase 2 read-side wiring) ────────────────────────────
@@ -9787,7 +9316,7 @@ function AdminDivisionsEditor({ onBack }) {
   };
 
   const reset = async () => {
-    if (!window.confirm("Reset divisions back to the Saturday + Boomers default? Any custom tournament divisions will be lost.")) return;
+    if (!window.confirm("Reset divisions back to the Saturday default? Any custom tournament divisions will be lost.")) return;
     setDivisions(DEFAULT_DIVISIONS);
   };
 
@@ -9826,7 +9355,7 @@ function AdminDivisionsEditor({ onBack }) {
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="Admin" title="Manage Divisions" subtitle="Define which teams group into which division (Saturday, Boomers, tournaments, etc.)" />
+      <PageHero label="Admin" title="Manage Divisions" subtitle="Define which teams group into which division (Saturday, tournaments, etc.)" />
       <div style={{maxWidth:760,margin:"0 auto",padding:"24px clamp(12px,3vw,32px) 80px"}}>
         <div style={{display:"flex",gap:10,marginBottom:18,flexWrap:"wrap",alignItems:"center"}}>
           <button onClick={onBack} style={btn("rgba(0,0,0,0.08)","#333")}>← Back</button>
@@ -9840,7 +9369,7 @@ function AdminDivisionsEditor({ onBack }) {
           </div>
         )}
         <div style={{background:"#ecfdf5",border:"1px solid #6ee7b7",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#065f46"}}>
-          <strong>✓ Live in: Weekly Email.</strong> Add a tournament division here, mark it active, and it'll appear as its own section in the next Weekly Email (with games + standings). Standings, Teams Directory, and the Home sidebar still use the hardcoded Saturday/Boomers grouping for now — those will migrate next.
+          <strong>✓ Live in: Weekly Email.</strong> Add a tournament division here, mark it active, and it'll appear as its own section in the next Weekly Email (with games + standings). Standings, Teams Directory, and the Home sidebar still use the hardcoded Saturday grouping for now — those will migrate next.
         </div>
         {loading ? <div style={{textAlign:"center",padding:40,color:"#aaa"}}>Loading…</div> : divisions.map((div, di) => (
           <div key={div.id || di} style={{background:"#fff",borderRadius:12,marginBottom:18,border:"1px solid rgba(0,0,0,0.08)",overflow:"hidden",borderTop:`3px solid ${div.accent || "#002d6e"}`}}>
@@ -10546,7 +10075,6 @@ function LocalStorageMigrationButton() {
       {key:"lbdc_fields",     label:"Field Directions", table:"lbdc_fields",     id:"main", field:"data"},
       {key:"lbdc_sponsors",   label:"Sponsors",         table:"lbdc_sponsors",   id:"main", field:"data"},
       {key:"lbdc_full_schedule",    label:"Saturday Schedule", table:"lbdc_schedules", id:"sat", field:"data"},
-      {key:"lbdc_boomers_schedule", label:"Boomers Schedule",  table:"lbdc_schedules", id:"bom", field:"data"},
       {key:"lbdc_alert",      label:"Alert Text",       table:"lbdc_alert",      id:"main", field:"text", raw:true},
     ];
     const contentKeys = [];
@@ -10652,9 +10180,7 @@ function PlayerAvailabilityPage({ setTab }) {
     if (!selectedTeam || !selectedPlayer) { setGames([]); setAvailability({}); return; }
     localStorage.setItem("avail_player", selectedPlayer);
     setLoading(true);
-    const isBoomers = BOOMERS_TEAMS.has(selectedTeam);
-    const schedKey = isBoomers ? "bom" : "sat";
-    sbFetch(`lbdc_schedules?id=eq.${schedKey}&select=data`).then(rows => {
+    sbFetch(`lbdc_schedules?id=eq.sat&select=data`).then(rows => {
       const data = rows && rows[0] ? rows[0].data : [];
       // Filter to this team's upcoming games
       const upcoming = data
@@ -10812,71 +10338,6 @@ function PlayerAvailabilityPage({ setTab }) {
 }
 
 // ─────────────────────────────────────────────
-//  BOOMERS RSVP MODAL
-// ─────────────────────────────────────────────
-function BoomersRSVPModal({ game, onClose }) {
-  const [awayRoster, setAwayRoster] = useState([]);
-  const [homeRoster, setHomeRoster] = useState([]);
-  const [avail, setAvail] = useState({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const enc = encodeURIComponent;
-    Promise.all([
-      sbFetch(`lbdc_rosters?select=name&team=eq.${enc(game.away)}&order=id.asc`),
-      sbFetch(`lbdc_rosters?select=name&team=eq.${enc(game.home)}&order=id.asc`),
-      sbFetch(`availability?select=player_name,team,status&game_id=eq.${enc(game.id)}`),
-    ]).then(([ar, hr, av]) => {
-      setAwayRoster((ar||[]).map(r => r.name));
-      setHomeRoster((hr||[]).map(r => r.name));
-      const map = {};
-      (av||[]).forEach(r => { map[`${r.team}||${r.player_name}`] = r.status; });
-      setAvail(map);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [game.id]);
-
-  const st = (team, name) => avail[`${team}||${name}`] || null;
-
-  const TeamBlock = ({ team, roster }) => {
-    const inP = roster.filter(p => st(team,p)==="yes");
-    const outP = roster.filter(p => st(team,p)==="no");
-    const unk = roster.filter(p => !st(team,p));
-    return (
-      <div>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#7c3aed",marginBottom:8,borderBottom:"2px solid #7c3aed",paddingBottom:4}}>{team.split(" ").slice(-2).join(" ")}</div>
-        {inP.length>0&&<div style={{marginBottom:8}}><div style={{fontSize:11,fontWeight:700,color:"#16a34a",textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>✅ In ({inP.length})</div>{inP.map(p=><div key={p} style={{fontSize:14,color:"#111",padding:"2px 0",fontWeight:500}}>{p}</div>)}</div>}
-        {outP.length>0&&<div style={{marginBottom:8}}><div style={{fontSize:11,fontWeight:700,color:"#dc2626",textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>❌ Out ({outP.length})</div>{outP.map(p=><div key={p} style={{fontSize:14,color:"rgba(0,0,0,0.4)",textDecoration:"line-through",padding:"2px 0"}}>{p}</div>)}</div>}
-        {unk.length>0&&<div><div style={{fontSize:11,fontWeight:700,color:"#9ca3af",textTransform:"uppercase",letterSpacing:".06em",marginBottom:3}}>❓ No response ({unk.length})</div>{unk.map(p=><div key={p} style={{fontSize:14,color:"rgba(0,0,0,0.3)",padding:"2px 0"}}>{p}</div>)}</div>}
-      </div>
-    );
-  };
-
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:14,maxWidth:580,width:"100%",overflow:"hidden",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <div style={{background:"#7c3aed",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:22,color:"#fff",textTransform:"uppercase"}}>👥 Who's Playing?</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,0.75)",marginTop:2}}>{game.away.split(" ").slice(-2).join(" ")} vs {game.home.split(" ").slice(-2).join(" ")} · {game.date}</div>
-          </div>
-          <button onClick={onClose} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:6,width:30,height:30,cursor:"pointer",fontSize:16}}>✕</button>
-        </div>
-        <div style={{padding:"16px"}}>
-          {loading
-            ? <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>Loading…</div>
-            : <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}><TeamBlock team={game.away} roster={awayRoster}/><TeamBlock team={game.home} roster={homeRoster}/></div>
-          }
-          <div style={{marginTop:14,padding:"8px 12px",background:"#f3f0ff",borderRadius:8,fontSize:12,color:"#7c3aed",fontWeight:600}}>
-            Availability set by captains in their admin portal. Contact your captain to update your status.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
 //  CAPTAIN AVAILABILITY VIEW (inside captain dashboard)
 // ─────────────────────────────────────────────
 function CaptainAvailabilityView({ teamName }) {
@@ -10889,11 +10350,9 @@ function CaptainAvailabilityView({ teamName }) {
 
   useEffect(() => {
     if (!teamName) return;
-    const isBoomers = BOOMERS_TEAMS.has(teamName);
-    const schedKey = isBoomers ? "bom" : "sat";
     Promise.all([
       sbFetch(`lbdc_rosters?select=name&team=eq.${encodeURIComponent(teamName)}&order=id.asc`),
-      sbFetch(`lbdc_schedules?id=eq.${schedKey}&select=data`),
+      sbFetch(`lbdc_schedules?id=eq.sat&select=data`),
     ]).then(([rosterRows, schedRows]) => {
       const players = rosterRows.map(r => r.name);
       setRoster(players);
@@ -11044,11 +10503,11 @@ function UmpireEvalForm({ teamName }) {
     return () => { alive = false; };
   }, []);
 
-  // Load THIS team's games from lbdc_schedules (sat + bom), chronological.
+  // Load THIS team's games from lbdc_schedules (sat), chronological.
   useEffect(() => {
     if (!teamName) return;
     let alive = true;
-    sbFetch("lbdc_schedules?id=in.(sat,bom)&select=id,data")
+    sbFetch("lbdc_schedules?id=eq.sat&select=id,data")
       .then(rows => {
         if (!alive) return;
         const all = (rows || []).flatMap(r => Array.isArray(r.data) ? r.data : []);
@@ -11470,7 +10929,6 @@ function AdminPage({ onAlertChange }) {
   }, []);
   const [adminGames, setAdminGames] = useState([]);
   const [adminGamesLoading, setAdminGamesLoading] = useState(false);
-  const [adminGamesLeague, setAdminGamesLeague] = useState(0); // 0=Saturday, 1=Boomers
   const [scoreEditId, setScoreEditId] = useState(null); // game id being inline-score-edited
   const [scoreEditAway, setScoreEditAway] = useState(""); const [scoreEditHome, setScoreEditHome] = useState("");
 
@@ -11540,22 +10998,16 @@ function AdminPage({ onAlertChange }) {
     if (screen === "admin") loadNews();
   }, [screen]);
 
-  const loadAdminGames = (leagueIdx = adminGamesLeague) => {
+  const loadAdminGames = () => {
     setAdminGamesLoading(true);
     sbFetch("seasons?select=id,name&limit=50")
       .then(async seasons => {
-        if (leagueIdx === 1) {
-          const s = seasons.find(x => x.name.toLowerCase().includes("boomers"));
-          if (!s) return [];
-          return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=eq.${s.id}&away_score=not.is.null&order=game_date.desc&limit=100`);
-        } else {
-          // Saturday league: collect all matching season IDs (both "Diamond Classics Saturdays" and "Spring/Summer 2026")
-          const satIds = seasons
-            .filter(x => x.name.includes("Diamond Classics Saturdays") || (x.name.includes("Spring") && x.name.includes("2026")))
-            .map(x => x.id);
-          if (!satIds.length) return [];
-          return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=100`);
-        }
+        // Saturday league: collect all matching season IDs (both "Diamond Classics Saturdays" and "Spring/Summer 2026")
+        const satIds = seasons
+          .filter(x => x.name.includes("Diamond Classics Saturdays") || (x.name.includes("Spring") && x.name.includes("2026")))
+          .map(x => x.id);
+        if (!satIds.length) return [];
+        return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=100`);
       })
       .then(games => { setAdminGames(games || []); setAdminGamesLoading(false); })
       .catch(() => setAdminGamesLoading(false));
@@ -12229,17 +11681,7 @@ function AdminPage({ onAlertChange }) {
             <div style={{padding:"16px 20px",borderBottom:"1px solid rgba(0,0,0,0.07)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
               <button type="button" onClick={()=>setQuickView(null)} style={{padding:"5px 12px",background:"rgba(0,0,0,0.07)",border:"none",borderRadius:6,fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back</button>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,textTransform:"uppercase",color:"#111"}}>🗂️ Manage Saved Games</div>
-              <div style={{display:"flex",gap:6,marginLeft:8}}>
-                {["Saturday","Boomers 60/70"].map((label,i) => (
-                  <button key={i} type="button" onClick={()=>{setAdminGamesLeague(i);loadAdminGames(i);}} style={{
-                    padding:"4px 12px",borderRadius:12,cursor:"pointer",border:"1px solid",fontWeight:700,fontSize:12,
-                    background:adminGamesLeague===i?"#002d6e":"#fff",
-                    color:adminGamesLeague===i?"#fff":"#555",
-                    borderColor:adminGamesLeague===i?"#002d6e":"rgba(0,0,0,0.15)",
-                  }}>{label}</button>
-                ))}
-              </div>
-              <button type="button" onClick={()=>loadAdminGames(adminGamesLeague)} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
+              <button type="button" onClick={()=>loadAdminGames()} style={{marginLeft:"auto",padding:"5px 12px",background:"rgba(0,45,110,0.07)",border:"1px solid rgba(0,45,110,0.2)",borderRadius:6,fontWeight:700,fontSize:12,color:"#002d6e",cursor:"pointer"}}>↻ Refresh</button>
             </div>
             <div style={{padding:"16px 20px"}}>
               {adminGamesLoading && <div style={{textAlign:"center",padding:30,color:"#888"}}>Loading…</div>}
@@ -12341,7 +11783,7 @@ function AdminPage({ onAlertChange }) {
                   {icon:"📜",title:"Edit Rules",desc:"Update Field Guide rules & sections",accent:"#002d6e",action:()=>setScreen("admin_rules")},
                   {icon:"📸",title:"Photos & Videos",desc:"Add or remove gallery items",accent:"#002d6e",action:()=>setScreen("admin_photos")},
                   {icon:"⚾",title:"Manage Teams",desc:"Add tournament or custom teams",accent:"#b45309",action:()=>setQuickView("teams")},
-                  {icon:"🏆",title:"Manage Divisions",desc:"Group teams into Saturday, Boomers, tournaments",accent:"#7c3aed",action:()=>setScreen("admin_divisions")},
+                  {icon:"🏆",title:"Manage Divisions",desc:"Group teams into Saturday, tournaments",accent:"#7c3aed",action:()=>setScreen("admin_divisions")},
                   {icon:"🤝",title:"Edit Sponsors",desc:"Add or remove sponsor cards",accent:"#002d6e",action:()=>setScreen("admin_sponsors")},
                   {icon:"🏟️",title:"Field Directions",desc:"Edit field notes and addresses",accent:"#002d6e",action:()=>setScreen("admin_fields")},
                   {icon:"📞",title:"Contact Info",desc:"Email, phone, Venmo, QR, credits",accent:"#002d6e",action:()=>setScreen("admin_contact")},
@@ -12829,7 +12271,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   // which is exactly the "revised schedule isn't visible" bug.
   const [liveSchedule, setLiveSchedule] = useState(null);
   useEffect(() => {
-    sbFetch("lbdc_schedules?id=in.(sat,bom)&select=id,data")
+    sbFetch("lbdc_schedules?id=eq.sat&select=id,data")
       .then(rows => {
         const merged = [];
         (rows || []).forEach(r => {
@@ -12841,7 +12283,6 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
   }, []);
   const staticGames = [
     ...SCHED.flatMap(w => w.fields.flatMap(f => f.games.map(g => ({ date:w.label, field:f.name, time:g.time, away:g.away, home:g.home })))),
-    ...BOOMERS_SCHED.map(g => ({ date:g.date, field:g.field, time:g.time, away:g.away, home:g.home })),
   ];
   // Chronological order: lbdc_schedules stores games in insertion order (the
   // bulk-appended Jun 27–Aug 15 games landed out of sequence), and Boomers +
@@ -13065,7 +12506,6 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
     ])
       .then(async ([seasons, metaRows]) => {
         const satIds = getSatSeasonFilter(seasons);
-        const bom = seasons.find(x=>x.name.toLowerCase().includes("boomers"));
         // Resolve tournament season_ids from lbdc_tournament_meta names.
         const metaNames = (metaRows?.[0]?.data || []).map(m => m.name).filter(Boolean);
         const tournSeasons = (seasons || []).filter(s => metaNames.includes(s.name));
@@ -13078,7 +12518,6 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
         // Include `innings` so selectSavedGame can repopulate the line-score grid +
         // hits/errors; include `season_id` so tournament_name can be restored.
         if (satIds.length) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings,season_id&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=50`));
-        if (bom) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings,season_id&season_id=eq.${bom.id}&away_score=not.is.null&order=game_date.desc&limit=50`));
         if (tournIds.length) fetches.push(sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline,innings,season_id&season_id=in.(${tournIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=100`));
         const results = await Promise.all(fetches);
         return results.flat().sort((a,b)=>b.game_date?.localeCompare(a.game_date||"")||0);
@@ -13419,11 +12858,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           seasonE = sid ? { id: sid } : null;
         } else {
           const allSeasonsE = await sbFetch("seasons?select=id,name&limit=50");
-          const isBoomerE = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
-          seasonE = isBoomerE
-            ? (allSeasonsE.find(s=>s.name.includes("Boomers"))||allSeasonsE.find(s=>s.name.toLowerCase().includes("boomers")))
-            : (allSeasonsE.find(s=>s.name.includes("Spring")&&s.name.includes("2026"))||allSeasonsE.find(s=>s.name.includes("Diamond Classics")));
-          if (!seasonE && !isBoomerE) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); seasonE=r[0]; }
+          seasonE = allSeasonsE.find(s=>s.name.includes("Spring")&&s.name.includes("2026"))||allSeasonsE.find(s=>s.name.includes("Diamond Classics"));
+          if (!seasonE) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); seasonE=r[0]; }
         }
         // Build the jsonb `innings` payload: per-team line score arrays plus
         // hits/errors totals. Manager flagged that filling these in the
@@ -13463,14 +12899,8 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           season = sid ? { id: sid } : null;
         } else {
           const allSeasons = await sbFetch("seasons?select=id,name&limit=50");
-          const isBoomerGame = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
-          if (isBoomerGame) {
-            season = allSeasons.find(s=>s.name.toLowerCase().includes("boomers"));
-            if(!season){const res=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=res?.[0];}
-          } else {
-            season = allSeasons.find(s=>s.name.includes("Diamond Classics Saturdays")||( s.name.includes("Spring")&&s.name.includes("2026")));
-            if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res?.[0];}
-          }
+          season = allSeasons.find(s=>s.name.includes("Diamond Classics Saturdays")||( s.name.includes("Spring")&&s.name.includes("2026")));
+          if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res?.[0];}
         }
         if(!season) throw new Error("Could not find or create a season record — please try again.");
         // Before inserting, check if a game already exists for the same date+teams+season
@@ -14369,10 +13799,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           // Try to find an existing saved game for this matchup+date
           try {
             const seasons = await sbFetch("seasons?select=id,name&limit=50");
-            const isBoomer = BOOMERS_TEAMS.has(game.away) && BOOMERS_TEAMS.has(game.home);
-            const season = isBoomer
-              ? seasons.find(s => s.name.toLowerCase().includes("boomers"))
-              : (seasons.find(s => s.name.includes("Diamond Classics Saturdays")) || seasons.find(s => s.name.includes("Spring") && s.name.includes("2026")));
+            const season = seasons.find(s => s.name.includes("Diamond Classics Saturdays")) || seasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
             if (!season) { alert("Couldn't find a season for this game."); return; }
             const iso = toISODate(game.date);
             const dateFilter = iso ? `&game_date=eq.${iso}` : "";
@@ -15581,7 +15008,6 @@ function Diamond({ bases, onBaseClick }) {
 function LiveScorerPage({ teamFilter=null, onExit=null }) {
   const [view, setView] = useState("pick");
   const [weekIdx, setWeekIdx] = useState(0);
-  const [liveLeague, setLiveLeague] = useState(() => BOOMERS_TEAMS.has(teamFilter) ? 1 : 0);
   const [gs, setGs] = useState(null);
   const [setupInfo, setSetupInfo] = useState(null);
   const [lineupStep, setLineupStep] = useState("away"); // will be set to captain's side on game select
@@ -15979,17 +15405,10 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     setSaving(true);
     try {
       const seasons=await sbFetch("seasons?select=id,name&limit=50");
-      const isBoomerGame=BOOMERS_TEAMS.has(gs.away)&&BOOMERS_TEAMS.has(gs.home);
       let season;
-      if(isBoomerGame){
-        season=seasons.find(s=>s.name==="2026 BOOMERS 60/70 Division")||seasons.find(s=>s.name.toLowerCase().includes("boomers"));
-        if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.2026%20BOOMERS%2060%2F70%20Division&limit=1`);season=byName?.[0];}
-        if(!season){const r=await sbPost("seasons",[{name:"2026 BOOMERS 60/70 Division"}]);season=r?.[0];}
-      }else{
-        season=seasons.find(s=>s.name==="Spring/Summer 2026 Diamond Classics Saturdays")||seasons.find(s=>s.name.includes("Diamond Classics"));
-        if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`);season=byName?.[0];}
-        if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r?.[0];}
-      }
+      season=seasons.find(s=>s.name==="Spring/Summer 2026 Diamond Classics Saturdays")||seasons.find(s=>s.name.includes("Diamond Classics"));
+      if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`);season=byName?.[0];}
+      if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r?.[0];}
       if(!season) throw new Error("Could not find or create season — please try again.");
       const _gsISODate = toISODate(gs.date) || null;
       const _gsDateFilter = _gsISODate ? `&game_date=eq.${_gsISODate}` : "";
@@ -16053,46 +15472,20 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
   };
 
   // ── PICK SCREEN ──
-  const boomersGames = BOOMERS_SCHED.filter(g => !teamFilter || g.away===teamFilter || g.home===teamFilter)
-    .map(g => ({away:g.away,home:g.home,field:g.field,time:g.time,date:g.date}));
-
   if (view==="pick") return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
       <PageHero label="Live Scoring" title="Score a Game" subtitle={teamFilter ? `${teamFilter} games · Select a game to start or resume` : "Select a game to start or resume scoring"}>
         {onExit && <button onClick={onExit} style={{marginTop:12,padding:"7px 16px",background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.3)",borderRadius:8,color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer"}}>← Back to Portal</button>}
       </PageHero>
       <div style={{maxWidth:680,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px"}}>
-        {/* League toggle */}
-        {!teamFilter && (
-          <div style={{display:"flex",gap:8,marginBottom:16}}>
-            {["Saturday Division","Boomers 60/70"].map((label,i)=>(
-              <button key={i} onClick={()=>setLiveLeague(i)} style={{
-                padding:"7px 18px",borderRadius:20,border:"none",cursor:"pointer",
-                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,textTransform:"uppercase",
-                background:liveLeague===i?"#002d6e":"rgba(0,0,0,0.07)",
-                color:liveLeague===i?"#fff":"#333",
-              }}>{label}</button>
-            ))}
-          </div>
-        )}
-
         {/* Saturday week pills */}
-        {liveLeague === 0 && (
-          <div style={{display:"flex",gap:8,marginBottom:18,overflowX:"auto",paddingBottom:4}}>
-            {SCHED.map((w,i)=>(
-              <button key={i} onClick={()=>setWeekIdx(i)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,background:weekIdx===i?"#002d6e":"rgba(0,0,0,0.07)",color:weekIdx===i?"#fff":"#333"}}>{w.label}</button>
-            ))}
-          </div>
-        )}
+        <div style={{display:"flex",gap:8,marginBottom:18,overflowX:"auto",paddingBottom:4}}>
+          {SCHED.map((w,i)=>(
+            <button key={i} onClick={()=>setWeekIdx(i)} style={{padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:13,background:weekIdx===i?"#002d6e":"rgba(0,0,0,0.07)",color:weekIdx===i?"#fff":"#333"}}>{w.label}</button>
+          ))}
+        </div>
 
-        {/* Boomers header */}
-        {liveLeague === 1 && (
-          <div style={{background:"#f3e8ff",border:"1px solid #d8b4fe",borderRadius:8,padding:"10px 16px",marginBottom:16,fontSize:13,color:"#6b21a8",fontWeight:700}}>
-            👴 Boomers 60/70 · All 2026 games
-          </div>
-        )}
-
-        {(liveLeague === 1 ? boomersGames : weekGames).map((g,i)=>{
+        {weekGames.map((g,i)=>{
           const saved=loadSaved(g.away,g.home,g.date);
           const isFinal=saved?.status==="final";
           const inProg=saved&&!isFinal;

@@ -8,6 +8,24 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-08-15]
+
+### Removed — the Boomers 60/70 division (abandoned experiment), everywhere
+
+Per Daniel: the Boomers division "never took hold" — removed it completely so the site is just the 8-team Saturday league (+ Tournaments).
+
+**Code (`src/App.jsx`, `api/schedule.ics.js`, `src/historyData.js`):** removed ~166 references — `BOOMERS_TEAMS`, `BOOMERS_SCHED`, `DIV.BOM`, `buildStaticBomWeeks`, the two Boomers teams from the color/logo maps, the 3 Boomers rules sections, and every `boomer*`/`bom*` state/branch/fetch/UI across HomePage, Ticker, ScoresPage, SchedulePage, StandingsPage, RulesPage, PlayerEligibilityPage, ManageSchedulePage, Manage-Saved-Games, LiveScorerPage, game-entry/save, TeamDetailPage, payment categories, and the iCal feed. The Saturday/Boomers/Tournaments tab bars on Scores & Schedule collapsed to Saturday + Tournaments (renumbered the Tournaments index). Build passes; browser-verified Home, Scores, Schedule, Standings, Rules, and admin Manage Schedule — no Boomers, no console errors, Tournaments still reachable.
+
+**Database:** deleted the Boomers season (`2026 BOOMERS 60/70 Division`) + its 3 experimental games (+32 stat lines), the `lbdc_schedules` "bom" blob, both Boomers team rosters (36 players), and 28 `player_payments` rows (`season='Boomers 2026'`). Also scrubbed the admin-edited rules (`lbdc_rules`): removed the 3 Boomers sections and the Boomers paragraph embedded in "Registration & Playoff Eligibility."
+
+**Also fixed while in the rules:** the DB-edited Rules page still showed the **$50** registration fee — the earlier $50→$75 change only touched the hardcoded fallback, not the admin-edited `lbdc_rules` copy the page actually renders. Corrected both fee mentions to **$75** (matches the commissioner's posted "first increase in 12 seasons" announcement).
+
+**Fall/Winter 2026-27:** teams carry over (same 8 rosters, untouched). Per Daniel (Option 2), NOT flipping the site to the new season yet — will create + activate Fall/Winter 2026-27 once he sends the finalized schedule, to avoid a duplicate "…Diamond Classics Saturdays" season colliding with the live Spring/Summer one.
+
+**Where:** `src/App.jsx`, `api/schedule.ics.js`, `src/historyData.js`; DB tables `seasons`, `games`, `batting_lines`, `pitching_lines`, `lbdc_schedules`, `lbdc_rosters`, `player_payments`, `lbdc_rules`.
+
+---
+
 ## [2026-08-09]
 
 ### Fixed — TWIB rejected scheme-less links + didn't embed http/non-www TikTok short links
