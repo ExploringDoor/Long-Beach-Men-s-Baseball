@@ -126,7 +126,7 @@ const TICKER_NAME = {
 
 const DIV = {
   SAT: {
-    name: "Spring/Summer 2026", accent: "#002d6e",
+    name: "Fall/Winter 2026-27", accent: "#002d6e",
     teams: [
       {seed:1,name:"Tribe",full:"Tribe",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
       {seed:2,name:"Pirates",full:"Pirates",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
@@ -290,9 +290,15 @@ const TEAM_CAL_ICS = {
 
 const SCORES = [
   {
+    season:"Fall/Winter 2026-27",
+    weeks:[
+      {week:"Games will appear here once entered", games:[]},
+    ]
+  },
+  {
     season:"Spring/Summer 2026",
     weeks:[
-      {week:"Season opens Apr 11, 2026", games:[]},
+      {week:"Games will appear here once entered", games:[]},
     ]
   },
 ];
@@ -2226,7 +2232,7 @@ function LiveBoxScoreFinalCard({ game, onTeamClick }) {
 }
 
 function ScoresPage({ setTab, setTeamDetail }) {
-  // Tab indices: 0=Spring/Summer 2026, 1=Tournaments
+  // Tab indices: 0=Fall/Winter 2026-27 (current, default), 1=Spring/Summer 2026, 2=Tournaments
   const [seasonIdx, setSeasonIdx] = useState(0);
   const [weekIdx, setWeekIdx] = useState(0);
   const [fwWeeks, setFwWeeks] = useState([]);
@@ -2235,8 +2241,9 @@ function ScoresPage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { setTeamDetail(name); setTab("teams"); window.scrollTo(0,0); };
   const season = SCORES[seasonIdx];
   const week = season?.weeks?.[weekIdx];
-  const isLive = seasonIdx === 0; // Spring/Summer (0) loads from Supabase
-  const isTourn = seasonIdx === 1; // Tournaments tab — loads by season_id, not team list
+  const tabLabel = SCORES[seasonIdx]?.season; // e.g. "Fall/Winter 2026-27" | "Spring/Summer 2026"
+  const isLive = seasonIdx < SCORES.length; // any Saturday season tab loads from Supabase
+  const isTourn = seasonIdx === SCORES.length; // Tournaments tab — loads by season_id, not team list
   const isFW = false;
   const [tournGroups, setTournGroups] = useState([]);
   const [tournLoading, setTournLoading] = useState(false);
@@ -2247,13 +2254,18 @@ function ScoresPage({ setTab, setTeamDetail }) {
     setFwLoading(true);
     setFwError(null);
     setFwWeeks([]);
-    // Filter by known team names instead of season lookup — avoids season record confusion
+    // Filter by known team names, then narrow to the selected Saturday season by
+    // season_id so the two Saturday tabs (Fall/Winter vs Spring/Summer) show
+    // distinct results. The season id is resolved from the tab's label.
     const satTeams = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
     const teamFilter = satTeams.map(t => `away_team.eq.${encodeURIComponent(t)}`).join(",");
-    Promise.resolve(
-      sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${teamFilter})&away_score=not.is.null&game_date=gte.2026-04-01&order=game_date.desc,id.desc&limit=200`)
-        .then(rows => rows.filter(g => satTeams.includes(g.away_team) && satTeams.includes(g.home_team)))
-    )
+    sbFetch("seasons?select=id,name&limit=50")
+      .then(seasons => {
+        const row = getSatSeasonRowByLabel(seasons, tabLabel);
+        const seasonFilter = row ? `&season_id=eq.${row.id}` : "";
+        return sbFetch(`games?select=id,game_date,game_time,home_team,away_team,home_score,away_score,field,status,headline&or=(${teamFilter})&away_score=not.is.null&game_date=gte.2026-04-01${seasonFilter}&order=game_date.desc,id.desc&limit=200`)
+          .then(rows => rows.filter(g => satTeams.includes(g.away_team) && satTeams.includes(g.home_team)));
+      })
       .then(games => {
         const deduped = dedupGames(games);
         const weekMap = {};
@@ -2280,7 +2292,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
   // predate April), group by tournament name. One-sided games render fine via
   // LiveBoxScoreFinalCard (opponent has no batting/pitching lines).
   useEffect(() => {
-    if (seasonIdx !== 1) return;
+    if (seasonIdx !== SCORES.length) return;
     setTournLoading(true);
     setTournGroups([]);
     Promise.all([
@@ -2347,7 +2359,7 @@ function ScoresPage({ setTab, setTeamDetail }) {
               <div style={{background:"#fff",borderRadius:12,padding:"48px",textAlign:"center",border:"1px solid rgba(0,0,0,0.09)"}}>
                 <div style={{fontSize:40,marginBottom:12}}>⚾</div>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:24,color:"#111",textTransform:"uppercase"}}>
-                  {seasonIdx===0 ? "Season starts April 11" : "No games found"}
+                  No games entered yet
                 </div>
                 <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:8}}>
                   {seasonIdx===0 ? "Box scores will appear here after games are entered." : "No game data was returned from the database."}
@@ -2753,17 +2765,20 @@ function StandingsPage({ setTab, setTeamDetail }) {
   const [histIdx, setHistIdx] = useState(0);
   const [liveTeams, setLiveTeams] = useState(null);
   const [loadingSat, setLoadingSat] = useState(true);
+  const [satLabel, setSatLabel] = useState(CUR_SAT.label); // "Fall/Winter 2026-27" | "Spring/Summer 2026"
   const div = DIV["SAT"];
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); } };
   const hist = STANDINGS_HISTORY[histIdx];
 
-  // Load Saturday standings
+  // Load Saturday standings for the selected Saturday season
   useEffect(() => {
+    setLoadingSat(true);
+    setLiveTeams(null);
     sbFetch("seasons?select=id,name&limit=50")
       .then(allSeasons => {
-        const satIds = getSatSeasonFilter(allSeasons);
-        if (!satIds.length) return null;
-        return sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&season_id=in.(${satIds.join(",")})&status=eq.Final&limit=200`);
+        const row = getSatSeasonRowByLabel(allSeasons, satLabel) || getCurSatSeasonRow(allSeasons);
+        if (!row) return null;
+        return sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&season_id=eq.${row.id}&status=eq.Final&limit=200`);
       })
       .then(rawGames => {
         if (!rawGames || !rawGames.length) return;
@@ -2795,7 +2810,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
       })
       .catch(()=>{})
       .finally(() => setLoadingSat(false));
-  }, []);
+  }, [satLabel]);
 
   const StandingsTable = ({ teams, accent="#002d6e" }) => {
     const leader = teams[0];
@@ -2870,6 +2885,18 @@ function StandingsPage({ setTab, setTeamDetail }) {
           </div>
 
           {view==="current" && <>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+              {[CUR_SAT.label, PREV_SAT.label].map((label) => (
+                <button key={label} onClick={()=>setSatLabel(label)} style={{
+                  padding:"6px 16px",borderRadius:20,cursor:"pointer",
+                  fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:12,
+                  letterSpacing:".04em",textTransform:"uppercase",
+                  background:satLabel===label?"#002d6e":"#fff",
+                  color:satLabel===label?"#fff":"#555",
+                  border:`1px solid ${satLabel===label?"#002d6e":"rgba(0,0,0,0.15)"}`,
+                }}>{label}</button>
+              ))}
+            </div>
             {loadingSat ? (
               <div style={{background:"#fff",border:"1px solid rgba(0,0,0,0.07)",borderRadius:10,padding:"40px 20px",textAlign:"center",color:"#888",fontSize:14}}>
                 <span style={{fontSize:24,display:"block",marginBottom:8}}>⚾</span>
@@ -2878,7 +2905,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
             ) : (<>
               {!liveTeams && (
                 <div style={{background:"#fff3cd",border:"1px solid #ffc107",borderRadius:8,padding:"12px 18px",marginBottom:20,fontSize:14,color:"#856404"}}>
-                  ⚾ <strong>Season opens April 11, 2026</strong> — standings will update after each week's games.
+                  ⚾ <strong>No games entered yet</strong> — standings will update after each week's games.
                 </div>
               )}
               {liveTeams && (
@@ -2988,9 +3015,9 @@ function PlayerStatsModal({ playerName, onClose }) {
           || (s.name.includes("Spring") && s.name.includes("2026") && !s.name.toLowerCase().includes("boomers"))
         );
         const curSatIds = new Set(allSeasonList.filter(isCurSat).map(s => s.id));
-        const curSatPrimary = allSeasonList.find(s => s.name === "Spring/Summer 2026") || allSeasonList.find(s => isCurSat(s));
+        const curSatPrimary = getCurSatSeasonRow(allSeasonList);
         if (curSatPrimary) setCurSeasonSid(curSatPrimary.id);
-        const curSatPrimaryName = curSatPrimary?.name || "Spring/Summer 2026";
+        const curSatPrimaryName = getCurSatSeasonRow(allSeasonList)?.name || CUR_SAT.name;
 
         // Canonical-game-per-gameKey, preferring current-Saturday over orphans.
         const canonicalByKey = {};
@@ -5750,7 +5777,7 @@ function PlayerSignUpPage() {
 
   return (
     <div style={{minHeight:"100vh",background:"#f2f4f8"}}>
-      <PageHero label="Spring/Summer 2026" title="Player Sign Up" subtitle="Get game reminders, score alerts & rainout notices straight to your phone or email" />
+      <PageHero label={CUR_SAT.label} title="Player Sign Up" subtitle="Get game reminders, score alerts & rainout notices straight to your phone or email" />
       {getPageContent("signup_intro") && <div style={{maxWidth:700,margin:"0 auto",padding:"16px clamp(12px,3vw,40px) 0"}} dangerouslySetInnerHTML={sanitizeHTML(getPageContent("signup_intro"))} />}
       <div style={{maxWidth:560,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px"}}>
         <div style={{background:"#fff",borderRadius:14,padding:"28px 24px",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
@@ -8357,7 +8384,7 @@ function ManageSchedulePage({ onBack }) {
 
 function WeeklyEmailPage({ onBack }) {
   const [copied, setCopied] = useState(false);
-  const [season, setSeason] = useState("Spring/Summer 2026");
+  const [season, setSeason] = useState(CUR_SAT.label);
   // Per-division data: { [divisionId]: { games: [...], standings: [...] } }
   const [divData, setDivData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -8406,7 +8433,7 @@ function WeeklyEmailPage({ onBack }) {
     };
 
     if (!divisions) return; // wait for divisions to load
-    setSeason("Spring/Summer 2026");
+    setSeason(CUR_SAT.label);
     // One sweep of all CURRENT-SEASON final games — we filter per-division
     // by team membership rather than season_id, so a tournament team's
     // games end up under that tournament's division automatically without
@@ -9233,7 +9260,7 @@ function AdminContactEditor({ onBack }) {
 // Default starter set (used if the DB row doesn't exist yet) mirrors the
 // hardcoded DIV constant — Saturday — so nothing ever looks empty.
 const DEFAULT_DIVISIONS = [
-  { id: "sat", name: "Saturday Division (50's)", accent: "#002d6e", season: "Spring/Summer 2026", active: true,
+  { id: "sat", name: "Saturday Division (50's)", accent: "#002d6e", season: "Fall/Winter 2026-27", active: true,
     teams: ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"] },
 ];
 
@@ -11010,10 +11037,10 @@ function AdminPage({ onAlertChange }) {
     setAdminGamesLoading(true);
     sbFetch("seasons?select=id,name&limit=50")
       .then(async seasons => {
-        // Saturday league: collect all matching season IDs (both "Diamond Classics Saturdays" and "Spring/Summer 2026")
-        const satIds = seasons
-          .filter(x => x.name.includes("Diamond Classics Saturdays") || (x.name.includes("Spring") && x.name.includes("2026")))
-          .map(x => x.id);
+        // Admin game manager spans BOTH the current and previous Saturday
+        // seasons, so during the season overlap admins can still find/edit the
+        // Spring/Summer playoff + championship games (not just Fall/Winter).
+        const satIds = [...new Set([getCurSatSeasonRow(seasons)?.id, getPrevSatSeasonRow(seasons)?.id].filter(v => v != null))];
         if (!satIds.length) return [];
         return sbFetch(`games?select=id,game_date,game_time,away_team,home_team,away_score,home_score,field,status,headline&season_id=in.(${satIds.join(",")})&away_score=not.is.null&order=game_date.desc&limit=100`);
       })
@@ -11828,19 +11855,40 @@ function AdminPage({ onAlertChange }) {
 const SB_URL = "https://vhovzpajuyphjatjlodo.supabase.co";
 const SB_KEY = "sb_publishable_btmQX9enbqeWvKPHLRVVgA_kdObTZxC";
 
-// Returns a Supabase filter string that matches ALL Saturday league season IDs
-// (games may live in "Spring/Summer 2026" OR "Spring/Summer 2026 Diamond Classics Saturdays")
-const getSatSeasonFilter = (seasons) => {
-  const ids = seasons
-    .filter(x => x.name.includes("Diamond Classics Saturdays") || (x.name.includes("Spring") && x.name.includes("2026")))
-    .map(x => x.id);
-  return ids;
-};
-const getSatSeason = (seasons) => {
-  // Prefer the more specific "Diamond Classics Saturdays" season for NEW inserts,
-  // but for reads always use getSatSeasonFilter to cover both
-  return seasons.find(x => x.name.includes("Diamond Classics Saturdays")) || seasons.find(x => x.name.includes("Spring") && x.name.includes("2026"));
-};
+// ── Active Saturday season ────────────────────────────────────────────────
+// ONE place decides which Saturday season the site treats as "current." To roll
+// to a new season: create its `seasons` row in the DB, then set CUR_SAT to it and
+// move the old one to PREV_SAT. Every read/insert resolves through the helpers
+// below (this replaced ~30 scattered name-matches — the old duplicate-season
+// landmine). Graceful: if the CUR_SAT row doesn't exist yet, everything falls
+// back to PREV_SAT, so this code is safe to deploy BEFORE the new row is created.
+const CUR_SAT  = { name: "Fall/Winter 2026-27 Diamond Classics Saturdays", label: "Fall/Winter 2026-27" };
+const PREV_SAT = { name: "Spring/Summer 2026 Diamond Classics Saturdays",  label: "Spring/Summer 2026" };
+// Saturday games dated ON/BEFORE this belong to PREV_SAT — covers the Spring/Summer
+// playoffs (8/22) + championship (9/12) that finish after Fall/Winter is activated.
+const SAT_CUTOVER_ISO = "2026-09-12";
+
+const _prevSatRow = (seasons) =>
+  seasons.find(s => s.name === PREV_SAT.name) ||
+  seasons.find(s => s.name.includes("Spring") && s.name.includes("2026") && !s.name.toLowerCase().includes("boomers"));
+const getCurSatSeasonRow = (seasons) =>
+  seasons.find(s => s.name === CUR_SAT.name) || _prevSatRow(seasons) ||
+  seasons.find(s => s.name.includes("Diamond Classics Saturdays"));
+const getPrevSatSeasonRow = (seasons) => _prevSatRow(seasons);
+
+// CURRENT-season reads (Home standings, default Scores/Standings/Stats, schedule
+// score overlay): the single current season id.
+const getSatSeasonFilter = (seasons) => { const s = getCurSatSeasonRow(seasons); return s ? [s.id] : []; };
+// The season to resolve a CURRENT-season game to (default inserts).
+const getSatSeason = (seasons) => getCurSatSeasonRow(seasons);
+// Route a game SAVE to the right season by its date (handles the overlap: the
+// Spring/Summer playoffs + championship stay in PREV_SAT even after the flip).
+const getSatSeasonForDate = (seasons, iso) =>
+  (iso && iso <= SAT_CUTOVER_ISO) ? (getPrevSatSeasonRow(seasons) || getCurSatSeasonRow(seasons)) : getCurSatSeasonRow(seasons);
+// Resolve a Saturday season row from a display label (Scores tabs / Standings toggle).
+const getSatSeasonRowByLabel = (seasons, label) =>
+  label === CUR_SAT.label ? getCurSatSeasonRow(seasons)
+  : label === PREV_SAT.label ? getPrevSatSeasonRow(seasons) : null;
 
 // Resolve-or-create a 'seasons' row for a tournament name.
 // Deterministic + race-tolerant: the read is ordered by id.asc so even if
@@ -12866,8 +12914,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           seasonE = sid ? { id: sid } : null;
         } else {
           const allSeasonsE = await sbFetch("seasons?select=id,name&limit=50");
-          seasonE = allSeasonsE.find(s=>s.name.includes("Spring")&&s.name.includes("2026"))||allSeasonsE.find(s=>s.name.includes("Diamond Classics"));
-          if (!seasonE) { const r=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`); seasonE=r[0]; }
+          seasonE = getSatSeasonForDate(allSeasonsE, toISODate(game.date));
         }
         // Build the jsonb `innings` payload: per-team line score arrays plus
         // hits/errors totals. Manager flagged that filling these in the
@@ -12907,8 +12954,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           season = sid ? { id: sid } : null;
         } else {
           const allSeasons = await sbFetch("seasons?select=id,name&limit=50");
-          season = allSeasons.find(s=>s.name.includes("Diamond Classics Saturdays")||( s.name.includes("Spring")&&s.name.includes("2026")));
-          if(!season){const res=await sbPost("seasons",[{name:"Spring/Summer 2026"}]);season=res?.[0];}
+          season = getSatSeasonForDate(allSeasons, toISODate(game.date));
         }
         if(!season) throw new Error("Could not find or create a season record — please try again.");
         // Before inserting, check if a game already exists for the same date+teams+season
@@ -13807,9 +13853,9 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
           // Try to find an existing saved game for this matchup+date
           try {
             const seasons = await sbFetch("seasons?select=id,name&limit=50");
-            const season = seasons.find(s => s.name.includes("Diamond Classics Saturdays")) || seasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
-            if (!season) { alert("Couldn't find a season for this game."); return; }
             const iso = toISODate(game.date);
+            const season = getSatSeasonForDate(seasons, iso);
+            if (!season) { alert("Couldn't find a season for this game."); return; }
             const dateFilter = iso ? `&game_date=eq.${iso}` : "";
             const existing = await sbFetch(`games?select=*&away_team=eq.${encodeURIComponent(game.away)}&home_team=eq.${encodeURIComponent(game.home)}&season_id=eq.${season.id}${dateFilter}&order=id.desc&limit=1`);
             if (!existing || !existing.length) {
@@ -14251,12 +14297,11 @@ function StatsPage() {
       const namesWithData = new Set(allSeasons.filter(s => seasonIdsWithData.has(s.id)).map(s => s.name));
       setSeasonsWithData(namesWithData);
 
-      // Default to "Spring/Summer 2026" (the simple-named season). The
-      // leaderboard fetch widens to both sat season IDs anyway, so picking
-      // the friendlier label here is safe.
-      const curSat = allSeasons.find(s => s.name === "Spring/Summer 2026")
-        || allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026") && !s.name.includes("Diamond"))
-        || allSeasons.find(s => s.name.includes("Diamond Classics Saturdays"));
+      // Default to the CURRENT Saturday season (Fall/Winter 2026-27), falling
+      // back to Spring/Summer if the new row doesn't exist yet. Each Saturday
+      // season is now distinct — the leaderboard fetch filters to the selected
+      // season's id only and does NOT merge the two.
+      const curSat = getCurSatSeasonRow(allSeasons);
       setSeason(curSat ? curSat.name : ALL_SEASONS_KEY);
     }).catch(() => {});
   }, []);
@@ -14287,18 +14332,13 @@ function StatsPage() {
           })
       : sbFetch(`seasons?select=id,name&limit=100`)
           .then(allSeasons => {
-            // Accept both "Diamond Classics Saturdays" and "Spring/Summer 2026"
-            // as the current Saturday season — games may live under either sid.
+            // Filter to the SELECTED season's id ONLY. Fall/Winter 2026-27 and
+            // Spring/Summer 2026 are now DISTINCT Saturday seasons and must not
+            // be merged into one leaderboard.
             const sel = allSeasons.find(s => s.name === season);
-            let seasonIds = [];
-            if (sel) seasonIds = [sel.id];
-            const isCurSat = sel && (sel.name.includes("Diamond Classics Saturdays") || (sel.name.includes("Spring") && sel.name.includes("2026")));
-            if (isCurSat) {
-              const companion = allSeasons.find(s => s.id !== sel.id && (s.name.includes("Diamond Classics Saturdays") || (s.name.includes("Spring") && s.name.includes("2026"))));
-              if (companion) seasonIds.push(companion.id);
-            }
+            let seasonIds = sel ? [sel.id] : [];
             if (!seasonIds.length) {
-              const fallback = allSeasons.find(s => s.name.includes("Diamond Classics Saturdays")) || allSeasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
+              const fallback = getCurSatSeasonRow(allSeasons);
               if (!fallback) throw new Error(`Season not found: ${season}`);
               seasonIds = [fallback.id];
             }
@@ -14565,19 +14605,21 @@ function StatsPage() {
       const seasonNameMap = Object.fromEntries(seasonList.map(s => [s.id, s.name||s.year]));
       const seasonYearMap = Object.fromEntries(seasonList.map(s => [s.id, s.year||0]));
       const gameMap = Object.fromEntries(dedupedGames.map(g => [g.id, g]));
-      // For aggregation, "current Saturday" rolls all curSatIds into one bucket
-      // so it doesn't display two separate "Spring/Summer 2026" rows.
-      const curSatPrimary = allSeasonList.find(s => s.name === "Spring/Summer 2026")
-        || allSeasonList.find(s => isCurSat(s));
+      // Which season is "current" (for highlighting / projected pace) — the
+      // active Saturday season (Fall/Winter now; falls back to Spring/Summer).
+      const curSatPrimary = getCurSatSeasonRow(allSeasonList);
       const curSatPrimarySid = curSatPrimary?.id;
-      const curSatPrimaryName = curSatPrimary?.name || "Spring/Summer 2026";
 
       // Group lines by season
       const bySeasonId = {};
       const linesByGameId = {};
       const ensureSeason = (rawSid) => {
-        const sid = curSatIds.has(rawSid) && curSatPrimarySid ? curSatPrimarySid : rawSid;
-        const sname = curSatIds.has(rawSid) ? curSatPrimaryName : (seasonNameMap[rawSid]||"?");
+        // Group by the real season id — Spring/Summer 2026 and Fall/Winter
+        // 2026-27 are DISTINCT seasons and must each be their own row (no
+        // merging). Strip the "Diamond Classics Saturdays" suffix for a clean
+        // label ("Spring/Summer 2026" / "Fall/Winter 2026-27").
+        const sid = rawSid;
+        const sname = (seasonNameMap[rawSid]||"?").replace(/\s+Diamond Classics Saturdays$/, "");
         if (!bySeasonId[sid]) bySeasonId[sid] = { sid, name: sname, year: seasonYearMap[rawSid]||0, games: new Set(), ab:0,r:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,hbp:0,sf:0,sb:0 };
         return bySeasonId[sid];
       };
@@ -15413,10 +15455,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
     setSaving(true);
     try {
       const seasons=await sbFetch("seasons?select=id,name&limit=50");
-      let season;
-      season=seasons.find(s=>s.name==="Spring/Summer 2026 Diamond Classics Saturdays")||seasons.find(s=>s.name.includes("Diamond Classics"));
-      if(!season){const byName=await sbFetch(`seasons?select=id,name&name=eq.${encodeURIComponent("Spring/Summer 2026 Diamond Classics Saturdays")}&limit=1`);season=byName?.[0];}
-      if(!season){const r=await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]);season=r?.[0];}
+      const season=getSatSeasonForDate(seasons, toISODate(gs.date));
       if(!season) throw new Error("Could not find or create season — please try again.");
       const _gsISODate = toISODate(gs.date) || null;
       const _gsDateFilter = _gsISODate ? `&game_date=eq.${_gsISODate}` : "";
@@ -15688,8 +15727,7 @@ function LiveScorerPage({ teamFilter=null, onExit=null }) {
       setBsSaving(true);
       try {
         const seasons = await sbFetch("seasons?select=id,name&limit=100");
-        let season = seasons.find(s => s.name.includes("Diamond Classics Saturdays")) || seasons.find(s => s.name.includes("Spring") && s.name.includes("2026"));
-        if (!season) { const r = await sbPost("seasons",[{name:"Spring/Summer 2026 Diamond Classics Saturdays"}]); season=r?.[0]; }
+        const season = getSatSeasonForDate(seasons, toISODate(g.date));
         if (!season) throw new Error("Could not find or create season — please try again.");
         const _gISODate = toISODate(g.date) || null;
         const _gDateFilter = _gISODate ? `&game_date=eq.${_gISODate}` : "";

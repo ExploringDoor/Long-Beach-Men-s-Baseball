@@ -8,6 +8,31 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-08-22]
+
+### Changed — Activated the Fall/Winter 2026-27 season (rolled over from Spring/Summer 2026), with overlap handling
+
+Daniel: activate Fall/Winter while keeping Spring/Summer + the championship fully accessible during the overlap (playoffs 8/22 done, championship 9/12 pending).
+
+**Single source of truth (fixes the season-resolution landmine permanently):** replaced ~30 scattered "resolve the Saturday season by name" sites with one config + helper set (`CUR_SAT` / `PREV_SAT` / `SAT_CUTOVER_ISO` and `getCurSatSeasonRow` / `getPrevSatSeasonRow` / `getSatSeasonFilter` / `getSatSeasonForDate` / `getSatSeasonRowByLabel`). Rolling to a future season is now a one-line change. Built with a graceful fallback so the code was safe to deploy before the new `seasons` row existed.
+
+**Overlap handling — games route to the right season by DATE:** all 5 game-save paths now use `getSatSeasonForDate(seasons, isoDate)` — games dated on/before **2026-09-12** stay in **Spring/Summer 2026**, later games go to **Fall/Winter 2026-27**. So the championship (9/12) and playoffs (8/22) still count for Spring/Summer even after the flip, while new fall games land in Fall/Winter. Verified against the live DB.
+
+**Spring/Summer stays fully accessible:**
+- **Scores** → tabs: Fall/Winter 2026-27 (default) · Spring/Summer 2026 · Tournaments.
+- **Standings** → Fall/Winter / Spring/Summer toggle.
+- **Stats** → defaults to Fall/Winter; Spring/Summer (all 166 players) still in the dropdown, kept **separate** (no cross-season merge; also fixed the player-profile per-season breakdown to stop merging/mislabeling the two seasons).
+- **Admin → Manage Saved Games** spans both seasons so the championship stays editable.
+- **Home / team pages** default to the current (Fall/Winter) season.
+
+**Labels** updated to the current season where they mean "this season" (division name, sign-up hero, schedule-manager header, etc.); left data keys (payments) and the Spring/Summer tab entries alone. Tidied stale "Season opens April 11" empty-state text.
+
+**DB:** created `seasons` row "Fall/Winter 2026-27 Diamond Classics Saturdays" (id 42, year 2027). Fall/Winter schedule starts empty for Daniel to fill in via Manage Schedule (TBD teams/times/fields supported); the Spring/Summer schedule + playoffs + championship are untouched. Reverting the flip = delete that one row.
+
+**Where:** `src/App.jsx` — season config/helpers (~11833), 5 save paths, Scores/Standings/Stats, TeamDetail, loadAdminGames, labels. DB: `seasons`.
+
+---
+
 ## [2026-08-16]
 
 ### Added — Playoff (8/22) + Championship (9/12) games on the schedule, with round badges
