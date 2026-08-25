@@ -8,6 +8,23 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-08-23]
+
+### Added — Players Forum (suggestion box the whole league votes on)
+
+Built from a player's suggestion (relayed by Daniel): a place where every rostered player posts ONE suggestion and the league votes on all of them.
+
+- **`PlayersForumPage`** + `/forum` route. Player identifies themselves (pick team → name from the roster, remembered on the device), posts **one** suggestion (enforced), and votes on everyone's. Suggestions are ranked by votes. Each player can toggle a 👍 vote on any suggestion (one vote per player per suggestion). Own suggestion is editable/deletable; "Not you?" switches identity.
+- **Disclaimers baked in** (the two the player asked for): "voting does not guarantee any suggestion will be implemented — but every one will be considered, and everyone can see how the whole league feels," and "this isn't a perfect system, but it's the best we could put together on short notice."
+- **Welcome-page access:** a prominent gold-accented "Players Forum — Have Your Say" card at the top of the Home content column (player-facing), plus a "💡 Players Forum" entry in the More menu.
+- **No DB setup:** stored as a jsonb blob under `lbdc_schedules` id="forum" (same store as field_fees); writes re-read the latest blob first to minimize lost updates. Works immediately.
+
+Verified end-to-end against the live DB: identity gate, post (one-per-player), vote/unvote (1→0→1, persisted), ranking, disclaimers, Home card + nav. No console errors. Test data cleaned up.
+
+**Where:** `src/App.jsx` — `PlayersForumPage`, `/forum` route, `moreLinks`, Home welcome card. DB: `lbdc_schedules` id="forum" (created on first post).
+
+---
+
 ## [2026-08-22]
 
 ### Changed — Activated the Fall/Winter 2026-27 season (rolled over from Spring/Summer 2026), with overlap handling

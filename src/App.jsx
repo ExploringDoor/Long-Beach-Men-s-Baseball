@@ -1129,7 +1129,7 @@ function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["payments","💳 Payments"],["admin","⚙ Admin"]];
-  const moreLinks = [["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"],["contact","📞 Contact"]];
+  const moreLinks = [["forum","💡 Players Forum"],["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"],["contact","📞 Contact"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
   useEffect(() => {
@@ -1732,6 +1732,15 @@ function HomePage({ setTab, setTeamDetail }) {
       <div style={{maxWidth:1400,margin:"0 auto",padding:"28px clamp(12px,3vw,40px) 60px",width:"100%",boxSizing:"border-box"}}>
         <div className="home-two-col" style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:32,alignItems:"start",minWidth:0}}>
           <div style={{minWidth:0,overflow:"hidden"}}>
+            {/* Players Forum — prominent, player-facing entry on the welcome page */}
+            <button onClick={()=>setTab("forum")} style={{width:"100%",textAlign:"left",border:"none",cursor:"pointer",background:"linear-gradient(90deg,#002d6e 0%,#0f5ca8 100%)",borderRadius:14,padding:"16px 20px",marginBottom:24,boxShadow:"0 4px 14px rgba(0,45,110,0.25)",borderLeft:"4px solid #FFC107",display:"flex",alignItems:"center",gap:16}}>
+              <span style={{fontSize:34,flexShrink:0}}>💡</span>
+              <span style={{flex:1,minWidth:0}}>
+                <span style={{display:"block",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(18px,2.6vw,22px)",textTransform:"uppercase",letterSpacing:".03em",color:"#fff",lineHeight:1.1}}>Players Forum — Have Your Say</span>
+                <span style={{display:"block",fontSize:"clamp(12px,1.6vw,14px)",color:"rgba(255,255,255,0.9)",marginTop:3,fontWeight:600,lineHeight:1.3}}>Post one suggestion and vote on everyone else's. Every idea gets considered.</span>
+              </span>
+              <span style={{flexShrink:0,background:"#FFC107",color:"#3a2e00",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:14,textTransform:"uppercase",padding:"8px 14px",borderRadius:999,whiteSpace:"nowrap"}}>Open →</span>
+            </button>
             {newsItems.length > 0 && (
               <div style={{marginBottom:32}}>
                 <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:14}}>
@@ -5959,6 +5968,214 @@ function Footer({ setTab }) {
           ))}
         </div>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:12,color:"rgba(255,255,255,0.25)"}}>© 2026 Long Beach Diamond Classics &nbsp;·&nbsp; Powered by <a href="https://mainline-webdesign.com/" target="_blank" rel="noopener noreferrer" style={{color:"rgba(255,255,255,0.35)",textDecoration:"none"}}>Mainline Web Design</a></div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── PLAYERS FORUM ──────────────────────────────────────────────────────────
+   A suggestion box the whole league votes on. Any rostered player identifies
+   themselves (pick team → name, remembered on this device), posts ONE
+   suggestion, and votes on everyone's. Stored as a jsonb blob under
+   lbdc_schedules id="forum" (same store as field_fees) so it works with no DB
+   setup. Writes re-read the latest blob first to minimize lost updates. */
+function PlayersForumPage({ setTab }) {
+  const [me, setMe] = useState(() => { try { return JSON.parse(localStorage.getItem("lbdc_forum_me") || "null"); } catch { return null; } });
+  const [rosters, setRosters] = useState(null);           // { team: [names] }
+  const [pickTeam, setPickTeam] = useState("");
+  const [pickName, setPickName] = useState("");
+  const [suggestions, setSuggestions] = useState(null);   // null = loading
+  const [text, setText] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const playerKey = (name, team) => `${(team || "").trim().toLowerCase()}|${matchKey(name)}`;
+  const myKey = me ? playerKey(me.name, me.team) : null;
+
+  useEffect(() => {
+    sbFetch("lbdc_rosters?select=name,team&limit=2000").then(rows => {
+      const byTeam = {};
+      (rows || []).forEach(r => { if (!r.team || !r.name) return; (byTeam[r.team] = byTeam[r.team] || []).push(cleanName(r.name)); });
+      Object.keys(byTeam).forEach(t => { byTeam[t] = [...new Set(byTeam[t])].sort((a, b) => a.localeCompare(b)); });
+      setRosters(byTeam);
+    }).catch(() => setRosters({}));
+    loadForum();
+  }, []);
+
+  const loadForum = () => sbFetch("lbdc_schedules?id=eq.forum&select=data")
+    .then(rows => { const d = rows?.[0]?.data; setSuggestions(Array.isArray(d?.suggestions) ? d.suggestions : []); })
+    .catch(() => setSuggestions([]));
+
+  // Re-read the latest blob, apply `mutate`, write it back.
+  const persist = async (mutate) => {
+    setBusy(true); setMsg(null);
+    try {
+      const rows = await sbFetch("lbdc_schedules?id=eq.forum&select=data");
+      const latest = Array.isArray(rows?.[0]?.data?.suggestions) ? rows[0].data.suggestions : [];
+      const next = mutate(latest.map(s => ({ ...s, votes: [...(s.votes || [])] })));
+      await sbUpsert("lbdc_schedules", { id: "forum", data: { suggestions: next } });
+      setSuggestions(next);
+      setBusy(false); return true;
+    } catch (e) { setBusy(false); setMsg({ ok: false, text: "Something went wrong — please try again." }); return false; }
+  };
+
+  const mySuggestion = me && suggestions ? suggestions.find(s => playerKey(s.name, s.team) === myKey) : null;
+
+  const confirmMe = () => {
+    if (!pickTeam || !pickName) return;
+    const m = { name: pickName, team: pickTeam };
+    localStorage.setItem("lbdc_forum_me", JSON.stringify(m)); setMe(m);
+  };
+  const switchMe = () => { localStorage.removeItem("lbdc_forum_me"); setMe(null); setPickTeam(""); setPickName(""); setEditing(false); };
+
+  const submitSuggestion = async () => {
+    if (!text.trim() || !me || mySuggestion) return;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const ok = await persist(list => {
+      if (list.some(s => playerKey(s.name, s.team) === myKey)) return list; // guard: already have one
+      return [...list, { id, name: me.name, team: me.team, text: text.trim(), created: Date.now(), votes: [myKey] }];
+    });
+    if (ok) { setText(""); setMsg({ ok: true, text: "✅ Your suggestion is posted!" }); }
+  };
+  const saveEdit = async () => {
+    if (!mySuggestion || !editText.trim()) return;
+    await persist(list => list.map(s => (s.id === mySuggestion.id && playerKey(s.name, s.team) === myKey) ? { ...s, text: editText.trim() } : s));
+    setEditing(false);
+  };
+  const deleteSuggestion = async () => {
+    if (!mySuggestion || !window.confirm("Remove your suggestion?")) return;
+    await persist(list => list.filter(s => !(s.id === mySuggestion.id && playerKey(s.name, s.team) === myKey)));
+  };
+  const toggleVote = async (sid) => {
+    if (!me) return;
+    await persist(list => list.map(s => {
+      if (s.id !== sid) return s;
+      const votes = s.votes || [];
+      return { ...s, votes: votes.includes(myKey) ? votes.filter(k => k !== myKey) : [...votes, myKey] };
+    }));
+  };
+
+  const sorted = (suggestions || []).slice().sort((a, b) => (b.votes?.length || 0) - (a.votes?.length || 0) || (b.created || 0) - (a.created || 0));
+  const teamOptions = rosters ? Object.keys(rosters).sort() : [];
+  const inputStyle = { width: "100%", padding: "12px 14px", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 10, fontSize: 15, boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
+      <PageHero label="Diamond Classics · Players" title="Players Forum" subtitle="Share one idea. Vote on everyone else's. Let the whole league be heard." />
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px clamp(12px,3vw,40px) 60px" }}>
+
+        {/* How it works / disclaimers (points 5 & 6) */}
+        <div style={{ background: "#fff8e1", border: "1px solid #ffe08a", borderLeft: "4px solid #FFC107", borderRadius: 10, padding: "14px 18px", marginBottom: 20, fontSize: 14, lineHeight: 1.6, color: "#4a3b00" }}>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 16, textTransform: "uppercase", marginBottom: 4 }}>💡 How this works</div>
+          Every rostered player can post <b>one suggestion</b> and vote on everyone else's. Voting on suggestions <b>does not guarantee</b> any of them will be implemented — but every one will be <b>considered</b>, and this way everyone on every team can see how the whole league feels about each idea.
+          <div style={{ marginTop: 8, fontStyle: "italic", color: "#6b5600" }}>This isn't a perfect system, but it's the best we could put together on short notice — thanks for chiming in!</div>
+        </div>
+
+        {/* Identity gate */}
+        {!me ? (
+          <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 14, padding: "24px 22px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 20, textTransform: "uppercase", color: "#002d6e", marginBottom: 4 }}>Who are you?</div>
+            <div style={{ fontSize: 13, color: "rgba(0,0,0,0.5)", marginBottom: 16 }}>Pick your team and name so we can log your suggestion and votes (rostered players only). We'll remember you on this device.</div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Your Team</label>
+              <select value={pickTeam} onChange={e => { setPickTeam(e.target.value); setPickName(""); }} style={inputStyle}>
+                <option value="">— Select your team —</option>
+                {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", display: "block", marginBottom: 5 }}>Your Name</label>
+              <select value={pickName} onChange={e => setPickName(e.target.value)} disabled={!pickTeam} style={{ ...inputStyle, opacity: pickTeam ? 1 : 0.5 }}>
+                <option value="">{pickTeam ? "— Select your name —" : "Pick a team first"}</option>
+                {(rosters?.[pickTeam] || []).map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={confirmMe} disabled={!pickTeam || !pickName}
+              style={{ width: "100%", padding: "14px", background: (pickTeam && pickName) ? "#002d6e" : "#9ca3af", border: "none", borderRadius: 10, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 18, textTransform: "uppercase", letterSpacing: ".05em", cursor: (pickTeam && pickName) ? "pointer" : "default" }}>
+              Enter the Forum ⚾
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, fontSize: 13, color: "rgba(0,0,0,0.6)" }}>
+              <span>Posting & voting as <b>{me.name}</b> · {me.team}</span>
+              <button type="button" onClick={switchMe} style={{ background: "none", border: "none", color: "#002d6e", fontWeight: 700, fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>Not you?</button>
+            </div>
+
+            {/* Your one suggestion */}
+            <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 14, padding: "18px 18px 20px", marginBottom: 22, boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
+              <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 18, textTransform: "uppercase", color: "#111", marginBottom: 10 }}>Your Suggestion</div>
+              {mySuggestion ? (
+                editing ? (
+                  <div>
+                    <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      <button type="button" onClick={saveEdit} disabled={busy} style={{ padding: "9px 18px", background: "#16a34a", border: "none", borderRadius: 8, color: "#fff", fontWeight: 800, cursor: "pointer" }}>Save</button>
+                      <button type="button" onClick={() => setEditing(false)} disabled={busy} style={{ padding: "9px 16px", background: "rgba(0,0,0,0.08)", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: 15, color: "#111", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{mySuggestion.text}</div>
+                    <div style={{ display: "flex", gap: 14, marginTop: 12 }}>
+                      <button type="button" onClick={() => { setEditText(mySuggestion.text); setEditing(true); }} style={{ background: "none", border: "none", color: "#002d6e", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>✏️ Edit</button>
+                      <button type="button" onClick={deleteSuggestion} disabled={busy} style={{ background: "none", border: "none", color: "#dc2626", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🗑 Delete</button>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <div>
+                  <textarea value={text} onChange={e => setText(e.target.value)} rows={3} maxLength={400} placeholder="What's your one idea to make the league / site better?" style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+                    <button type="button" onClick={submitSuggestion} disabled={!text.trim() || busy} style={{ padding: "11px 22px", background: (text.trim() && !busy) ? "#002d6e" : "#9ca3af", border: "none", borderRadius: 8, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, textTransform: "uppercase", cursor: (text.trim() && !busy) ? "pointer" : "default" }}>{busy ? "Posting…" : "Post My Suggestion"}</button>
+                    <span style={{ fontSize: 12, color: "rgba(0,0,0,0.4)" }}>One per player</span>
+                  </div>
+                </div>
+              )}
+              {msg && <div style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: msg.ok ? "#16a34a" : "#dc2626" }}>{msg.text}</div>}
+            </div>
+
+            {/* All suggestions, ranked by votes */}
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+              <h2 style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 26, textTransform: "uppercase", color: "#111" }}>All Suggestions</h2>
+              <span style={{ fontSize: 13, color: "rgba(0,0,0,0.4)" }}>{sorted.length} total · sorted by votes</span>
+            </div>
+            {suggestions === null ? (
+              <div style={{ textAlign: "center", padding: 40, color: "rgba(0,0,0,0.4)" }}>Loading…</div>
+            ) : sorted.length === 0 ? (
+              <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "36px 20px", textAlign: "center", color: "rgba(0,0,0,0.45)" }}>
+                <div style={{ fontSize: 34, marginBottom: 10 }}>💭</div>No suggestions yet — be the first!
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {sorted.map((s, i) => {
+                  const votes = s.votes || [];
+                  const voted = votes.includes(myKey);
+                  const mine = playerKey(s.name, s.team) === myKey;
+                  return (
+                    <div key={s.id || i} style={{ background: "#fff", border: `1px solid ${voted ? "rgba(0,45,110,0.35)" : "rgba(0,0,0,0.09)"}`, borderRadius: 12, padding: "14px 16px", display: "flex", gap: 14, alignItems: "flex-start", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <button type="button" onClick={() => toggleVote(s.id)} disabled={busy}
+                        title={voted ? "Remove your vote" : "Vote for this"}
+                        style={{ flexShrink: 0, width: 62, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${voted ? "#002d6e" : "rgba(0,0,0,0.15)"}`, background: voted ? "#002d6e" : "#fff", color: voted ? "#fff" : "#002d6e", cursor: busy ? "wait" : "pointer" }}>
+                        <span style={{ fontSize: 18, lineHeight: 1 }}>{voted ? "👍" : "👍🏻"}</span>
+                        <span style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 20, lineHeight: 1 }}>{votes.length}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", opacity: 0.8 }}>{votes.length === 1 ? "vote" : "votes"}</span>
+                      </button>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 15, color: "#111", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{s.text}</div>
+                        <div style={{ fontSize: 12, color: "rgba(0,0,0,0.45)", marginTop: 6 }}>
+                          — {s.name}{s.team ? ` · ${s.team}` : ""}{mine ? " (you)" : ""}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -16767,6 +16984,7 @@ export default function App() {
       <div style={{width:"100%",overflow:"hidden"}}><Ticker setTab={handleSetTab} /></div>
       <div style={{position:"sticky",top:0,zIndex:300,width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
+      {tab==="forum"     && <PlayersForumPage setTab={handleSetTab} />}
       {tab==="scores"    && <ScoresPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="schedule"     && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="tournaments"  && <TournamentsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
