@@ -5990,9 +5990,16 @@ function PlayersForumPage({ setTab }) {
   const [editText, setEditText] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  // Commissioner moderation — enabled when logged in as admin (flag set at admin login).
+  const [isAdmin] = useState(() => { try { return sessionStorage.getItem("lbdc_admin") === "1"; } catch { return false; } });
 
   const playerKey = (name, team) => `${(team || "").trim().toLowerCase()}|${matchKey(name)}`;
   const myKey = me ? playerKey(me.name, me.team) : null;
+  // The 8 Saturday-league teams — the forum is for THEM (tournament-team rosters
+  // are guests and don't count toward the league's voter pool).
+  const SAT_TEAM_NAMES = ["Tribe", "Pirates", "Titans", "Brooklyn", "Generals", "Black Sox", "Leones", "Indios"];
+  // Eligible voters = distinct players across the 8 Saturday teams → "X of N support".
+  const totalPlayers = rosters ? new Set(SAT_TEAM_NAMES.flatMap(t => rosters[t] || []).map(n => matchKey(n))).size : 0;
 
   useEffect(() => {
     sbFetch("lbdc_rosters?select=name,team&limit=2000").then(rows => {
@@ -6056,9 +6063,14 @@ function PlayersForumPage({ setTab }) {
       return { ...s, votes: votes.includes(myKey) ? votes.filter(k => k !== myKey) : [...votes, myKey] };
     }));
   };
+  // Admin/commissioner: remove any suggestion (moderation).
+  const adminRemove = async (sid) => {
+    if (!window.confirm("Remove this suggestion from the forum?")) return;
+    await persist(list => list.filter(s => s.id !== sid));
+  };
 
   const sorted = (suggestions || []).slice().sort((a, b) => (b.votes?.length || 0) - (a.votes?.length || 0) || (b.created || 0) - (a.created || 0));
-  const teamOptions = rosters ? Object.keys(rosters).sort() : [];
+  const teamOptions = rosters ? SAT_TEAM_NAMES.filter(t => rosters[t]) : [];
   const inputStyle = { width: "100%", padding: "12px 14px", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 10, fontSize: 15, boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
 
   return (
@@ -6165,8 +6177,14 @@ function PlayersForumPage({ setTab }) {
                       </button>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: 15, color: "#111", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{s.text}</div>
-                        <div style={{ fontSize: 12, color: "rgba(0,0,0,0.45)", marginTop: 6 }}>
-                          — {s.name}{s.team ? ` · ${s.team}` : ""}{mine ? " (you)" : ""}
+                        {totalPlayers > 0 && (
+                          <div style={{ fontSize: 12, color: "#002d6e", fontWeight: 700, marginTop: 6 }}>
+                            👍 {votes.length} of ~{totalPlayers} players support this
+                          </div>
+                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 12, color: "rgba(0,0,0,0.45)" }}>— {s.name}{s.team ? ` · ${s.team}` : ""}{mine ? " (you)" : ""}</span>
+                          {isAdmin && <button type="button" onClick={() => adminRemove(s.id)} disabled={busy} style={{ background: "none", border: "none", color: "#dc2626", fontWeight: 700, fontSize: 12, cursor: "pointer", padding: 0 }}>🗑 Remove (admin)</button>}
                         </div>
                       </div>
                     </div>
@@ -11352,10 +11370,10 @@ function AdminPage({ onAlertChange }) {
             </div>
             <input type="password" placeholder="Admin password" value={pw}
               onChange={e=>{setPw(e.target.value);setPwError(false);}}
-              onKeyDown={e=>e.key==="Enter"&&(pw==="lbdc2026"?setScreen("admin"):setPwError(true))}
+              onKeyDown={e=>e.key==="Enter"&&(pw==="lbdc2026"?(sessionStorage.setItem("lbdc_admin","1"),setScreen("admin")):setPwError(true))}
               style={{width:"100%",padding:"10px 14px",borderRadius:8,border:`1px solid ${pwError?"#dc2626":"rgba(0,0,0,0.15)"}`,fontSize:15,marginBottom:8,background:"#f8f9fb",boxSizing:"border-box"}}/>
             {pwError && <div style={{fontSize:12,color:"#dc2626",marginBottom:8}}>Incorrect password.</div>}
-            <button type="button" onClick={()=>pw==="lbdc2026"?setScreen("admin"):setPwError(true)}
+            <button type="button" onClick={()=>pw==="lbdc2026"?(sessionStorage.setItem("lbdc_admin","1"),setScreen("admin")):setPwError(true)}
               style={{width:"100%",padding:"11px",background:"#002d6e",border:"none",borderRadius:8,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:16,textTransform:"uppercase",cursor:"pointer"}}>
               Log In as Admin
             </button>
@@ -11579,7 +11597,7 @@ function AdminPage({ onAlertChange }) {
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#FFD700",textTransform:"uppercase"}}>LBDC Admin</div>
             <div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Logged in as League Admin</div>
           </div>
-          <button type="button" onClick={()=>setScreen("login")} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.6)",fontSize:13,cursor:"pointer"}}>Log out</button>
+          <button type="button" onClick={()=>{sessionStorage.removeItem("lbdc_admin");setScreen("login");}} style={{marginLeft:"auto",padding:"6px 14px",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,color:"rgba(255,255,255,0.6)",fontSize:13,cursor:"pointer"}}>Log out</button>
         </div>
       </div>
       <div style={{maxWidth:900,margin:"0 auto",padding:"24px clamp(12px,3vw,40px) 60px",display:"flex",flexDirection:"column",gap:20}}>
