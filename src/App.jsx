@@ -12830,11 +12830,21 @@ function AutoplayAnthem() {
 async function sbFetchLinesByGameIds(table, selectCols, gameIds) {
   if (!gameIds || gameIds.length === 0) return [];
   const BATCH = 100;
+  const PAGE = 1000;
   const results = [];
   for (let i = 0; i < gameIds.length; i += BATCH) {
     const chunk = gameIds.slice(i, i + BATCH);
-    const rows = await sbFetch(`${table}?select=${selectCols}&game_id=in.(${chunk.join(",")})&limit=1000`);
-    results.push(...rows);
+    // Paginate WITHIN each batch: 100 games can easily hold >1000 lines
+    // (100 × ~12 players), and a flat limit=1000 silently truncated the tail —
+    // dropping whole games' worth of stats and undercounting GP on the
+    // leaderboard. Loop with offset (stable id order) until the page isn't full.
+    let offset = 0;
+    while (true) {
+      const rows = await sbFetch(`${table}?select=${selectCols}&game_id=in.(${chunk.join(",")})&order=id.asc&limit=${PAGE}&offset=${offset}`);
+      results.push(...rows);
+      if (rows.length < PAGE) break;
+      offset += PAGE;
+    }
   }
   return results;
 }

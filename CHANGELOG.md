@@ -21,9 +21,15 @@ After activating the Fall/Winter 2026-27 season, every "current season" view def
 
 Verified against the live DB: Stats defaults to Spring/Summer (166 batters / 49 pitchers), Tribe team page shows 17-1 with full roster stats (Pete Cesario 17 GP / .431), head-to-head shows real records (Generals 8-9, Tribe 17-1, 0-3 Tribe leads). Build passes, console clean.
 
-Known follow-up (pre-existing, not from this change): the Stats *leaderboard* undercounts a couple games for some players vs the player card / team page (dedup quirk). Deferred.
+### Fixed — Stats leaderboard silently truncating lines (undercounted games + dropped players)
 
-**Where:** `src/App.jsx` — season resolver block (`ensureActiveSatProbed`, `getDisplaySatSeasonRow`, `getDisplaySatSeasonLabel`, `getSatSeasonFilter`), 8 display call sites, StatsPage default, Saturday standings toggle, `DIV.SAT.name`.
+The leaderboard's `sbFetchLinesByGameIds` batched game_ids by 100 but fetched each batch with a flat `limit=1000` and **no pagination**. 100 games × ~12 players ≈ 1,200 lines, so the tail past row 1,000 was silently dropped — undercounting games (Pete Cesario showed 15 GP instead of 17) and even hiding whole players (166 → 169 batters once fixed). Now paginates within each batch (stable `order=id.asc`, offset loop) so nothing is truncated.
+
+Verified vs live DB: Pete/Oscar/Tony all show GP 17 (AB 51/45/54), matching their player cards and team page; leaderboard count 166 → 169.
+
+**Where:** `src/App.jsx` — `sbFetchLinesByGameIds`.
+
+**Where (season fix):** `src/App.jsx` — season resolver block (`ensureActiveSatProbed`, `getDisplaySatSeasonRow`, `getDisplaySatSeasonLabel`, `getSatSeasonFilter`), 8 display call sites, StatsPage default, Saturday standings toggle, `DIV.SAT.name`.
 
 ### Added (dormant) — Squares Board fundraiser (not yet linked)
 
