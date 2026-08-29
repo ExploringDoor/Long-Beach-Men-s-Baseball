@@ -10466,6 +10466,20 @@ function AdminSignupsViewer({ onBack }) {
       setTimeout(() => setCopyKind(null), 2500);
     });
   };
+  // One-click: open the device's email app with everyone in the current
+  // (filtered) list dropped into BCC. BCC keeps addresses private from each
+  // other. mailto URLs have a practical length ceiling (~2KB) that some
+  // clients silently truncate, so for a big list we warn and steer toward the
+  // rock-solid Copy-BCC method instead.
+  const emailEveryone = () => {
+    if (!exportList.length) return;
+    const bcc = exportList.map(s => s.email.trim()).join(",");
+    const href = `mailto:?bcc=${encodeURIComponent(bcc)}`;
+    if (href.length > 1900 && !window.confirm(
+      `This will open your email app with ${exportList.length} people in BCC. Some email apps cap one-click links this large and may drop recipients — for a list this big, "Copy BCC List" is more reliable. Open your email app anyway?`
+    )) return;
+    window.location.href = href;
+  };
 
   const badge = (label, val) => val ? (
     <span style={{background:"#e0f2fe",color:"#0369a1",fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:20,whiteSpace:"nowrap"}}>{label}</span>
@@ -10503,7 +10517,7 @@ function AdminSignupsViewer({ onBack }) {
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",marginBottom:10}}>
               <div>
                 <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:16,textTransform:"uppercase",color:"#15803d",letterSpacing:".04em"}}>📧 Export Email List</div>
-                <div style={{fontSize:12,color:"#555",marginTop:2}}>Paste the BCC list into Gmail → BCC field, then send your weekly email.</div>
+                <div style={{fontSize:12,color:"#555",marginTop:2}}>Tap <b>📧 Email</b> to open your mail app with everyone BCC'd, or <b>Copy BCC List</b> to paste into Gmail's BCC field. (BCC keeps addresses private.)</div>
               </div>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:18,color:"#15803d"}}>{exportList.length} email{exportList.length!==1?"s":""}</div>
             </div>
@@ -10525,6 +10539,11 @@ function AdminSignupsViewer({ onBack }) {
               ))}
             </div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button onClick={emailEveryone} disabled={exportList.length===0} style={{
+                padding:"9px 18px",border:"none",borderRadius:8,cursor:exportList.length===0?"default":"pointer",
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,letterSpacing:".04em",
+                background: exportList.length===0 ? "#d1d5db" : "#002d6e", color:"#fff",
+              }}>📧 Email {exportList.length} {exportList.length===1?"person":"people"}</button>
               <button onClick={()=>copyEmails("bcc")} disabled={exportList.length===0} style={{
                 padding:"9px 18px",border:"none",borderRadius:8,cursor:exportList.length===0?"default":"pointer",
                 fontFamily:"'Barlow Condensed',sans-serif",fontWeight:700,fontSize:14,letterSpacing:".04em",

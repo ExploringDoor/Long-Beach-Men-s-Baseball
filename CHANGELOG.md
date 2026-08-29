@@ -10,6 +10,12 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ## [2026-08-28]
 
+### Added — one-click "Email Everyone" on the Player Sign-Ups admin page
+
+Daniel asked how to easily email registered players. The Export Email List panel already had Copy-BCC + CSV + preference filters; added a prominent **"📧 Email N people"** button that opens the device's mail app with the current (filtered) list dropped into **BCC** — no copy/paste. Respects the team + notification-preference filters and the junk/dupe filtering. For very large lists (mailto URL > ~1900 chars) it warns and steers toward Copy-BCC, since some mail apps truncate huge one-click links.
+
+**Where:** `src/App.jsx` — `AdminSignupsViewer` (`emailEveryone`, Export Email List panel).
+
 ### Fixed — Stats/standings/team pages went blank after the Fall/Winter rollover
 
 After activating the Fall/Winter 2026-27 season, every "current season" view defaulted to it — but Fall/Winter has **no games yet**, so the Stats leaderboard showed "no players," team pages looked empty, and head-to-head read "first meeting." (Reported via Daniel: "the tribe stats for the season only picks up 1… the stats r there but they aren't being included.") The Spring/Summer 2026 data was never lost — it was just hidden behind the empty new season.
