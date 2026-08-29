@@ -8,6 +8,29 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-08-28]
+
+### Fixed — Stats/standings/team pages went blank after the Fall/Winter rollover
+
+After activating the Fall/Winter 2026-27 season, every "current season" view defaulted to it — but Fall/Winter has **no games yet**, so the Stats leaderboard showed "no players," team pages looked empty, and head-to-head read "first meeting." (Reported via Daniel: "the tribe stats for the season only picks up 1… the stats r there but they aren't being included.") The Spring/Summer 2026 data was never lost — it was just hidden behind the empty new season.
+
+- **Root cause:** `getSatSeasonFilter` / the Stats + Standings + team-page defaults all resolved to `CUR_SAT` (Fall/Winter, 0 games).
+- **Fix — game-aware "active season" for DISPLAY:** added `ensureActiveSatProbed()` (probes once whether `CUR_SAT` has any games, cached) + `getDisplaySatSeasonRow()` / `getDisplaySatSeasonLabel()`. `getSatSeasonFilter` now uses the display resolver, so if `CUR_SAT` is empty it falls back to `PREV_SAT` (Spring/Summer). **Self-correcting:** the moment the new season gets its first game, everything flips to it automatically — no manual step, and it protects every future rollover. Each display effect `await`s the probe before resolving, so there's no first-render flash.
+- **Write path untouched:** game SAVE routing still uses `getCurSatSeasonRow`/`getSatSeasonForDate`, so new games still land in the true current season (Fall/Winter for post-cutover dates).
+- **Also:** Stats-page default season, the Saturday standings toggle default, and `DIV.SAT.name` (team-page eyebrow) now follow the active season; silenced a null-`value` React warning on the season `<select>`.
+
+Verified against the live DB: Stats defaults to Spring/Summer (166 batters / 49 pitchers), Tribe team page shows 17-1 with full roster stats (Pete Cesario 17 GP / .431), head-to-head shows real records (Generals 8-9, Tribe 17-1, 0-3 Tribe leads). Build passes, console clean.
+
+Known follow-up (pre-existing, not from this change): the Stats *leaderboard* undercounts a couple games for some players vs the player card / team page (dedup quirk). Deferred.
+
+**Where:** `src/App.jsx` — season resolver block (`ensureActiveSatProbed`, `getDisplaySatSeasonRow`, `getDisplaySatSeasonLabel`, `getSatSeasonFilter`), 8 display call sites, StatsPage default, Saturday standings toggle, `DIV.SAT.name`.
+
+### Added (dormant) — Squares Board fundraiser (not yet linked)
+
+Built a 50-square (10×5) football/baseball squares pool board as a league fundraiser — view-only for players, admin-managed by the commissioner (fill names, draw numbers, live winner highlight). **No money shown anywhere on the site** (buy-in handled off-site via the commissioner). Currently **dormant**: `SquaresPage` + `/squares` route exist but the menu link is pulled, so it's invisible until launch. Re-enable by restoring the `["squares","🟦 Squares Board"]` entry in `moreLinks`.
+
+**Where:** `src/App.jsx` — `SquaresPage`, `sqShuffle`/`sqDrawNumbers`/`sqWinnerIndex`, `/squares` route. DB: `lbdc_schedules` id="squares" (created when a board is set up).
+
 ## [2026-08-23]
 
 ### Added — Players Forum (suggestion box the whole league votes on)

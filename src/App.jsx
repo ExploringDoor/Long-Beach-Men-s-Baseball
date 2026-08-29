@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 import { HISTORY_DATA } from "./historyData.js";
 
@@ -126,7 +126,12 @@ const TICKER_NAME = {
 
 const DIV = {
   SAT: {
-    name: "Fall/Winter 2026-27", accent: "#002d6e",
+    // Display label for the Saturday division on team pages / directory / standings.
+    // Keep it matching the season whose data the site is actually showing. While
+    // Fall/Winter 2026-27 has no games, the game-aware resolvers show Spring/Summer
+    // 2026, so this reads "Spring/Summer 2026" too. → Flip to "Fall/Winter 2026-27"
+    // once the new season's games start (when the leaderboards auto-flip to it).
+    name: "Spring/Summer 2026", accent: "#002d6e",
     teams: [
       {seed:1,name:"Tribe",full:"Tribe",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
       {seed:2,name:"Pirates",full:"Pirates",w:0,l:0,t:0,pct:"---",gp:0,rs:0,ra:0,diff:"---"},
@@ -834,6 +839,7 @@ function GamePreviewModal({ away, home, time, field, date, onClose }) {
     async function load() {
       try {
         const allSeasons = await sbFetch("seasons?select=id,name&limit=50");
+        await ensureActiveSatProbed(allSeasons);
         const satIds = getSatSeasonFilter(allSeasons);
         if (!satIds.length) { setLoading(false); return; }
         const seasonFilter = `season_id=in.(${satIds.join(",")})`;
@@ -1640,7 +1646,8 @@ function HomePage({ setTab, setTeamDetail }) {
         return (b.rs-b.ra)-(a.rs-a.ra);
       });
     };
-    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+    sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
+      await ensureActiveSatProbed(seasons);
       const satIds = getSatSeasonFilter(seasons);
       return Promise.all([
         satIds.length ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&season_id=in.(${satIds.join(",")})&status=eq.Final&limit=200`) : [],
@@ -2779,6 +2786,16 @@ function StandingsPage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); } };
   const hist = STANDINGS_HISTORY[histIdx];
 
+  // Default the season toggle to the ACTIVE Saturday season (newest one with
+  // games). While a freshly-activated season has no games yet, this keeps the
+  // just-finished season selected instead of showing an empty standings board.
+  useEffect(() => {
+    sbFetch("seasons?select=id,name&limit=50").then(async ss => {
+      await ensureActiveSatProbed(ss);
+      setSatLabel(getDisplaySatSeasonLabel());
+    }).catch(() => {});
+  }, []);
+
   // Load Saturday standings for the selected Saturday season
   useEffect(() => {
     setLoadingSat(true);
@@ -3575,6 +3592,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   useEffect(() => {
     const enc = encodeURIComponent;
     sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
+      await ensureActiveSatProbed(seasons);
       const satIds = getSatSeasonFilter(seasons);
       const seasonFilter = `season_id=in.(${satIds.join(",")})`;
       if (!satIds.length) return;
@@ -3713,6 +3731,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   useEffect(() => {
     const enc = encodeURIComponent;
     sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
+      await ensureActiveSatProbed(seasons);
       const satIds = getSatSeasonFilter(seasons);
       const seasonFilter = `season_id=in.(${satIds.join(",")})`;
       if (!satIds.length) return;
@@ -3798,7 +3817,8 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
     }).catch(() => {});
   }, [teamName]);
   useEffect(() => {
-    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+    sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
+      await ensureActiveSatProbed(seasons);
       const satIds = getSatSeasonFilter(seasons);
       if (!satIds.length) return null;
       const filter = `season_id=in.(${satIds.join(",")})`;
@@ -4408,7 +4428,8 @@ function TeamsPage({ setTab, setTeamDetail }) {
       });
       return tm;
     };
-    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+    sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
+      await ensureActiveSatProbed(seasons);
       const satIds = getSatSeasonFilter(seasons);
       return Promise.all([
         satIds.length ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score&season_id=in.(${satIds.join(",")})&status=eq.Final&limit=200`) : [],
@@ -6199,6 +6220,297 @@ function PlayersForumPage({ setTab }) {
   );
 }
 
+/* ─── SQUARES BOARD ──────────────────────────────────────────────────────────
+   A classic 50-square football/baseball pool board, run as a league fundraiser.
+   IMPORTANT: the website NEVER shows money. All buy-in/payment happens off-site
+   between the players and the commissioner (Venmo + text). The site is purely
+   the DISPLAY board everyone watches — plus admin-only controls for the
+   commissioner to fill names, draw the numbers, and light up winners.
+
+   50 squares = a 10 × 5 grid (10 rows × 5 columns — 5 columns fits a phone).
+     • Rows  (10) → the "rows team" gets one digit 0-9 per row.
+     • Cols  (5)  → the "cols team" — each column header covers TWO digits.
+   Every possible final digit is covered; each square just maps to 2 combos.
+
+   Stored as a jsonb blob under lbdc_schedules id="squares" (same keyed store as
+   the forum/field_fees). Graceful: with no row, the public page shows a friendly
+   "no board live" message and the admin sees a setup form — safe to deploy before
+   any board exists. */
+function sqShuffle(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; }
+function sqDrawNumbers() {
+  const rowDigits = sqShuffle([0,1,2,3,4,5,6,7,8,9]);            // 10 single digits (rows)
+  const pool = sqShuffle([0,1,2,3,4,5,6,7,8,9]);
+  const colDigits = [[pool[0],pool[1]],[pool[2],pool[3]],[pool[4],pool[5]],[pool[6],pool[7]],[pool[8],pool[9]]]; // 5 pairs (cols)
+  return { rowDigits, colDigits };
+}
+function sqLastDigit(v) { const n = parseInt(v, 10); return Number.isFinite(n) ? ((n % 10) + 10) % 10 : null; }
+// Winner cell index for a given score, or null if not resolvable yet.
+function sqWinnerIndex(blob, rowScore, colScore) {
+  if (!blob?.rowDigits || !blob?.colDigits) return null;
+  const lr = sqLastDigit(rowScore), lc = sqLastDigit(colScore);
+  if (lr === null || lc === null) return null;
+  const r = blob.rowDigits.indexOf(lr);
+  const c = blob.colDigits.findIndex(pair => pair.includes(lc));
+  if (r < 0 || c < 0) return null;
+  return r * 5 + c;
+}
+function SquaresPage({ setTab }) {
+  const [blob, setBlob] = useState(undefined);   // undefined = loading, null = no board, obj = board
+  const [busy, setBusy] = useState(false);
+  const [isAdmin] = useState(() => { try { return sessionStorage.getItem("lbdc_admin") === "1"; } catch { return false; } });
+  const [editIdx, setEditIdx] = useState(null);
+  const [editVal, setEditVal] = useState("");
+  // Setup form (create / edit matchup)
+  const [fTitle, setFTitle] = useState("Championship Squares");
+  const [fRows, setFRows] = useState("");
+  const [fCols, setFCols] = useState("");
+  const [fGame, setFGame] = useState("");
+  const [showSetup, setShowSetup] = useState(false);
+  // Live score inputs (admin) — highlight the current winning square
+  const [liveRow, setLiveRow] = useState("");
+  const [liveCol, setLiveCol] = useState("");
+  const [winLabel, setWinLabel] = useState("");
+
+  const load = () => sbFetch("lbdc_schedules?id=eq.squares&select=data")
+    .then(rows => { const d = rows?.[0]?.data; setBlob(d && d.squares ? d : null); })
+    .catch(() => setBlob(null));
+  useEffect(() => { load(); }, []);
+
+  // Re-read latest blob, apply mutate, write back.
+  const persist = async (mutate) => {
+    setBusy(true);
+    try {
+      const rows = await sbFetch("lbdc_schedules?id=eq.squares&select=data");
+      const latest = (rows?.[0]?.data && rows[0].data.squares) ? rows[0].data : null;
+      const next = mutate(latest);
+      await sbUpsert("lbdc_schedules", { id: "squares", data: next });
+      setBlob(next); setBusy(false); return true;
+    } catch (e) { setBusy(false); flashSaveErr("Squares save failed — please try again."); return false; }
+  };
+
+  const freshBoard = () => ({
+    title: fTitle.trim() || "Championship Squares",
+    teamRows: fRows.trim() || "Team A",
+    teamCols: fCols.trim() || "Team B",
+    gameLabel: fGame.trim(),
+    status: "open",
+    squares: Array(50).fill(""),
+    rowDigits: null, colDigits: null,
+    live: { rowScore: "", colScore: "" },
+    results: [],
+  });
+  const createBoard = async () => { const b = freshBoard(); const ok = await persist(() => b); if (ok) setShowSetup(false); };
+  const saveConfig = async () => {
+    await persist(prev => ({ ...(prev || freshBoard()), title: fTitle.trim() || "Championship Squares", teamRows: fRows.trim() || "Team A", teamCols: fCols.trim() || "Team B", gameLabel: fGame.trim() }));
+    setShowSetup(false);
+  };
+  const openSetup = () => { if (blob) { setFTitle(blob.title || "Championship Squares"); setFRows(blob.teamRows || ""); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); } setShowSetup(true); };
+
+  const saveSquare = async (idx, name) => { await persist(prev => { const b = { ...prev, squares: [...prev.squares] }; b.squares[idx] = name.trim(); return b; }); };
+  const commitEdit = () => { if (editIdx !== null) { saveSquare(editIdx, editVal); setEditIdx(null); setEditVal(""); } };
+  const drawNumbers = async () => {
+    if (blob.rowDigits && !window.confirm("Numbers are already drawn. Re-draw and shuffle everyone's numbers?")) return;
+    if (!blob.rowDigits && !window.confirm("Draw the numbers now? Do this once the board is full — it can't be quietly changed after.")) return;
+    const { rowDigits, colDigits } = sqDrawNumbers();
+    await persist(prev => ({ ...prev, rowDigits, colDigits, status: "drawn" }));
+  };
+  const saveLive = async (r, c) => { await persist(prev => ({ ...prev, live: { rowScore: r, colScore: c } })); };
+  const recordWinner = async () => {
+    const idx = sqWinnerIndex(blob, liveRow, liveCol);
+    if (idx === null) { flashSaveErr("Enter both scores (and draw numbers) first."); return; }
+    const name = blob.squares[idx] || "(open square)";
+    const label = winLabel.trim() || `${blob.teamCols} ${liveCol} – ${blob.teamRows} ${liveRow}`;
+    await persist(prev => ({ ...prev, results: [...(prev.results || []), { label, name }] }));
+    setWinLabel("");
+  };
+  const removeResult = async (i) => { await persist(prev => ({ ...prev, results: (prev.results || []).filter((_, k) => k !== i) })); };
+  const clearBoard = async () => { if (window.confirm("Delete this squares board completely? This clears all names, numbers and winners.")) { await persist(() => ({ ...freshBoard(), squares: Array(50).fill("") })); } };
+
+  const navy = "#002d6e", gold = "#FFC107";
+  const inputStyle = { width: "100%", padding: "11px 13px", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 10, fontSize: 15, boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
+  const btn = (bg) => ({ padding: "11px 16px", background: bg, border: "none", borderRadius: 10, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, textTransform: "uppercase", letterSpacing: ".04em", cursor: "pointer" });
+
+  // Live winner highlight from whichever score is current (admin live inputs override stored live)
+  const curRow = isAdmin && (liveRow !== "" || liveCol !== "") ? liveRow : (blob?.live?.rowScore ?? "");
+  const curCol = isAdmin && (liveRow !== "" || liveCol !== "") ? liveCol : (blob?.live?.colScore ?? "");
+  const winIdx = blob ? sqWinnerIndex(blob, curRow, curCol) : null;
+  const takenCount = blob ? blob.squares.filter(s => s && s.trim()).length : 0;
+
+  if (blob === undefined) return (
+    <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
+      <PageHero label="Diamond Classics" title="Squares Board" subtitle="Loading…" />
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
+      <PageHero label="Diamond Classics · Fundraiser" title={blob?.title || "Squares Board"} subtitle={blob?.gameLabel || "Grab your squares for the big game."} />
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
+
+        {/* ── No board yet ── */}
+        {!blob && (
+          <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 14, padding: "26px 22px", textAlign: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🟦⚾🏈</div>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", color: navy }}>No squares board is live right now</div>
+            <div style={{ color: "rgba(0,0,0,0.55)", fontSize: 15, marginTop: 6 }}>Check back before the next big game — a fresh board will be posted here.</div>
+            {isAdmin && !showSetup && <button onClick={openSetup} style={{ ...btn(navy), marginTop: 18 }}>+ Create a board</button>}
+          </div>
+        )}
+
+        {/* ── Setup / edit matchup (admin) ── */}
+        {isAdmin && showSetup && (
+          <div style={{ background: "#fff", border: "2px solid " + gold, borderRadius: 14, padding: "20px 18px", marginBottom: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 19, textTransform: "uppercase", color: navy, marginBottom: 12 }}>{blob ? "Edit board" : "New squares board"}</div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Board title</label>
+            <input value={fTitle} onChange={e => setFTitle(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="Championship Squares" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Rows team (down the side)</label>
+                <input value={fRows} onChange={e => setFRows(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="e.g. Chiefs" />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Cols team (across the top)</label>
+                <input value={fCols} onChange={e => setFCols(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="e.g. Eagles" />
+              </div>
+            </div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Game / date (optional)</label>
+            <input value={fGame} onChange={e => setFGame(e.target.value)} style={{ ...inputStyle, margin: "5px 0 14px" }} placeholder="e.g. Super Bowl · Feb 8" />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={blob ? saveConfig : createBoard} disabled={busy} style={btn(navy)}>{blob ? "Save" : "Create board"}</button>
+              <button onClick={() => setShowSetup(false)} style={{ ...btn("#6b7280") }}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── The board ── */}
+        {blob && (
+          <>
+            {/* Legend */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
+              <span style={{ background: navy, color: "#fff", padding: "5px 12px", borderRadius: 999 }}>↓ Rows: {blob.teamRows}</span>
+              <span style={{ background: "#0f5ca8", color: "#fff", padding: "5px 12px", borderRadius: 999 }}>→ Columns: {blob.teamCols}</span>
+              <span style={{ background: "#e5e9f0", color: navy, padding: "5px 12px", borderRadius: 999 }}>{takenCount} / 50 squares taken</span>
+            </div>
+
+            {!blob.rowDigits && (
+              <div style={{ background: "#fff8e1", border: "1px solid #ffe08a", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13.5, color: "#4a3b00", textAlign: "center" }}>
+                🎲 Numbers are hidden until the board fills up — then they're drawn at random, so every square is pure luck.
+              </div>
+            )}
+
+            {/* Grid */}
+            <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12, padding: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "30px repeat(5, minmax(56px, 1fr))", gap: 3, minWidth: 340 }}>
+                {/* corner */}
+                <div style={{ background: navy, borderRadius: 6, minHeight: 34 }} />
+                {/* column headers */}
+                {[0,1,2,3,4].map(c => (
+                  <div key={"ch"+c} style={{ background: "#0f5ca8", color: gold, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, minHeight: 34 }}>
+                    {blob.colDigits ? blob.colDigits[c].join("/") : "?"}
+                  </div>
+                ))}
+                {/* rows */}
+                {[0,1,2,3,4,5,6,7,8,9].map(r => (
+                  <React.Fragment key={"row"+r}>
+                    <div style={{ background: navy, color: gold, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15 }}>
+                      {blob.rowDigits ? blob.rowDigits[r] : "?"}
+                    </div>
+                    {[0,1,2,3,4].map(c => {
+                      const idx = r * 5 + c;
+                      const name = blob.squares[idx];
+                      const isWin = winIdx === idx;
+                      const editing = editIdx === idx;
+                      return (
+                        <div key={idx}
+                          onClick={() => { if (isAdmin && !editing) { setEditIdx(idx); setEditVal(name || ""); } }}
+                          style={{ minHeight: 46, borderRadius: 6, border: isWin ? "2px solid " + gold : "1px solid #e3e7ee",
+                            background: isWin ? "#fff4cc" : name ? "#eef3fb" : "#fafbfc",
+                            display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
+                            padding: 3, cursor: isAdmin ? "pointer" : "default", position: "relative", overflow: "hidden" }}>
+                          {editing ? (
+                            <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") { setEditIdx(null); setEditVal(""); } }}
+                              onBlur={commitEdit}
+                              style={{ width: "100%", border: "none", outline: "none", textAlign: "center", fontSize: 11, background: "transparent", fontFamily: "inherit" }} />
+                          ) : (
+                            <span style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.1, color: name ? navy : "#c4cad4", wordBreak: "break-word" }}>
+                              {name || (isAdmin ? "+ add" : "")}
+                            </span>
+                          )}
+                          {isWin && <span style={{ position: "absolute", top: 1, right: 2, fontSize: 10 }}>🏆</span>}
+                        </div>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+            {isAdmin && <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", textAlign: "center", marginTop: 6 }}>Tap any square to add or change a name.</div>}
+
+            {/* Current winner banner (public) */}
+            {winIdx !== null && blob.squares[winIdx] && (
+              <div style={{ background: "linear-gradient(90deg,#b8860b,#FFC107)", color: "#3a2e00", borderRadius: 12, padding: "12px 16px", marginTop: 14, textAlign: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 18, textTransform: "uppercase" }}>
+                🏆 On the board right now: {blob.squares[winIdx]}
+              </div>
+            )}
+
+            {/* Recorded winners */}
+            {(blob.results || []).length > 0 && (
+              <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 12, padding: "14px 16px", marginTop: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: navy, marginBottom: 8 }}>🏆 Winners</div>
+                {blob.results.map((w, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderTop: i ? "1px solid #eef1f6" : "none" }}>
+                    <span style={{ fontSize: 14 }}><b style={{ color: navy }}>{w.name}</b> <span style={{ color: "rgba(0,0,0,0.5)" }}>— {w.label}</span></span>
+                    {isAdmin && <button onClick={() => removeResult(i)} style={{ background: "none", border: "none", color: "#dc2626", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>remove</button>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* How to join — NO money mentioned */}
+            <div style={{ background: "#eef3fb", border: "1px solid #d6e0f0", borderRadius: 12, padding: "14px 16px", marginTop: 14, fontSize: 14.5, color: navy, textAlign: "center", lineHeight: 1.5 }}>
+              <b>Want in?</b> Message the commissioner to grab your squares — no picking, names go in random open boxes and the numbers are drawn once the board is full. 🍀
+            </div>
+
+            {/* ── Admin control panel ── */}
+            {isAdmin && (
+              <div style={{ background: "#fff", border: "2px solid " + navy, borderRadius: 14, padding: "16px 16px 18px", marginTop: 20 }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 18, textTransform: "uppercase", color: navy, marginBottom: 12 }}>⚙️ Commissioner controls</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+                  <button onClick={openSetup} style={btn("#6b7280")}>Edit matchup</button>
+                  <button onClick={drawNumbers} disabled={busy} style={btn("#b8860b")}>🎲 {blob.rowDigits ? "Re-draw" : "Draw"} numbers</button>
+                  <button onClick={clearBoard} disabled={busy} style={btn("#b91c1c")}>Clear board</button>
+                </div>
+                <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 8 }}>Live score → lights up the winning square</div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 90 }}>
+                      <label style={{ fontSize: 11, color: "#666" }}>{blob.teamRows} score</label>
+                      <input inputMode="numeric" value={liveRow} onChange={e => { setLiveRow(e.target.value); saveLive(e.target.value, liveCol); }} style={{ ...inputStyle, marginTop: 4 }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 90 }}>
+                      <label style={{ fontSize: 11, color: "#666" }}>{blob.teamCols} score</label>
+                      <input inputMode="numeric" value={liveCol} onChange={e => { setLiveCol(e.target.value); saveLive(liveRow, e.target.value); }} style={{ ...inputStyle, marginTop: 4 }} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, marginTop: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 140 }}>
+                      <label style={{ fontSize: 11, color: "#666" }}>Winner label (e.g. "End of 1st Quarter")</label>
+                      <input value={winLabel} onChange={e => setWinLabel(e.target.value)} style={{ ...inputStyle, marginTop: 4 }} placeholder="End of 1st Quarter" />
+                    </div>
+                    <button onClick={recordWinner} disabled={busy} style={btn(navy)}>+ Record winner</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 /* ─── SUB BOARD PAGE ─────────────────────────────────────────────────────── */
 function SubBoardPage() {
   const [view, setView] = useState("board");
@@ -6600,6 +6912,7 @@ function PlayerEligibilityPage({ onBack }) {
       setSatRosters(rosters);
       // Count distinct game appearances per player — current season only
       const counts = {};
+      await ensureActiveSatProbed(seasons || []);
       const satIds = getSatSeasonFilter(seasons || []);
       if (satIds.length) {
         // Fetch ALL games (including duplicates) and ALL batting_lines, then dedup at the line level
@@ -12111,9 +12424,44 @@ const getCurSatSeasonRow = (seasons) =>
   seasons.find(s => s.name.includes("Diamond Classics Saturdays"));
 const getPrevSatSeasonRow = (seasons) => _prevSatRow(seasons);
 
+// ── Rollover-overlap display fallback ─────────────────────────────────────
+// After CUR_SAT rolls to a new season, that season can have ZERO games for a
+// while (schedule not posted yet). Defaulting every stats/standings/team view
+// to an empty season hides the season that just finished. So for DISPLAY, if
+// CUR_SAT has no games yet, fall back to PREV_SAT. Self-correcting: the moment
+// CUR_SAT gets its first game this flips back to it automatically — no manual
+// step, and it protects every future rollover too.
+//
+// IMPORTANT: this is DISPLAY-only. Game SAVE routing (getSatSeasonForDate) keeps
+// using getCurSatSeasonRow so new games still land in the true current season.
+//
+// _CUR_SAT_EMPTY: null = not probed yet, true = CUR has no games (use PREV),
+// false = CUR has games (use CUR). Probed once per page load and cached.
+let _CUR_SAT_EMPTY = null;
+async function ensureActiveSatProbed(seasons) {
+  if (_CUR_SAT_EMPTY !== null) return _CUR_SAT_EMPTY;
+  try {
+    const cur = (seasons || []).find(s => s.name === CUR_SAT.name);
+    if (!cur) { _CUR_SAT_EMPTY = false; return false; } // CUR row not created → resolvers already fall back to PREV
+    const rows = await sbFetch(`games?select=id&season_id=eq.${cur.id}&limit=1`);
+    _CUR_SAT_EMPTY = !(rows && rows.length);
+  } catch { _CUR_SAT_EMPTY = false; }
+  return _CUR_SAT_EMPTY;
+}
+// The Saturday season row to DISPLAY by default (game-aware). Reads the probe
+// cache; callers that need determinism should `await ensureActiveSatProbed()`
+// first (all the display effects below do).
+const getDisplaySatSeasonRow = (seasons) => {
+  const cur = seasons.find(s => s.name === CUR_SAT.name);
+  if (cur && _CUR_SAT_EMPTY === true) { const prev = _prevSatRow(seasons); if (prev) return prev; }
+  return getCurSatSeasonRow(seasons);
+};
+// The display label for the default Saturday season (Standings/Scores toggles).
+const getDisplaySatSeasonLabel = () => (_CUR_SAT_EMPTY === true ? PREV_SAT.label : CUR_SAT.label);
+
 // CURRENT-season reads (Home standings, default Scores/Standings/Stats, schedule
-// score overlay): the single current season id.
-const getSatSeasonFilter = (seasons) => { const s = getCurSatSeasonRow(seasons); return s ? [s.id] : []; };
+// score overlay): the single current season id — game-aware (see above).
+const getSatSeasonFilter = (seasons) => { const s = getDisplaySatSeasonRow(seasons); return s ? [s.id] : []; };
 // The season to resolve a CURRENT-season game to (default inserts).
 const getSatSeason = (seasons) => getCurSatSeasonRow(seasons);
 // Route a game SAVE to the right season by its date (handles the overlap: the
@@ -12796,6 +13144,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       sbFetch("lbdc_tournament_meta?id=eq.main&select=data").catch(() => []),
     ])
       .then(async ([seasons, metaRows]) => {
+        await ensureActiveSatProbed(seasons);
         const satIds = getSatSeasonFilter(seasons);
         // Resolve tournament season_ids from lbdc_tournament_meta names.
         const metaNames = (metaRows?.[0]?.data || []).map(m => m.name).filter(Boolean);
@@ -14518,7 +14867,7 @@ function StatsPage() {
       sbFetch("seasons?select=id,name&limit=100"),
       sbFetch("games?select=id,season_id&limit=1000"),
       getAllBatGameIds(),
-    ]).then(([allSeasons, allGames, gameIdsWithData]) => {
+    ]).then(async ([allSeasons, allGames, gameIdsWithData]) => {
       // Sort seasons by year desc, then by id desc within same year
       const sorted = [...allSeasons].sort((a, b) => {
         const ya = seasonSortYear(a.name), yb = seasonSortYear(b.name);
@@ -14532,11 +14881,14 @@ function StatsPage() {
       const namesWithData = new Set(allSeasons.filter(s => seasonIdsWithData.has(s.id)).map(s => s.name));
       setSeasonsWithData(namesWithData);
 
-      // Default to the CURRENT Saturday season (Fall/Winter 2026-27), falling
-      // back to Spring/Summer if the new row doesn't exist yet. Each Saturday
-      // season is now distinct — the leaderboard fetch filters to the selected
-      // season's id only and does NOT merge the two.
-      const curSat = getCurSatSeasonRow(allSeasons);
+      // Default to the active Saturday season — the newest one that actually
+      // has games. Fall/Winter 2026-27 once its schedule/games are in; until
+      // then Spring/Summer 2026, so the just-finished season stays visible
+      // instead of a blank "no stats" leaderboard. Self-corrects on first
+      // Fall/Winter game. Each Saturday season is still distinct — the fetch
+      // filters to the selected season's id only and never merges the two.
+      await ensureActiveSatProbed(allSeasons);
+      const curSat = getDisplaySatSeasonRow(allSeasons);
       setSeason(curSat ? curSat.name : ALL_SEASONS_KEY);
     }).catch(() => {});
   }, []);
@@ -14988,7 +15340,7 @@ function StatsPage() {
               style={{border:"none",outline:"none",fontSize:14,width:"100%",background:"transparent"}} />
             {playerSearch && <button onClick={() => setPlayerSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"rgba(0,0,0,0.3)",fontSize:16,padding:0}}>✕</button>}
           </div>
-          <select value={season} onChange={e => setSeason(e.target.value)}
+          <select value={season ?? ""} onChange={e => setSeason(e.target.value)}
             style={{padding:"9px 14px",borderRadius:8,border:"1px solid rgba(0,0,0,0.12)",fontSize:14,background:"#fff",cursor:"pointer"}}>
             <option value={ALL_SEASONS_KEY}>⭐ All Seasons Combined</option>
             <option disabled>──────────────</option>
@@ -17003,6 +17355,7 @@ export default function App() {
       <div style={{position:"sticky",top:0,zIndex:300,width:"100%"}}><Navbar tab={tab} setTab={handleSetTab} /></div>
       {tab==="home"      && <HomePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="forum"     && <PlayersForumPage setTab={handleSetTab} />}
+      {tab==="squares"   && <SquaresPage setTab={handleSetTab} />}
       {tab==="scores"    && <ScoresPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="schedule"     && <SchedulePage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
       {tab==="tournaments"  && <TournamentsPage setTab={handleSetTab} setTeamDetail={handleTeamDetail} />}
