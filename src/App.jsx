@@ -6268,7 +6268,7 @@ function SquaresPage({ setTab }) {
   const [fRows, setFRows] = useState("Rams");
   const [fCols, setFCols] = useState("49ers");
   const [fGame, setFGame] = useState("Rams vs 49ers · 9/10");
-  const [fPay, setFPay] = useState({ q1: "70", half: "105", q3: "70", final: "105" });
+  const [fPay, setFPay] = useState({ q1: "70", half: "90", q3: "70", final: "120" });
   const [showSetup, setShowSetup] = useState(false);
   const [liveRow, setLiveRow] = useState("");
   const [liveCol, setLiveCol] = useState("");
