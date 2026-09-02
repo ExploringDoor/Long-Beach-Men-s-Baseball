@@ -37,11 +37,18 @@ Verified vs live DB: Pete/Oscar/Tony all show GP 17 (AB 51/45/54), matching thei
 
 **Where (season fix):** `src/App.jsx` — season resolver block (`ensureActiveSatProbed`, `getDisplaySatSeasonRow`, `getDisplaySatSeasonLabel`, `getSatSeasonFilter`), 8 display call sites, StatsPage default, Saturday standings toggle, `DIV.SAT.name`.
 
-### Added (dormant) — Squares Board fundraiser (not yet linked)
+### Added — Squares Pool fundraiser (live: 100-square self-serve football board)
 
-Built a 50-square (10×5) football/baseball squares pool board as a league fundraiser — view-only for players, admin-managed by the commissioner (fill names, draw numbers, live winner highlight). **No money shown anywhere on the site** (buy-in handled off-site via the commissioner). Currently **dormant**: `SquaresPage` + `/squares` route exist but the menu link is pulled, so it's invisible until launch. Re-enable by restoring the `["squares","🟦 Squares Board"]` entry in `moreLinks`.
+A classic **100-square (10×10)** football squares pool for the first Rams game, live under **MORE → 🏈 Squares Pool**.
 
-**Where:** `src/App.jsx` — `SquaresPage`, `sqShuffle`/`sqDrawNumbers`/`sqWinnerIndex`, `/squares` route. DB: `lbdc_schedules` id="squares" (created when a board is set up).
+- **Self-serve:** each square is pre-numbered 1–100; any visitor taps an open square, drops their name in, and it's reserved (a claim modal, with a re-read guard so two people can't grab the same square). Turns **red** = reserved, **green** = locked in — visible to everyone.
+- **No dollar figure on the page:** the buy-in is "send Daniel **5 baseballs** ⚾" (his joke for $5), collected off-site. Plus a transparency line: **70%** to the pool (prizes) · **30%** keeps the site running.
+- **Commissioner (admin) controls:** a **payments checklist** to mark off the 5 baseballs one-tap (unpaid first, "N still owe") without hunting the grid; per-square manage modal (confirm / release / add name); **Randomize** draws & reveals the outside 0–9 digits once full; live score highlights the current winning square; and the **4 standard payout periods** (1st Quarter / Halftime / 3rd Quarter / Final) recorded from the live score and shown in a Winners card.
+- **No DB setup:** jsonb blob under `lbdc_schedules` id="squares". Graceful empty state; admin setup form to (re)configure the matchup.
+
+Verified end-to-end vs live DB: self-serve claim → red, admin confirm → green, checklist "N still owe" decrement, randomize reveals digits, winner highlight (Rams 19 × Seahawks 15 → correct square), and per-period winners. Build passes, console clean.
+
+**Where:** `src/App.jsx` — `SquaresPage`, `sqShuffle`/`sqLastDigit`/`sqDraw10`/`sqWinnerIndex`, `SQ_PERIODS`, `["squares","🏈 Squares Pool"]` in `moreLinks`, `/squares` route. DB: `lbdc_schedules` id="squares".
 
 ## [2026-08-23]
 

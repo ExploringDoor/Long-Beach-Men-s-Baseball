@@ -1135,7 +1135,7 @@ function Navbar({ tab, setTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const mainLinks = [["home","Home"],["scores","Scores"],["schedule","Schedule"],["tournaments","Tournaments"],["standings","Standings"],["teams","Teams"],["stats","Stats"],["payments","💳 Payments"],["admin","⚙ Admin"]];
-  const moreLinks = [["forum","💡 Players Forum"],["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"],["contact","📞 Contact"]];
+  const moreLinks = [["forum","💡 Players Forum"],["squares","🏈 Squares Pool"],["history","History"],["rules","Rules"],["directions","🏟️ Field Directions"],["sponsors","🤝 Sponsors"],["photos","📸 Photos & Videos"],["signup","📋 Player Sign Up"],["graphics","📅 Schedule Graphics"],["availability","📅 My Availability"],["contact","📞 Contact"]];
   const handleNav = (id) => { setTab(id); setMenuOpen(false); setMoreOpen(false); window.scrollTo(0,0); };
   const moreActive = moreLinks.some(([id]) => id === tab);
   useEffect(() => {
@@ -6221,120 +6221,155 @@ function PlayersForumPage({ setTab }) {
 }
 
 /* ─── SQUARES BOARD ──────────────────────────────────────────────────────────
-   A classic 50-square football/baseball pool board, run as a league fundraiser.
-   IMPORTANT: the website NEVER shows money. All buy-in/payment happens off-site
-   between the players and the commissioner (Venmo + text). The site is purely
-   the DISPLAY board everyone watches — plus admin-only controls for the
-   commissioner to fill names, draw the numbers, and light up winners.
+   A classic 100-square (10×10) football pool, run as a league fundraiser.
+   Self-serve: any visitor picks an OPEN square (each is pre-numbered 1–100),
+   drops their name in, and it's reserved. Squares are colored for everyone:
+     • RED   = name in, "5 baseballs" ($5) not yet received
+     • GREEN = commissioner confirmed the 5 baseballs arrived
+   The commissioner (admin) confirms payment or releases a square. Once the
+   board is full he taps "Randomize" to draw the outside row/column digits
+   (0–9 per team) and reveal them, so everyone sees which digits their square
+   landed on. During the game the winning square lights up by the live score.
 
-   50 squares = a 10 × 5 grid (10 rows × 5 columns — 5 columns fits a phone).
-     • Rows  (10) → the "rows team" gets one digit 0-9 per row.
-     • Cols  (5)  → the "cols team" — each column header covers TWO digits.
-   Every possible final digit is covered; each square just maps to 2 combos.
-
-   Stored as a jsonb blob under lbdc_schedules id="squares" (same keyed store as
-   the forum/field_fees). Graceful: with no row, the public page shows a friendly
-   "no board live" message and the admin sees a setup form — safe to deploy before
-   any board exists. */
+   No literal dollar figure on the page — the buy-in is "5 baseballs" (a Daniel
+   joke), collected off-site. Stored as a jsonb blob under lbdc_schedules
+   id="squares" (same keyed store as the forum). Graceful: with no row, the
+   public page shows a friendly "no board" message and admin sees a setup form. */
 function sqShuffle(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; }
-function sqDrawNumbers() {
-  const rowDigits = sqShuffle([0,1,2,3,4,5,6,7,8,9]);            // 10 single digits (rows)
-  const pool = sqShuffle([0,1,2,3,4,5,6,7,8,9]);
-  const colDigits = [[pool[0],pool[1]],[pool[2],pool[3]],[pool[4],pool[5]],[pool[6],pool[7]],[pool[8],pool[9]]]; // 5 pairs (cols)
-  return { rowDigits, colDigits };
-}
 function sqLastDigit(v) { const n = parseInt(v, 10); return Number.isFinite(n) ? ((n % 10) + 10) % 10 : null; }
-// Winner cell index for a given score, or null if not resolvable yet.
+function sqDraw10() { return { rowDigits: sqShuffle([0,1,2,3,4,5,6,7,8,9]), colDigits: sqShuffle([0,1,2,3,4,5,6,7,8,9]) }; }
+// Winning cell index (0–99) for a given score, or null if not resolvable yet.
 function sqWinnerIndex(blob, rowScore, colScore) {
   if (!blob?.rowDigits || !blob?.colDigits) return null;
   const lr = sqLastDigit(rowScore), lc = sqLastDigit(colScore);
   if (lr === null || lc === null) return null;
   const r = blob.rowDigits.indexOf(lr);
-  const c = blob.colDigits.findIndex(pair => pair.includes(lc));
+  const c = blob.colDigits.indexOf(lc);
   if (r < 0 || c < 0) return null;
-  return r * 5 + c;
+  return r * 10 + c;
 }
+// The 4 standard football-squares payout periods.
+const SQ_PERIODS = [
+  { key: "q1", label: "1st Quarter" },
+  { key: "half", label: "Halftime" },
+  { key: "q3", label: "3rd Quarter" },
+  { key: "final", label: "Final" },
+];
 function SquaresPage({ setTab }) {
-  const [blob, setBlob] = useState(undefined);   // undefined = loading, null = no board, obj = board
+  const [blob, setBlob] = useState(undefined);   // undefined=loading, null=no board, obj=board
   const [busy, setBusy] = useState(false);
   const [isAdmin] = useState(() => { try { return sessionStorage.getItem("lbdc_admin") === "1"; } catch { return false; } });
-  const [editIdx, setEditIdx] = useState(null);
-  const [editVal, setEditVal] = useState("");
-  // Setup form (create / edit matchup)
-  const [fTitle, setFTitle] = useState("Championship Squares");
-  const [fRows, setFRows] = useState("");
+  const [claimIdx, setClaimIdx] = useState(null);   // public: square being claimed
+  const [claimName, setClaimName] = useState("");
+  const [adminIdx, setAdminIdx] = useState(null);   // admin: square being managed
+  const [adminName, setAdminName] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [fTitle, setFTitle] = useState("Rams Squares");
+  const [fRows, setFRows] = useState("Rams");
   const [fCols, setFCols] = useState("");
-  const [fGame, setFGame] = useState("");
+  const [fGame, setFGame] = useState("First Rams game of the season");
   const [showSetup, setShowSetup] = useState(false);
-  // Live score inputs (admin) — highlight the current winning square
   const [liveRow, setLiveRow] = useState("");
   const [liveCol, setLiveCol] = useState("");
-  const [winLabel, setWinLabel] = useState("");
 
   const load = () => sbFetch("lbdc_schedules?id=eq.squares&select=data")
-    .then(rows => { const d = rows?.[0]?.data; setBlob(d && d.squares ? d : null); })
+    .then(rows => { const d = rows?.[0]?.data; setBlob(d && Array.isArray(d.squares) ? d : null); })
     .catch(() => setBlob(null));
   useEffect(() => { load(); }, []);
 
-  // Re-read latest blob, apply mutate, write back.
+  // Re-read latest blob, apply mutate, write back. Re-reading first keeps
+  // near-simultaneous claims from clobbering each other.
   const persist = async (mutate) => {
     setBusy(true);
     try {
       const rows = await sbFetch("lbdc_schedules?id=eq.squares&select=data");
-      const latest = (rows?.[0]?.data && rows[0].data.squares) ? rows[0].data : null;
+      const latest = (rows?.[0]?.data && Array.isArray(rows[0].data.squares)) ? rows[0].data : null;
       const next = mutate(latest);
+      if (next === null) { setBusy(false); return false; }
       await sbUpsert("lbdc_schedules", { id: "squares", data: next });
       setBlob(next); setBusy(false); return true;
     } catch (e) { setBusy(false); flashSaveErr("Squares save failed — please try again."); return false; }
   };
 
   const freshBoard = () => ({
-    title: fTitle.trim() || "Championship Squares",
-    teamRows: fRows.trim() || "Team A",
-    teamCols: fCols.trim() || "Team B",
+    title: fTitle.trim() || "Squares",
+    teamRows: fRows.trim() || "Rams",
+    teamCols: fCols.trim() || "Opponent",
     gameLabel: fGame.trim(),
     status: "open",
-    squares: Array(50).fill(""),
+    squares: Array.from({ length: 100 }, () => ({ name: "", paid: false })),
     rowDigits: null, colDigits: null,
     live: { rowScore: "", colScore: "" },
-    results: [],
+    winners: { q1: null, half: null, q3: null, final: null },
   });
   const createBoard = async () => { const b = freshBoard(); const ok = await persist(() => b); if (ok) setShowSetup(false); };
   const saveConfig = async () => {
-    await persist(prev => ({ ...(prev || freshBoard()), title: fTitle.trim() || "Championship Squares", teamRows: fRows.trim() || "Team A", teamCols: fCols.trim() || "Team B", gameLabel: fGame.trim() }));
+    await persist(prev => ({ ...(prev || freshBoard()), title: fTitle.trim() || "Squares", teamRows: fRows.trim() || "Rams", teamCols: fCols.trim() || "Opponent", gameLabel: fGame.trim() }));
     setShowSetup(false);
   };
-  const openSetup = () => { if (blob) { setFTitle(blob.title || "Championship Squares"); setFRows(blob.teamRows || ""); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); } setShowSetup(true); };
+  const openSetup = () => { if (blob) { setFTitle(blob.title || "Rams Squares"); setFRows(blob.teamRows || "Rams"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); } setShowSetup(true); };
 
-  const saveSquare = async (idx, name) => { await persist(prev => { const b = { ...prev, squares: [...prev.squares] }; b.squares[idx] = name.trim(); return b; }); };
-  const commitEdit = () => { if (editIdx !== null) { saveSquare(editIdx, editVal); setEditIdx(null); setEditVal(""); } };
-  const drawNumbers = async () => {
-    if (blob.rowDigits && !window.confirm("Numbers are already drawn. Re-draw and shuffle everyone's numbers?")) return;
-    if (!blob.rowDigits && !window.confirm("Draw the numbers now? Do this once the board is full — it can't be quietly changed after.")) return;
-    const { rowDigits, colDigits } = sqDrawNumbers();
-    await persist(prev => ({ ...prev, rowDigits, colDigits, status: "drawn" }));
+  // Public claim
+  const claim = async () => {
+    const name = claimName.trim();
+    if (!name || claimIdx === null) return;
+    let taken = false;
+    const ok = await persist(prev => {
+      if (!prev) return null;
+      if (prev.status !== "open") { taken = true; return null; }
+      const sqs = prev.squares.map(s => ({ ...s }));
+      if (sqs[claimIdx].name) { taken = true; return null; }
+      sqs[claimIdx] = { name, paid: false };
+      return { ...prev, squares: sqs };
+    });
+    if (taken) { setMsg({ ok: false, text: "Sorry — that square was just taken. Please pick another." }); setClaimIdx(null); setClaimName(""); }
+    else if (ok) { setMsg({ ok: true, text: `Square #${claimIdx + 1} reserved for ${name}! ⚾ Send Daniel 5 baseballs to lock it in — it turns green once he's got them.` }); setClaimIdx(null); setClaimName(""); }
+  };
+
+  // Admin actions
+  const adminAddName = async () => { const name = adminName.trim(); if (!name || adminIdx === null) return; await persist(prev => { const sqs = prev.squares.map(s => ({ ...s })); sqs[adminIdx] = { name, paid: sqs[adminIdx].paid || false }; return { ...prev, squares: sqs }; }); setAdminIdx(null); setAdminName(""); };
+  const confirmPay = async (idx) => { await persist(prev => { const sqs = prev.squares.map(s => ({ ...s })); sqs[idx] = { ...sqs[idx], paid: true }; return { ...prev, squares: sqs }; }); setAdminIdx(null); };
+  const unconfirmPay = async (idx) => { await persist(prev => { const sqs = prev.squares.map(s => ({ ...s })); sqs[idx] = { ...sqs[idx], paid: false }; return { ...prev, squares: sqs }; }); };
+  const releaseSquare = async (idx) => { if (!window.confirm(`Release square #${idx + 1}? This clears the name so someone else can take it.`)) return; await persist(prev => { const sqs = prev.squares.map(s => ({ ...s })); sqs[idx] = { name: "", paid: false }; return { ...prev, squares: sqs }; }); setAdminIdx(null); };
+  const randomize = async () => {
+    const filled = blob.squares.filter(s => s.name).length;
+    if (filled < 100 && !window.confirm(`Only ${filled}/100 squares are filled. Draw & reveal the numbers now anyway?`)) return;
+    if (blob.rowDigits && !window.confirm("Numbers are already drawn. Re-draw and reshuffle everyone's numbers?")) return;
+    const { rowDigits, colDigits } = sqDraw10();
+    await persist(prev => ({ ...prev, rowDigits, colDigits, status: "randomized" }));
   };
   const saveLive = async (r, c) => { await persist(prev => ({ ...prev, live: { rowScore: r, colScore: c } })); };
-  const recordWinner = async () => {
+  // Record the winner for one of the 4 standard payout periods from the current
+  // live score. Stores name + the score/square so it's shown on the board.
+  const setPeriodWinner = async (key) => {
     const idx = sqWinnerIndex(blob, liveRow, liveCol);
-    if (idx === null) { flashSaveErr("Enter both scores (and draw numbers) first."); return; }
-    const name = blob.squares[idx] || "(open square)";
-    const label = winLabel.trim() || `${blob.teamCols} ${liveCol} – ${blob.teamRows} ${liveRow}`;
-    await persist(prev => ({ ...prev, results: [...(prev.results || []), { label, name }] }));
-    setWinLabel("");
+    if (idx === null) { flashSaveErr("Enter both scores (and draw the numbers) first."); return; }
+    const name = blob.squares[idx]?.name || "(open square)";
+    await persist(prev => ({ ...prev, winners: { ...(prev.winners || {}), [key]: { name, sq: idx + 1, rowScore: liveRow, colScore: liveCol } } }));
   };
-  const removeResult = async (i) => { await persist(prev => ({ ...prev, results: (prev.results || []).filter((_, k) => k !== i) })); };
-  const clearBoard = async () => { if (window.confirm("Delete this squares board completely? This clears all names, numbers and winners.")) { await persist(() => ({ ...freshBoard(), squares: Array(50).fill("") })); } };
+  const clearPeriodWinner = async (key) => { await persist(prev => ({ ...prev, winners: { ...(prev.winners || {}), [key]: null } })); };
+  const clearBoard = async () => { if (window.confirm("Delete this squares board completely? This clears all names, payments, numbers and winners.")) { await persist(() => freshBoard()); setAdminIdx(null); } };
+
+  const onSquareClick = (idx) => {
+    if (isAdmin) { const sq = blob.squares[idx]; setAdminIdx(idx); setAdminName(sq.name || ""); setMsg(null); return; }
+    const sq = blob.squares[idx];
+    if (blob.status === "open" && !sq.name) { setClaimIdx(idx); setClaimName(""); setMsg(null); }
+  };
 
   const navy = "#002d6e", gold = "#FFC107";
   const inputStyle = { width: "100%", padding: "11px 13px", border: "1px solid rgba(0,0,0,0.15)", borderRadius: 10, fontSize: 15, boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
   const btn = (bg) => ({ padding: "11px 16px", background: bg, border: "none", borderRadius: 10, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, textTransform: "uppercase", letterSpacing: ".04em", cursor: "pointer" });
 
-  // Live winner highlight from whichever score is current (admin live inputs override stored live)
   const curRow = isAdmin && (liveRow !== "" || liveCol !== "") ? liveRow : (blob?.live?.rowScore ?? "");
   const curCol = isAdmin && (liveRow !== "" || liveCol !== "") ? liveCol : (blob?.live?.colScore ?? "");
   const winIdx = blob ? sqWinnerIndex(blob, curRow, curCol) : null;
-  const takenCount = blob ? blob.squares.filter(s => s && s.trim()).length : 0;
+  // Claimed squares for the admin payments checklist — unpaid first, then locked-in.
+  const claimedList = blob ? blob.squares.map((sq, idx) => ({ idx, sq })).filter(x => x.sq.name).sort((a, b) => (a.sq.paid === b.sq.paid ? a.idx - b.idx : (a.sq.paid ? 1 : -1))) : [];
+  const unpaidCount = claimedList.filter(x => !x.sq.paid).length;
+  const winnersObj = blob?.winners || {};
+  const anyWinner = SQ_PERIODS.some(p => winnersObj[p.key]);
+  const takenCount = blob ? blob.squares.filter(s => s.name).length : 0;
+  const paidCount = blob ? blob.squares.filter(s => s.name && s.paid).length : 0;
 
   if (blob === undefined) return (
     <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
@@ -6344,100 +6379,108 @@ function SquaresPage({ setTab }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
-      <PageHero label="Diamond Classics · Fundraiser" title={blob?.title || "Squares Board"} subtitle={blob?.gameLabel || "Grab your squares for the big game."} />
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
+      <PageHero label="Diamond Classics · Fundraiser" title={blob?.title || "Squares Board"} subtitle={blob?.gameLabel || "Pick a square for the big game."} />
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
 
-        {/* ── No board yet ── */}
+        {msg && (
+          <div onClick={() => setMsg(null)} style={{ background: msg.ok ? "#dcfce7" : "#fee2e2", border: `1px solid ${msg.ok ? "#86efac" : "#fecaca"}`, color: msg.ok ? "#14532d" : "#991b1b", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 14.5, lineHeight: 1.5, cursor: "pointer", fontWeight: 600 }}>
+            {msg.text}
+          </div>
+        )}
+
+        {/* No board yet */}
         {!blob && (
           <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 14, padding: "26px 22px", textAlign: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>🟦⚾🏈</div>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>🟦🏈⚾</div>
             <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", color: navy }}>No squares board is live right now</div>
             <div style={{ color: "rgba(0,0,0,0.55)", fontSize: 15, marginTop: 6 }}>Check back before the next big game — a fresh board will be posted here.</div>
             {isAdmin && !showSetup && <button onClick={openSetup} style={{ ...btn(navy), marginTop: 18 }}>+ Create a board</button>}
           </div>
         )}
 
-        {/* ── Setup / edit matchup (admin) ── */}
+        {/* Setup / edit matchup (admin) */}
         {isAdmin && showSetup && (
           <div style={{ background: "#fff", border: "2px solid " + gold, borderRadius: 14, padding: "20px 18px", marginBottom: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
             <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 19, textTransform: "uppercase", color: navy, marginBottom: 12 }}>{blob ? "Edit board" : "New squares board"}</div>
             <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Board title</label>
-            <input value={fTitle} onChange={e => setFTitle(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="Championship Squares" />
+            <input value={fTitle} onChange={e => setFTitle(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="Rams Squares" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Rows team (down the side)</label>
-                <input value={fRows} onChange={e => setFRows(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="e.g. Chiefs" />
+                <input value={fRows} onChange={e => setFRows(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="Rams" />
               </div>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Cols team (across the top)</label>
-                <input value={fCols} onChange={e => setFCols(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="e.g. Eagles" />
+                <input value={fCols} onChange={e => setFCols(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="Opponent" />
               </div>
             </div>
             <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Game / date (optional)</label>
-            <input value={fGame} onChange={e => setFGame(e.target.value)} style={{ ...inputStyle, margin: "5px 0 14px" }} placeholder="e.g. Super Bowl · Feb 8" />
+            <input value={fGame} onChange={e => setFGame(e.target.value)} style={{ ...inputStyle, margin: "5px 0 14px" }} placeholder="First Rams game of the season" />
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={blob ? saveConfig : createBoard} disabled={busy} style={btn(navy)}>{blob ? "Save" : "Create board"}</button>
-              <button onClick={() => setShowSetup(false)} style={{ ...btn("#6b7280") }}>Cancel</button>
+              <button onClick={() => setShowSetup(false)} style={btn("#6b7280")}>Cancel</button>
             </div>
           </div>
         )}
 
-        {/* ── The board ── */}
+        {/* The board */}
         {blob && (
           <>
-            {/* Legend */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
               <span style={{ background: navy, color: "#fff", padding: "5px 12px", borderRadius: 999 }}>↓ Rows: {blob.teamRows}</span>
               <span style={{ background: "#0f5ca8", color: "#fff", padding: "5px 12px", borderRadius: 999 }}>→ Columns: {blob.teamCols}</span>
-              <span style={{ background: "#e5e9f0", color: navy, padding: "5px 12px", borderRadius: 999 }}>{takenCount} / 50 squares taken</span>
+              <span style={{ background: "#e5e9f0", color: navy, padding: "5px 12px", borderRadius: 999 }}>{takenCount} / 100 taken</span>
             </div>
 
-            {!blob.rowDigits && (
+            {blob.status === "open" && (
+              <div style={{ background: "#eef3fb", border: "1px solid #d6e0f0", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: 14.5, color: navy, textAlign: "center", lineHeight: 1.5 }}>
+                <b>How to play:</b> tap any open numbered square, drop your name in, then send Daniel <b>5 baseballs ⚾</b> to lock it in. Your square turns <span style={{ color: "#b91c1c", fontWeight: 800 }}>red</span> when reserved and <span style={{ color: "#15803d", fontWeight: 800 }}>green</span> once he's got your baseballs. The outside numbers are drawn once the board fills up!
+              </div>
+            )}
+            {blob.status === "randomized" && (
               <div style={{ background: "#fff8e1", border: "1px solid #ffe08a", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13.5, color: "#4a3b00", textAlign: "center" }}>
-                🎲 Numbers are hidden until the board fills up — then they're drawn at random, so every square is pure luck.
+                🎲 Numbers are in! Find your square — your {blob.teamRows} digit is on the left, your {blob.teamCols} digit is across the top.
               </div>
             )}
 
+            {/* Where the proceeds go (transparency — percentages only, no dollar figures) */}
+            <div style={{ textAlign: "center", fontSize: 12.5, color: "rgba(0,0,0,0.6)", marginBottom: 14, lineHeight: 1.55 }}>
+              💰 Where the baseballs go: <b style={{ color: navy }}>70%</b> into the pool (the prizes) · <b style={{ color: navy }}>30%</b> keeps this website running and improving the player experience. 🙌
+            </div>
+
             {/* Grid */}
             <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12, padding: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "30px repeat(5, minmax(56px, 1fr))", gap: 3, minWidth: 340 }}>
-                {/* corner */}
-                <div style={{ background: navy, borderRadius: 6, minHeight: 34 }} />
-                {/* column headers */}
-                {[0,1,2,3,4].map(c => (
-                  <div key={"ch"+c} style={{ background: "#0f5ca8", color: gold, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, minHeight: 34 }}>
-                    {blob.colDigits ? blob.colDigits[c].join("/") : "?"}
+              <div style={{ display: "grid", gridTemplateColumns: "26px repeat(10, minmax(46px, 1fr))", gap: 2, minWidth: 520 }}>
+                <div style={{ background: navy, borderRadius: 5, minHeight: 30 }} />
+                {[0,1,2,3,4,5,6,7,8,9].map(c => (
+                  <div key={"ch"+c} style={{ background: "#0f5ca8", color: gold, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, minHeight: 30 }}>
+                    {blob.colDigits ? blob.colDigits[c] : "?"}
                   </div>
                 ))}
-                {/* rows */}
                 {[0,1,2,3,4,5,6,7,8,9].map(r => (
                   <React.Fragment key={"row"+r}>
-                    <div style={{ background: navy, color: gold, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15 }}>
+                    <div style={{ background: navy, color: gold, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15 }}>
                       {blob.rowDigits ? blob.rowDigits[r] : "?"}
                     </div>
-                    {[0,1,2,3,4].map(c => {
-                      const idx = r * 5 + c;
-                      const name = blob.squares[idx];
+                    {[0,1,2,3,4,5,6,7,8,9].map(c => {
+                      const idx = r * 10 + c;
+                      const sq = blob.squares[idx];
                       const isWin = winIdx === idx;
-                      const editing = editIdx === idx;
+                      const claimed = !!sq.name;
+                      const bg = isWin ? "#fff4cc" : claimed ? (sq.paid ? "#dcfce7" : "#fee2e2") : "#fafbfc";
+                      const bd = isWin ? "2px solid " + gold : claimed ? (sq.paid ? "1px solid #86efac" : "1px solid #fca5a5") : "1px solid #e3e7ee";
+                      const nameColor = sq.paid ? "#166534" : "#b91c1c";
+                      const clickable = isAdmin || (blob.status === "open" && !claimed);
                       return (
-                        <div key={idx}
-                          onClick={() => { if (isAdmin && !editing) { setEditIdx(idx); setEditVal(name || ""); } }}
-                          style={{ minHeight: 46, borderRadius: 6, border: isWin ? "2px solid " + gold : "1px solid #e3e7ee",
-                            background: isWin ? "#fff4cc" : name ? "#eef3fb" : "#fafbfc",
-                            display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
-                            padding: 3, cursor: isAdmin ? "pointer" : "default", position: "relative", overflow: "hidden" }}>
-                          {editing ? (
-                            <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
-                              onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") { setEditIdx(null); setEditVal(""); } }}
-                              onBlur={commitEdit}
-                              style={{ width: "100%", border: "none", outline: "none", textAlign: "center", fontSize: 11, background: "transparent", fontFamily: "inherit" }} />
+                        <div key={idx} onClick={() => onSquareClick(idx)}
+                          style={{ minHeight: 44, borderRadius: 5, border: bd, background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 2, cursor: clickable ? "pointer" : "default", position: "relative", overflow: "hidden" }}>
+                          <span style={{ position: "absolute", top: 1, left: 3, fontSize: 8, fontWeight: 700, color: "rgba(0,0,0,0.35)" }}>{idx + 1}</span>
+                          {claimed ? (
+                            <span style={{ fontSize: 9.5, fontWeight: 800, lineHeight: 1.05, color: nameColor, wordBreak: "break-word", marginTop: 4 }}>{sq.name}</span>
                           ) : (
-                            <span style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.1, color: name ? navy : "#c4cad4", wordBreak: "break-word" }}>
-                              {name || (isAdmin ? "+ add" : "")}
-                            </span>
+                            <span style={{ fontSize: 15, fontWeight: 900, color: "#c4cad4", fontFamily: "'Barlow Condensed',sans-serif" }}>{idx + 1}</span>
                           )}
-                          {isWin && <span style={{ position: "absolute", top: 1, right: 2, fontSize: 10 }}>🏆</span>}
+                          {isWin && <span style={{ position: "absolute", top: 1, right: 2, fontSize: 9 }}>🏆</span>}
                         </div>
                       );
                     })}
@@ -6445,44 +6488,70 @@ function SquaresPage({ setTab }) {
                 ))}
               </div>
             </div>
-            {isAdmin && <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", textAlign: "center", marginTop: 6 }}>Tap any square to add or change a name.</div>}
-
-            {/* Current winner banner (public) */}
-            {winIdx !== null && blob.squares[winIdx] && (
-              <div style={{ background: "linear-gradient(90deg,#b8860b,#FFC107)", color: "#3a2e00", borderRadius: 12, padding: "12px 16px", marginTop: 14, textAlign: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 18, textTransform: "uppercase" }}>
-                🏆 On the board right now: {blob.squares[winIdx]}
-              </div>
-            )}
-
-            {/* Recorded winners */}
-            {(blob.results || []).length > 0 && (
-              <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 12, padding: "14px 16px", marginTop: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
-                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: navy, marginBottom: 8 }}>🏆 Winners</div>
-                {blob.results.map((w, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderTop: i ? "1px solid #eef1f6" : "none" }}>
-                    <span style={{ fontSize: 14 }}><b style={{ color: navy }}>{w.name}</b> <span style={{ color: "rgba(0,0,0,0.5)" }}>— {w.label}</span></span>
-                    {isAdmin && <button onClick={() => removeResult(i)} style={{ background: "none", border: "none", color: "#dc2626", fontSize: 12, cursor: "pointer", fontWeight: 700 }}>remove</button>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* How to join — NO money mentioned */}
-            <div style={{ background: "#eef3fb", border: "1px solid #d6e0f0", borderRadius: 12, padding: "14px 16px", marginTop: 14, fontSize: 14.5, color: navy, textAlign: "center", lineHeight: 1.5 }}>
-              <b>Want in?</b> Message the commissioner to grab your squares — no picking, names go in random open boxes and the numbers are drawn once the board is full. 🍀
+            <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 8, fontSize: 12, color: "rgba(0,0,0,0.55)", flexWrap: "wrap" }}>
+              <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 2, verticalAlign: "middle", marginRight: 4 }} />reserved</span>
+              <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#dcfce7", border: "1px solid #86efac", borderRadius: 2, verticalAlign: "middle", marginRight: 4 }} />locked in ✓</span>
+              {isAdmin && <span>· tap any square to manage it</span>}
             </div>
 
-            {/* ── Admin control panel ── */}
+            {/* Current winner banner */}
+            {winIdx !== null && blob.squares[winIdx]?.name && (
+              <div style={{ background: "linear-gradient(90deg,#b8860b,#FFC107)", color: "#3a2e00", borderRadius: 12, padding: "12px 16px", marginTop: 14, textAlign: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 18, textTransform: "uppercase" }}>
+                🏆 On the board right now: {blob.squares[winIdx].name}
+              </div>
+            )}
+
+            {/* Winners by period — the 4 standard football payouts */}
+            {(blob.status === "randomized" || anyWinner) && (
+              <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 12, padding: "14px 16px", marginTop: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: navy, marginBottom: 8 }}>🏆 Winners</div>
+                {SQ_PERIODS.map((p, i) => {
+                  const w = winnersObj[p.key];
+                  return (
+                    <div key={p.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: i ? "1px solid #eef1f6" : "none" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(0,0,0,0.5)", textTransform: "uppercase", letterSpacing: ".04em", minWidth: 92 }}>{p.label}</span>
+                      <span style={{ flex: 1, textAlign: "right", fontSize: 15 }}>
+                        {w ? <b style={{ color: "#15803d" }}>{w.name}</b> : <span style={{ color: "#c4cad4", fontStyle: "italic", fontSize: 13 }}>—</span>}
+                        {w && <span style={{ color: "rgba(0,0,0,0.4)", fontSize: 12, marginLeft: 6 }}>#{w.sq}</span>}
+                      </span>
+                      {isAdmin && w && <button onClick={() => clearPeriodWinner(p.key)} style={{ background: "none", border: "none", color: "#dc2626", fontSize: 11, cursor: "pointer", fontWeight: 700, marginLeft: 8 }}>clear</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Admin control panel */}
             {isAdmin && (
               <div style={{ background: "#fff", border: "2px solid " + navy, borderRadius: 14, padding: "16px 16px 18px", marginTop: 20 }}>
                 <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 18, textTransform: "uppercase", color: navy, marginBottom: 12 }}>⚙️ Commissioner controls</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
                   <button onClick={openSetup} style={btn("#6b7280")}>Edit matchup</button>
-                  <button onClick={drawNumbers} disabled={busy} style={btn("#b8860b")}>🎲 {blob.rowDigits ? "Re-draw" : "Draw"} numbers</button>
+                  <button onClick={randomize} disabled={busy} style={btn("#b8860b")}>🎲 {blob.rowDigits ? "Re-draw" : "Randomize"} numbers</button>
                   <button onClick={clearBoard} disabled={busy} style={btn("#b91c1c")}>Clear board</button>
                 </div>
+                {/* Payments checklist — mark off the 5 baseballs without hunting the grid */}
                 <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 8 }}>Live score → lights up the winning square</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 8 }}>💵 Mark off the 5 baseballs{unpaidCount > 0 && <span style={{ color: "#b91c1c" }}> · {unpaidCount} still owe</span>}</div>
+                  {claimedList.length === 0 ? (
+                    <div style={{ fontSize: 13, color: "#999", fontStyle: "italic" }}>No squares claimed yet.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto", paddingRight: 2 }}>
+                      {claimedList.map(({ idx, sq }) => (
+                        <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "7px 10px", borderRadius: 8, background: sq.paid ? "#f0fdf4" : "#fef2f2", border: `1px solid ${sq.paid ? "#bbf7d0" : "#fecaca"}` }}>
+                          <span style={{ fontSize: 13.5, fontWeight: 600, color: "#333" }}><span style={{ color: "#888", fontWeight: 700, marginRight: 6 }}>#{idx + 1}</span>{sq.name}</span>
+                          {sq.paid
+                            ? <button onClick={() => unconfirmPay(idx)} style={{ background: "none", border: "none", color: "#15803d", fontSize: 12.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>✓ got 'em · undo</button>
+                            : <button onClick={() => confirmPay(idx)} disabled={busy} style={{ background: "#15803d", border: "none", borderRadius: 7, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12.5, padding: "6px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>✓ Got 5 baseballs</button>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Game day — live score + the 4 payout-period winners */}
+                <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 14, marginTop: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 8 }}>Game day — enter the score, then tap the period that just ended</div>
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
                     <div style={{ flex: 1, minWidth: 90 }}>
                       <label style={{ fontSize: 11, color: "#666" }}>{blob.teamRows} score</label>
@@ -6493,20 +6562,66 @@ function SquaresPage({ setTab }) {
                       <input inputMode="numeric" value={liveCol} onChange={e => { setLiveCol(e.target.value); saveLive(liveRow, e.target.value); }} style={{ ...inputStyle, marginTop: 4 }} />
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 10, marginTop: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
-                    <div style={{ flex: 1, minWidth: 140 }}>
-                      <label style={{ fontSize: 11, color: "#666" }}>Winner label (e.g. "End of 1st Quarter")</label>
-                      <input value={winLabel} onChange={e => setWinLabel(e.target.value)} style={{ ...inputStyle, marginTop: 4 }} placeholder="End of 1st Quarter" />
-                    </div>
-                    <button onClick={recordWinner} disabled={busy} style={btn(navy)}>+ Record winner</button>
+                  <div style={{ fontSize: 12, color: "#666", margin: "10px 0 6px" }}>Records whichever square the current score lands on:</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {SQ_PERIODS.map(p => (
+                      <button key={p.key} onClick={() => setPeriodWinner(p.key)} disabled={busy} style={{ ...btn(winnersObj[p.key] ? "#15803d" : navy), fontSize: 13, padding: "9px 12px" }}>
+                        {winnersObj[p.key] ? "✓ " : "+ "}{p.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
             )}
           </>
         )}
-
       </div>
+
+      {/* Public claim modal */}
+      {claimIdx !== null && (
+        <div onClick={() => setClaimIdx(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "22px 20px", width: "100%", maxWidth: 380, boxShadow: "0 12px 40px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 24, textTransform: "uppercase", color: navy }}>Claim Square #{claimIdx + 1}</div>
+            <div style={{ fontSize: 13.5, color: "rgba(0,0,0,0.6)", margin: "4px 0 14px", lineHeight: 1.5 }}>Drop your name in, then send Daniel <b>5 baseballs ⚾</b> to lock it in. (It turns green once he's got them.)</div>
+            <input autoFocus value={claimName} onChange={e => setClaimName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") claim(); }} placeholder="Your name" style={{ ...inputStyle, marginBottom: 14 }} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={claim} disabled={busy || !claimName.trim()} style={{ ...btn(claimName.trim() ? navy : "#9ca3af"), flex: 1 }}>Claim it ⚾</button>
+              <button onClick={() => setClaimIdx(null)} style={btn("#6b7280")}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin square manager */}
+      {isAdmin && adminIdx !== null && blob && (
+        <div onClick={() => setAdminIdx(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "22px 20px", width: "100%", maxWidth: 380, boxShadow: "0 12px 40px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 24, textTransform: "uppercase", color: navy }}>Square #{adminIdx + 1}</div>
+            {blob.squares[adminIdx].name ? (
+              <>
+                <div style={{ fontSize: 15, margin: "8px 0 4px" }}><b>{blob.squares[adminIdx].name}</b></div>
+                <div style={{ fontSize: 13, color: blob.squares[adminIdx].paid ? "#15803d" : "#b91c1c", fontWeight: 700, marginBottom: 16 }}>{blob.squares[adminIdx].paid ? "✓ 5 baseballs received (green)" : "⚠ Waiting on 5 baseballs (red)"}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {!blob.squares[adminIdx].paid
+                    ? <button onClick={() => confirmPay(adminIdx)} disabled={busy} style={btn("#15803d")}>✓ Got the 5 baseballs</button>
+                    : <button onClick={() => unconfirmPay(adminIdx)} disabled={busy} style={btn("#6b7280")}>Undo — mark unpaid</button>}
+                  <button onClick={() => releaseSquare(adminIdx)} disabled={busy} style={btn("#b91c1c")}>Release square (clear name)</button>
+                  <button onClick={() => setAdminIdx(null)} style={btn("#374151")}>Close</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 13.5, color: "rgba(0,0,0,0.6)", margin: "6px 0 12px" }}>Open square — add a name yourself if someone paid in person.</div>
+                <input autoFocus value={adminName} onChange={e => setAdminName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") adminAddName(); }} placeholder="Name" style={{ ...inputStyle, marginBottom: 14 }} />
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={adminAddName} disabled={busy || !adminName.trim()} style={{ ...btn(adminName.trim() ? navy : "#9ca3af"), flex: 1 }}>Add name</button>
+                  <button onClick={() => setAdminIdx(null)} style={btn("#6b7280")}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
