@@ -6268,7 +6268,7 @@ function SquaresPage({ setTab }) {
   const [fRows, setFRows] = useState("Rams");
   const [fCols, setFCols] = useState("");
   const [fGame, setFGame] = useState("First Rams game of the season");
-  const [fPay, setFPay] = useState({ q1: "", half: "", q3: "", final: "" });
+  const [fPay, setFPay] = useState({ q1: "70", half: "105", q3: "70", final: "105" });
   const [showSetup, setShowSetup] = useState(false);
   const [liveRow, setLiveRow] = useState("");
   const [liveCol, setLiveCol] = useState("");
@@ -6520,7 +6520,7 @@ function SquaresPage({ setTab }) {
             {(blob.status === "randomized" || anyWinner || SQ_PERIODS.some(p => blob.payouts?.[p.key])) && (
               <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 12, padding: "14px 16px", marginTop: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
                 <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: navy, marginBottom: 2 }}>🏆 Payouts</div>
-                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginBottom: 8 }}>Each quarter pays out (in baseballs ⚾) to whoever's square the score lands on.</div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginBottom: 8 }}>If all 100 squares fill, each quarter pays out these baseballs ⚾ — to whoever's square the score lands on.</div>
                 {SQ_PERIODS.map((p, i) => {
                   const w = winnersObj[p.key];
                   const pay = blob.payouts?.[p.key];
