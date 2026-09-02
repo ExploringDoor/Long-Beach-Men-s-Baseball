@@ -119,10 +119,7 @@ const cleanHeadline = (h) =>
   ((h || "").replace(/\s*\[submitted:[^\]]*\]/g, "")).trim();
 
 // Short display names for the ticker
-const TICKER_NAME = {
-  "Eddie Murray Mashers '56":  "Mashers",
-  "Greg Maddux Magicians '66": "Magicians",
-};
+const TICKER_NAME = {};
 
 const DIV = {
   SAT: {
@@ -244,21 +241,6 @@ const TEAM_ROSTERS = {
     {number:"", name:"Jimmy Van Cott"},
     {number:"", name:"Cedric Watson"},
   ],
-  "Eddie Murray Mashers '56": [
-    {number:"2",  name:"Steve Bunnell"},
-    {number:"",   name:"Dennis Clancy"},
-    {number:"",   name:"Jose Gomez"},
-    {number:"",   name:"Alan Ides"},
-    {number:"",   name:"Mike Ockwig"},
-    {number:"",   name:"Robbie Robinson"},
-  ],
-  "Greg Maddux Magicians '66": [
-    {number:"",   name:"Miguel Alejandre"},
-    {number:"",   name:"Pedro Barajas"},
-    {number:"",   name:"Tom Bennett"},
-    {number:"",   name:"Scott Page"},
-    {number:"",   name:"Dave Snyder"},
-  ],
   "Leones": [],
   "Indios": [],
 };
@@ -278,8 +260,6 @@ const TEAM_CAL_LINKS = {
   "Brooklyn": "https://calendar.google.com/calendar/r?cid=0474cdc6fd4e9341b1638d7b458b4a3c498c53a42e489a72c652e0c61a58559d%40group.calendar.google.com",
   "Generals": "https://calendar.google.com/calendar/r?cid=87c7cc1dfa649ad6095d8daaaf95db1f1ecb222aeab8849eb6681b3c62f2a8cc%40group.calendar.google.com",
   "Black Sox":"https://calendar.google.com/calendar/r?cid=72509ee387916b56600af826b8e0fd6c11e4227a7c1eee79dae873650a260b29%40group.calendar.google.com",
-  "Eddie Murray Mashers '56":  "https://calendar.google.com/calendar/r?cid=1641f48afa62a1d531486a44b949f194f1dde2eeeb020eb5fb4845b07d70881a%40group.calendar.google.com",
-  "Greg Maddux Magicians '66": "https://calendar.google.com/calendar/r?cid=6d97cb2c2833f83718aa1144af4402b990e998dcbeb4dd9a5d233a3781e8bff5%40group.calendar.google.com",
 };
 
 // Apple / iPhone Calendar (webcal ICS feed)
