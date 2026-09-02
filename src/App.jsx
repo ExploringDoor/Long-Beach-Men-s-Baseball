@@ -6266,8 +6266,8 @@ function SquaresPage({ setTab }) {
   const [msg, setMsg] = useState(null);
   const [fTitle, setFTitle] = useState("Rams Squares");
   const [fRows, setFRows] = useState("Rams");
-  const [fCols, setFCols] = useState("");
-  const [fGame, setFGame] = useState("First Rams game of the season");
+  const [fCols, setFCols] = useState("49ers");
+  const [fGame, setFGame] = useState("Rams vs 49ers · 9/10");
   const [fPay, setFPay] = useState({ q1: "70", half: "105", q3: "70", final: "105" });
   const [showSetup, setShowSetup] = useState(false);
   const [liveRow, setLiveRow] = useState("");
@@ -6617,12 +6617,15 @@ function SquaresPage({ setTab }) {
             {blob.squares[adminIdx].name ? (
               <>
                 <div style={{ fontSize: 15, margin: "8px 0 4px" }}><b>{blob.squares[adminIdx].name}</b></div>
-                <div style={{ fontSize: 13, color: blob.squares[adminIdx].paid ? "#15803d" : "#b91c1c", fontWeight: 700, marginBottom: 16 }}>{blob.squares[adminIdx].paid ? "✓ 5 baseballs received (green)" : "⚠ Waiting on 5 baseballs (red)"}</div>
+                <div style={{ fontSize: 13, color: blob.squares[adminIdx].paid ? "#15803d" : "#b91c1c", fontWeight: 700, marginBottom: 16 }}>{blob.squares[adminIdx].paid ? "🔒 Locked in — 5 baseballs received (green)" : "⚠ Waiting on 5 baseballs (red)"}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {!blob.squares[adminIdx].paid
                     ? <button onClick={() => confirmPay(adminIdx)} disabled={busy} style={btn("#15803d")}>✓ Got the 5 baseballs</button>
-                    : <button onClick={() => unconfirmPay(adminIdx)} disabled={busy} style={btn("#6b7280")}>Undo — mark unpaid</button>}
-                  <button onClick={() => releaseSquare(adminIdx)} disabled={busy} style={btn("#b91c1c")}>Release square (clear name)</button>
+                    : <button onClick={() => unconfirmPay(adminIdx)} disabled={busy} style={btn("#6b7280")}>Undo — mark unpaid (unlocks)</button>}
+                  {/* Once paid/green, the square is LOCKED — no accidental release. To free it, undo the payment first. */}
+                  {!blob.squares[adminIdx].paid
+                    ? <button onClick={() => releaseSquare(adminIdx)} disabled={busy} style={btn("#b91c1c")}>Release square (clear name)</button>
+                    : <div style={{ fontSize: 12, color: "rgba(0,0,0,0.45)", textAlign: "center", lineHeight: 1.4 }}>🔒 This square is locked. To free it, tap “Undo — mark unpaid” first.</div>}
                   <button onClick={() => setAdminIdx(null)} style={btn("#374151")}>Close</button>
                 </div>
               </>
