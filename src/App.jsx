@@ -6292,6 +6292,27 @@ function SquaresPage({ setTab }) {
     } catch (e) { setBusy(false); flashSaveErr("Squares save failed — please try again."); return false; }
   };
 
+  // Instant one-square admin edits (confirm/clear/add-name). Confirming used to
+  // wait on a re-read + a write before anything changed on screen — so it felt
+  // frozen and got double-clicked. Instead: update the square LOCALLY right away
+  // (instant green), then sync to the DB in the background. Syncs are QUEUED so
+  // rapid clicks don't clobber each other, and each re-reads the latest blob
+  // first so concurrent player claims are preserved.
+  const syncQueue = useRef(Promise.resolve());
+  const patchSquareOptimistic = (idx, patch) => {
+    setBlob(prev => { if (!prev) return prev; const sqs = prev.squares.map(s => ({ ...s })); sqs[idx] = { ...sqs[idx], ...patch }; return { ...prev, squares: sqs }; });
+    syncQueue.current = syncQueue.current.then(async () => {
+      try {
+        const rows = await sbFetch("lbdc_schedules?id=eq.squares&select=data");
+        const latest = (rows?.[0]?.data && Array.isArray(rows[0].data.squares)) ? rows[0].data : null;
+        if (!latest) return;
+        const sqs = latest.squares.map(s => ({ ...s }));
+        sqs[idx] = { ...sqs[idx], ...patch };
+        await sbUpsert("lbdc_schedules", { id: "squares", data: { ...latest, squares: sqs } });
+      } catch (e) { flashSaveErr("A change didn't save — refreshing…"); load(); }
+    }).catch(() => {});
+  };
+
   const freshBoard = () => ({
     title: fTitle.trim() || "Squares",
     teamRows: fRows.trim() || "Rams",
@@ -6328,11 +6349,11 @@ function SquaresPage({ setTab }) {
     else if (ok) { setMsg({ ok: true, text: `Square #${claimIdx + 1} reserved for ${name}! ⚾ Send Daniel 5 baseballs to lock it in — it turns green once he's got them.` }); setClaimIdx(null); setClaimName(""); }
   };
 
-  // Admin actions
-  const adminAddName = async () => { const name = adminName.trim(); if (!name || adminIdx === null) return; await persist(prev => { const sqs = prev.squares.map(s => ({ ...s })); sqs[adminIdx] = { name, paid: sqs[adminIdx].paid || false }; return { ...prev, squares: sqs }; }); setAdminIdx(null); setAdminName(""); };
-  const confirmPay = async (idx) => { await persist(prev => { const sqs = prev.squares.map(s => ({ ...s })); sqs[idx] = { ...sqs[idx], paid: true }; return { ...prev, squares: sqs }; }); setAdminIdx(null); };
-  const unconfirmPay = async (idx) => { await persist(prev => { const sqs = prev.squares.map(s => ({ ...s })); sqs[idx] = { ...sqs[idx], paid: false }; return { ...prev, squares: sqs }; }); };
-  const releaseSquare = async (idx) => { if (!window.confirm(`Release square #${idx + 1}? This clears the name so someone else can take it.`)) return; await persist(prev => { const sqs = prev.squares.map(s => ({ ...s })); sqs[idx] = { name: "", paid: false }; return { ...prev, squares: sqs }; }); setAdminIdx(null); };
+  // Admin actions — instant (optimistic) via patchSquareOptimistic.
+  const adminAddName = () => { const name = adminName.trim(); if (!name || adminIdx === null) return; patchSquareOptimistic(adminIdx, { name }); setAdminIdx(null); setAdminName(""); };
+  const confirmPay = (idx) => { patchSquareOptimistic(idx, { paid: true }); setAdminIdx(null); };
+  const unconfirmPay = (idx) => { patchSquareOptimistic(idx, { paid: false }); };
+  const releaseSquare = (idx) => { if (!window.confirm(`Release square #${idx + 1}? This clears the name so someone else can take it.`)) return; patchSquareOptimistic(idx, { name: "", paid: false }); setAdminIdx(null); };
   const randomize = async () => {
     const filled = blob.squares.filter(s => s.name).length;
     if (filled < 100 && !window.confirm(`Only ${filled}/100 squares are filled. Draw & reveal the numbers now anyway?`)) return;
