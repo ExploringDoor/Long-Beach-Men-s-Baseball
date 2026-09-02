@@ -48,7 +48,9 @@ A classic **100-square (10×10)** football squares pool for the first Rams game,
 
 Verified end-to-end vs live DB: self-serve claim → red, admin confirm → green, checklist "N still owe" decrement, randomize reveals digits, winner highlight (Rams 19 × Seahawks 15 → correct square), and per-period winners. Build passes, console clean.
 
-**Where:** `src/App.jsx` — `SquaresPage`, `sqShuffle`/`sqLastDigit`/`sqDraw10`/`sqWinnerIndex`, `SQ_PERIODS`, `["squares","🏈 Squares Pool"]` in `moreLinks`, `/squares` route. DB: `lbdc_schedules` id="squares".
+Follow-up polish (same day, per Daniel): team names now label the board axes directly — **cols team across the top, rows team down the side** (removed the redundant legend pills); dropped the money-bag emoji from the proceeds line; added a **payout per quarter** (in baseballs) set in the admin setup form and shown on the public **🏆 Payouts** card (1st Q / Half / 3rd Q / Final, each with its baseball amount + winner-or-"pending"). Re-confirmed the commissioner controls are admin-only (invisible to regular visitors).
+
+**Where:** `src/App.jsx` — `SquaresPage`, `sqShuffle`/`sqLastDigit`/`sqDraw10`/`sqWinnerIndex`, `SQ_PERIODS`, board `payouts`, `["squares","🏈 Squares Pool"]` in `moreLinks`, `/squares` route. DB: `lbdc_schedules` id="squares".
 
 ## [2026-08-23]
 

@@ -6268,6 +6268,7 @@ function SquaresPage({ setTab }) {
   const [fRows, setFRows] = useState("Rams");
   const [fCols, setFCols] = useState("");
   const [fGame, setFGame] = useState("First Rams game of the season");
+  const [fPay, setFPay] = useState({ q1: "", half: "", q3: "", final: "" });
   const [showSetup, setShowSetup] = useState(false);
   const [liveRow, setLiveRow] = useState("");
   const [liveCol, setLiveCol] = useState("");
@@ -6300,14 +6301,15 @@ function SquaresPage({ setTab }) {
     squares: Array.from({ length: 100 }, () => ({ name: "", paid: false })),
     rowDigits: null, colDigits: null,
     live: { rowScore: "", colScore: "" },
+    payouts: { q1: fPay.q1.trim(), half: fPay.half.trim(), q3: fPay.q3.trim(), final: fPay.final.trim() },
     winners: { q1: null, half: null, q3: null, final: null },
   });
   const createBoard = async () => { const b = freshBoard(); const ok = await persist(() => b); if (ok) setShowSetup(false); };
   const saveConfig = async () => {
-    await persist(prev => ({ ...(prev || freshBoard()), title: fTitle.trim() || "Squares", teamRows: fRows.trim() || "Rams", teamCols: fCols.trim() || "Opponent", gameLabel: fGame.trim() }));
+    await persist(prev => ({ ...(prev || freshBoard()), title: fTitle.trim() || "Squares", teamRows: fRows.trim() || "Rams", teamCols: fCols.trim() || "Opponent", gameLabel: fGame.trim(), payouts: { q1: fPay.q1.trim(), half: fPay.half.trim(), q3: fPay.q3.trim(), final: fPay.final.trim() } }));
     setShowSetup(false);
   };
-  const openSetup = () => { if (blob) { setFTitle(blob.title || "Rams Squares"); setFRows(blob.teamRows || "Rams"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); } setShowSetup(true); };
+  const openSetup = () => { if (blob) { setFTitle(blob.title || "Rams Squares"); setFRows(blob.teamRows || "Rams"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); setFPay({ q1: blob.payouts?.q1 || "", half: blob.payouts?.half || "", q3: blob.payouts?.q3 || "", final: blob.payouts?.final || "" }); } setShowSetup(true); };
 
   // Public claim
   const claim = async () => {
@@ -6416,6 +6418,15 @@ function SquaresPage({ setTab }) {
             </div>
             <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Game / date (optional)</label>
             <input value={fGame} onChange={e => setFGame(e.target.value)} style={{ ...inputStyle, margin: "5px 0 14px" }} placeholder="First Rams game of the season" />
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Payout per quarter (in baseballs)</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "6px 0 14px" }}>
+              {SQ_PERIODS.map(p => (
+                <div key={p.key}>
+                  <label style={{ fontSize: 11, color: "#888" }}>{p.label}</label>
+                  <input inputMode="numeric" value={fPay[p.key]} onChange={e => setFPay(v => ({ ...v, [p.key]: e.target.value }))} style={{ ...inputStyle, marginTop: 3 }} placeholder="e.g. 20" />
+                </div>
+              ))}
+            </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={blob ? saveConfig : createBoard} disabled={busy} style={btn(navy)}>{blob ? "Save" : "Create board"}</button>
               <button onClick={() => setShowSetup(false)} style={btn("#6b7280")}>Cancel</button>
@@ -6427,8 +6438,6 @@ function SquaresPage({ setTab }) {
         {blob && (
           <>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
-              <span style={{ background: navy, color: "#fff", padding: "5px 12px", borderRadius: 999 }}>↓ Rows: {blob.teamRows}</span>
-              <span style={{ background: "#0f5ca8", color: "#fff", padding: "5px 12px", borderRadius: 999 }}>→ Columns: {blob.teamCols}</span>
               <span style={{ background: "#e5e9f0", color: navy, padding: "5px 12px", borderRadius: 999 }}>{takenCount} / 100 taken</span>
             </div>
 
@@ -6445,12 +6454,16 @@ function SquaresPage({ setTab }) {
 
             {/* Where the proceeds go (transparency — percentages only, no dollar figures) */}
             <div style={{ textAlign: "center", fontSize: 12.5, color: "rgba(0,0,0,0.6)", marginBottom: 14, lineHeight: 1.55 }}>
-              💰 Where the baseballs go: <b style={{ color: navy }}>70%</b> into the pool (the prizes) · <b style={{ color: navy }}>30%</b> keeps this website running and improving the player experience. 🙌
+              Where the baseballs go: <b style={{ color: navy }}>70%</b> into the pool (the prizes) · <b style={{ color: navy }}>30%</b> keeps this website running and improving the player experience.
             </div>
 
-            {/* Grid */}
-            <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12, padding: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "26px repeat(10, minmax(46px, 1fr))", gap: 2, minWidth: 520 }}>
+            {/* Grid — team name on each axis: cols team across the top, rows team down the side */}
+            <div style={{ display: "flex", gap: 4, alignItems: "stretch" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: navy, color: gold, borderRadius: 6, padding: "0 4px", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, letterSpacing: ".14em", writingMode: "vertical-rl", transform: "rotate(180deg)", textTransform: "uppercase", flexShrink: 0 }}>{blob.teamRows}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ background: "#0f5ca8", color: gold, borderRadius: 6, textAlign: "center", padding: "5px 0", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 3 }}>{blob.teamCols}</div>
+                <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12, padding: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "26px repeat(10, minmax(46px, 1fr))", gap: 2, minWidth: 500 }}>
                 <div style={{ background: navy, borderRadius: 5, minHeight: 30 }} />
                 {[0,1,2,3,4,5,6,7,8,9].map(c => (
                   <div key={"ch"+c} style={{ background: "#0f5ca8", color: gold, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, minHeight: 30 }}>
@@ -6486,6 +6499,8 @@ function SquaresPage({ setTab }) {
                     })}
                   </React.Fragment>
                 ))}
+                  </div>
+                </div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 8, fontSize: 12, color: "rgba(0,0,0,0.55)", flexWrap: "wrap" }}>
@@ -6501,20 +6516,22 @@ function SquaresPage({ setTab }) {
               </div>
             )}
 
-            {/* Winners by period — the 4 standard football payouts */}
-            {(blob.status === "randomized" || anyWinner) && (
+            {/* Payouts & winners — the 4 standard football payout periods */}
+            {(blob.status === "randomized" || anyWinner || SQ_PERIODS.some(p => blob.payouts?.[p.key])) && (
               <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 12, padding: "14px 16px", marginTop: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
-                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: navy, marginBottom: 8 }}>🏆 Winners</div>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: navy, marginBottom: 2 }}>🏆 Payouts</div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginBottom: 8 }}>Each quarter pays out (in baseballs ⚾) to whoever's square the score lands on.</div>
                 {SQ_PERIODS.map((p, i) => {
                   const w = winnersObj[p.key];
+                  const pay = blob.payouts?.[p.key];
                   return (
-                    <div key={p.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: i ? "1px solid #eef1f6" : "none" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(0,0,0,0.5)", textTransform: "uppercase", letterSpacing: ".04em", minWidth: 92 }}>{p.label}</span>
+                    <div key={p.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: i ? "1px solid #eef1f6" : "none" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(0,0,0,0.5)", textTransform: "uppercase", letterSpacing: ".04em", minWidth: 82 }}>{p.label}</span>
+                      <span style={{ fontSize: 13.5, fontWeight: 900, color: navy, whiteSpace: "nowrap" }}>{pay ? `${pay} ⚾` : "—"}</span>
                       <span style={{ flex: 1, textAlign: "right", fontSize: 15 }}>
-                        {w ? <b style={{ color: "#15803d" }}>{w.name}</b> : <span style={{ color: "#c4cad4", fontStyle: "italic", fontSize: 13 }}>—</span>}
-                        {w && <span style={{ color: "rgba(0,0,0,0.4)", fontSize: 12, marginLeft: 6 }}>#{w.sq}</span>}
+                        {w ? <b style={{ color: "#15803d" }}>{w.name} <span style={{ color: "rgba(0,0,0,0.4)", fontSize: 12, fontWeight: 400 }}>#{w.sq}</span></b> : <span style={{ color: "#c4cad4", fontStyle: "italic", fontSize: 13 }}>pending</span>}
                       </span>
-                      {isAdmin && w && <button onClick={() => clearPeriodWinner(p.key)} style={{ background: "none", border: "none", color: "#dc2626", fontSize: 11, cursor: "pointer", fontWeight: 700, marginLeft: 8 }}>clear</button>}
+                      {isAdmin && w && <button onClick={() => clearPeriodWinner(p.key)} style={{ background: "none", border: "none", color: "#dc2626", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>clear</button>}
                     </div>
                   );
                 })}
