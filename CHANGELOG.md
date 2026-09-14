@@ -8,6 +8,20 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-09-13]
+
+### Fixed — Schedule page: split Saturday seasons + fix date ordering
+
+Daniel posted the Fall/Winter schedule but it was buried (only visible via individual team pages) and out of order. Two root causes: (1) the Fall/Winter games were entered in `MM/DD/YY` format ("09/26/26") while `toISODate` only understood "Mon Day", so those dates failed to parse and fell back to broken lexicographic string sorting; (2) the Schedule page had no season split, so Fall/Winter weeks sat after every Spring/Summer week in one long list.
+
+- **`toISODate` now parses numeric `M/D/YY` / `M/D/YYYY`** (fixes ordering everywhere those dates are used, not just the schedule). `parseLabel` routes through it too.
+- **Schedule page now splits by season** — a Fall/Winter 2026-27 ⇄ Spring/Summer 2026 toggle (shown when both have games), each with its own chronological week tabs. Opens to the newest season that has games (Fall/Winter now), on its current/next week.
+
+Verified vs live DB: Schedule defaults to Fall/Winter with weeks 09/26 → 12/05 in order; Spring/Summer toggle shows Apr 11 → Sep 12 championship in order. Build passes, console clean.
+
+**Where:** `src/App.jsx` — `toISODate`, `SchedulePage` (`weekSeason`, `satSeason` toggle, season-filtered week tabs).
+
+---
 ## [2026-08-28]
 
 ### Added — one-click "Email Everyone" on the Player Sign-Ups admin page

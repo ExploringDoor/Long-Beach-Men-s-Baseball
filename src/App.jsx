@@ -29,6 +29,15 @@ const TEAM_LOGOS = {
 const toISODate = (str) => {
   if(!str) return null;
   if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // already ISO
+  // Numeric M/D/YY or M/D/YYYY (e.g. "09/26/26", "11/7/26", "9/26/2026") — the
+  // format the Fall/Winter schedule was entered in. Without this these dates
+  // failed to parse and fell back to broken lexicographic string sorting.
+  const numeric = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(numeric){
+    const mm=parseInt(numeric[1]), dd=parseInt(numeric[2]);
+    const yy=numeric[3].length===2 ? 2000+parseInt(numeric[3]) : parseInt(numeric[3]);
+    if(mm>=1&&mm<=12&&dd>=1&&dd<=31) return `${yy}-${String(mm).padStart(2,"0")}-${String(dd).padStart(2,"0")}`;
+  }
   const MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
   const m = str.match(/([A-Za-z]+)\s+(\d{1,2})/);
   if(!m) return null;
@@ -959,7 +968,7 @@ function Ticker({ setTab }) {
   // Live admin-saved schedule (lbdc_schedules). null = not loaded yet → fall back to hardcoded.
   const [liveSat, setLiveSat] = useState(null);
   const today = new Date(); today.setHours(0,0,0,0);
-  const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
+  const parseLabel = (lbl) => { const iso = toISODate(lbl); return iso ? new Date(iso + "T00:00:00") : new Date(0); };
 
   // Build [{label, games:[{away,home,time,field,date,status,notes}]}] from saved data,
   // else from hardcoded SCHED. Saved data already has status/notes/venue baked in, so
@@ -2439,7 +2448,7 @@ const buildStaticSatWeeks = () => SCHED.map(week => ({
   games: week.fields.flatMap(f => f.games.map(g => ({...g, field: f.name}))),
 }));
 function SchedulePage({ setTab, setTeamDetail }) {
-  const parseLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
+  const parseLabel = (lbl) => { const iso = toISODate(lbl); return iso ? new Date(iso + "T00:00:00") : new Date(0); };
   const todayMidnight = () => { const t = new Date(); t.setHours(0,0,0,0); return t; };
   const currentSatIdx = () => {
     const t = todayMidnight();
@@ -2454,8 +2463,21 @@ function SchedulePage({ setTab, setTeamDetail }) {
   const [schedScores, setSchedScores] = useState({});
   const [satSeasonId, setSatSeasonId] = useState(null);
   const [satWeeks, setSatWeeks] = useState(buildStaticSatWeeks);
+  const [satSeason, setSatSeason] = useState("fw"); // "fw" (Fall/Winter) | "ss" (Spring/Summer)
 
-  const week = satWeeks[wk] || satWeeks[0];
+  // Split the Saturday schedule by season: a week belongs to Fall/Winter if its
+  // date is after the season cutover, otherwise Spring/Summer.
+  const weekSeason = (w) => { const iso = toISODate(w.label); return (iso && iso > SAT_CUTOVER_ISO) ? "fw" : "ss"; };
+  const firstCurrentWeekIdx = (weeks) => {
+    const t = todayMidnight();
+    const idx = weeks.findIndex(w => parseLabel(w.label) >= t);
+    return idx >= 0 ? idx : Math.max(0, weeks.length - 1);
+  };
+  const seasonWeeks = satWeeks.filter(w => weekSeason(w) === satSeason);
+  const hasFW = satWeeks.some(w => weekSeason(w) === "fw");
+  const hasSS = satWeeks.some(w => weekSeason(w) === "ss");
+
+  const week = seasonWeeks[wk] || seasonWeeks[0];
   const games = week ? week.games : [];
   const dateStr = week ? week.label : "";
   // Same guard as the ticker: satWeeks starts as the static schedule and the
@@ -2489,7 +2511,18 @@ function SchedulePage({ setTab, setTeamDetail }) {
         const weeks = Object.entries(byDate)
           .sort((a,b)=>(toISODate(a[0])||a[0])<(toISODate(b[0])||b[0])?-1:1)
           .map(([label,gs])=>({label,games:gs}));
-        if (r.id === "sat") setSatWeeks(weeks);
+        if (r.id === "sat") {
+          setSatWeeks(weeks);
+          // Open to the season that has upcoming games (Fall/Winter if it has any),
+          // on its current/next week — so the newest schedule shows front and center.
+          const fw = weeks.filter(w => { const iso = toISODate(w.label); return iso && iso > SAT_CUTOVER_ISO; });
+          const useSeason = fw.length ? "fw" : "ss";
+          setSatSeason(useSeason);
+          const seasonWks = weeks.filter(w => { const iso = toISODate(w.label); return ((iso && iso > SAT_CUTOVER_ISO) ? "fw" : "ss") === useSeason; });
+          const t = todayMidnight();
+          const idx = seasonWks.findIndex(w => (toISODate(w.label) ? new Date(toISODate(w.label) + "T00:00:00") : new Date(0)) >= t);
+          setWk(idx >= 0 ? idx : 0);
+        }
       });
     }).catch(() => {});
   }, []);
@@ -2528,9 +2561,21 @@ function SchedulePage({ setTab, setTeamDetail }) {
       </PageHero>
 
       {league === 0 && <>
+        {/* Season split — Fall/Winter vs Spring/Summer (shown when both have games) */}
+        {hasFW && hasSS && (
+          <div style={{background:"#fff",borderBottom:"1px solid rgba(0,0,0,0.07)",padding:"10px clamp(12px,3vw,40px)",display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
+            {[["fw",CUR_SAT.label],["ss",PREV_SAT.label]].map(([key,label]) => (
+              <button key={key} onClick={() => { setSatSeason(key); const wks = satWeeks.filter(w => weekSeason(w)===key); setWk(firstCurrentWeekIdx(wks)); }} style={{
+                fontFamily:"'Barlow Condensed',sans-serif",fontWeight:800,fontSize:14,textTransform:"uppercase",letterSpacing:".03em",
+                padding:"8px 18px",borderRadius:999,cursor:"pointer",border:"none",
+                background: satSeason===key ? "#002d6e" : "#eef1f6", color: satSeason===key ? "#fff" : "#555",
+              }}>{label}</button>
+            ))}
+          </div>
+        )}
         <div style={{borderBottom:"1px solid rgba(0,0,0,0.07)",background:"#fff",padding:"0 clamp(12px,3vw,40px)"}}>
           <div style={{maxWidth:1400,margin:"0 auto",overflowX:"auto",display:"flex",gap:0,scrollbarWidth:"none"}}>
-            {satWeeks.map((s,i) => {
+            {seasonWeeks.map((s,i) => {
               const isPast = parseLabel(s.label) < todayMidnight();
               return (
               <button key={i} onClick={() => setWk(i)} style={{
