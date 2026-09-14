@@ -1631,9 +1631,15 @@ function HomePage({ setTab, setTeamDetail }) {
         return (b.rs-b.ra)-(a.rs-a.ra);
       });
     };
-    sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
-      await ensureActiveSatProbed(seasons);
-      const satIds = getSatSeasonFilter(seasons);
+    sbFetch("seasons?select=id,name&limit=50").then(seasons => {
+      // Front-page standings reflect the season currently being PLAYED, by date:
+      // once past the season cutover it's the new (Fall/Winter) season — fresh
+      // 0-0 at the start — instead of the finished season's records. (Before the
+      // cutover it stays on the previous season, which is still in progress.)
+      // With no Final games yet, topTeams keeps its 0-0 initial value.
+      const pastCutover = new Date().toISOString().slice(0,10) > SAT_CUTOVER_ISO;
+      const cur = pastCutover ? getCurSatSeasonRow(seasons) : getPrevSatSeasonRow(seasons);
+      const satIds = cur ? [cur.id] : [];
       return Promise.all([
         satIds.length ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&season_id=in.(${satIds.join(",")})&status=eq.Final&limit=200`) : [],
       ]);
@@ -1808,7 +1814,7 @@ function HomePage({ setTab, setTeamDetail }) {
                   <TLogo name={t.name} size={110} />
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:16,color:"#111",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:"'Barlow Condensed',sans-serif",textTransform:"uppercase"}}>{t.name}</div>
-                    <div style={{fontSize:11,color:"rgba(0,0,0,0.38)"}}>{t.divName}</div>
+                    <div style={{fontSize:11,color:"rgba(0,0,0,0.38)"}}>{new Date().toISOString().slice(0,10) > SAT_CUTOVER_ISO ? CUR_SAT.label : PREV_SAT.label}</div>
                   </div>
                   <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:24,fontWeight:700,color:"#111",flexShrink:0}}>{t.w}-{t.l}{(t.t||0)>0?`-${t.t}`:""}</span>
                 </div>
@@ -2807,14 +2813,12 @@ function StandingsPage({ setTab, setTeamDetail }) {
   const goTeam = (name) => { if(setTeamDetail){ setTeamDetail(name); } };
   const hist = STANDINGS_HISTORY[histIdx];
 
-  // Default the season toggle to the ACTIVE Saturday season (newest one with
-  // games). While a freshly-activated season has no games yet, this keeps the
-  // just-finished season selected instead of showing an empty standings board.
+  // Default the season toggle to the season currently being PLAYED (by date):
+  // once past the cutover it's the new (Fall/Winter) season — a fresh 0-0 board —
+  // instead of the finished season's records. The toggle still switches seasons.
   useEffect(() => {
-    sbFetch("seasons?select=id,name&limit=50").then(async ss => {
-      await ensureActiveSatProbed(ss);
-      setSatLabel(getDisplaySatSeasonLabel());
-    }).catch(() => {});
+    const pastCutover = new Date().toISOString().slice(0,10) > SAT_CUTOVER_ISO;
+    setSatLabel(pastCutover ? CUR_SAT.label : PREV_SAT.label);
   }, []);
 
   // Load Saturday standings for the selected Saturday season

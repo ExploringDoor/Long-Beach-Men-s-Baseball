@@ -20,6 +20,12 @@ Daniel posted the Fall/Winter schedule but it was buried (only visible via indiv
 
 Verified vs live DB: Schedule defaults to Fall/Winter with weeks 09/26 → 12/05 in order; Spring/Summer toggle shows Apr 11 → Sep 12 championship in order. Build passes, console clean.
 
+### Fixed — Standings reset to the new season (front page + Standings tab)
+
+After the 9/12 championship, the front-page standings + the Standings tab still showed the finished Spring/Summer records instead of a fresh Fall/Winter board (Daniel: "Front page standings should be fresh"). Made the standings **date-aware**: once past the season cutover they show the CURRENT season (fresh 0-0), with the toggle still switching to the finished season. The front-page standings widget's per-row season label was reading the (stale) `DIV.SAT.name`; it now reflects the current season by date too. **Stats leaderboard intentionally left alone** — it still defaults to the last season with data (Spring/Summer, 169 batters) so it doesn't re-empty (the August regression). Verified: front + Standings tab show 0-0 Fall/Winter with "No games entered yet"; Stats unchanged.
+
+**Where:** `src/App.jsx` — HomePage front standings fetch + label, `StandingsPage` season-toggle default (all `> SAT_CUTOVER_ISO` date checks).
+
 **Where:** `src/App.jsx` — `toISODate`, `SchedulePage` (`weekSeason`, `satSeason` toggle, season-filtered week tabs).
 
 ---
