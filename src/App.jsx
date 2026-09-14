@@ -1573,7 +1573,13 @@ function TwibNotesPage({ onBack }) {
 
 /* ─── HOME PAGE ──────────────────────────────────────────────────────────── */
 function HomePage({ setTab, setTeamDetail }) {
-  const [topTeams, setTopTeams] = useState([...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => b.w!==a.w?b.w-a.w:a.l-b.l).slice(0,8));
+  const [topTeams, setTopTeams] = useState(() => {
+    // Season shown is date-driven; past the cutover it's Fall/Winter, which
+    // drops any team that left the league (e.g. Indios).
+    const lbl = new Date().toISOString().slice(0,10) > SAT_CUTOVER_ISO ? CUR_SAT.label : PREV_SAT.label;
+    const drop = lbl === CUR_SAT.label ? SAT_DROPPED_FW : [];
+    return [...ALL_TEAMS].filter(t=>t.divKey==="SAT" && !drop.includes(t.name)).sort((a,b) => b.w!==a.w?b.w-a.w:a.l-b.l).slice(0,8);
+  });
   const today = new Date(); today.setHours(0,0,0,0);
   const parseSchedLabel = (lbl) => { const iso = toISODate(lbl); return iso ? new Date(iso + "T00:00:00") : new Date(0); };
   // Live admin-saved Saturday schedule (lbdc_schedules id=sat). null = not yet loaded; falls back to hardcoded SCHED.
@@ -1644,7 +1650,8 @@ function HomePage({ setTab, setTeamDetail }) {
         satIds.length ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&season_id=in.(${satIds.join(",")})&status=eq.Final&limit=200`) : [],
       ]);
     }).then(([satGames]) => {
-      if (satGames.length) setTopTeams(calcRows(satGames, DIV.SAT.teams).slice(0,8));
+      const lbl = new Date().toISOString().slice(0,10) > SAT_CUTOVER_ISO ? CUR_SAT.label : PREV_SAT.label;
+      if (satGames.length) setTopTeams(calcRows(satGames, satTeamsForLabel(lbl)).slice(0,8));
     }).catch(()=>{});
   }, []);
 
@@ -2836,7 +2843,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
         if (!rawGames || !rawGames.length) return;
         const games = dedupGames(rawGames);
         const tm = {};
-        DIV.SAT.teams.forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
+        satTeamsForLabel(satLabel).forEach(t => { tm[t.name] = {w:0,l:0,t:0,rs:0,ra:0,gp:0}; });
         games.forEach(g => {
           if (!g.away_score && g.away_score !== 0) return;
           if (g.status === "PPD" || g.status === "CAN") return;
@@ -2965,7 +2972,7 @@ function StandingsPage({ setTab, setTeamDetail }) {
                   <span style={{fontSize:16}}>✅</span> <strong>Live standings</strong> — updated from the database after each box score entry.
                 </div>
               )}
-              <StandingsTable teams={liveTeams || div.teams} />
+              <StandingsTable teams={liveTeams || satTeamsForLabel(satLabel)} />
             </>)}
           </>}
 
@@ -12642,6 +12649,14 @@ const PREV_SAT = { name: "Spring/Summer 2026 Diamond Classics Saturdays",  label
 // Saturday games dated ON/BEFORE this belong to PREV_SAT — covers the Spring/Summer
 // playoffs (8/22) + championship (9/12) that finish after Fall/Winter is activated.
 const SAT_CUTOVER_ISO = "2026-09-12";
+
+// Teams that played Spring/Summer but dropped out of Fall/Winter 2026-27.
+// Kept in their previous-season standings/history, hidden from the new season.
+const SAT_DROPPED_FW = ["Indios"];
+// Return the Saturday team list for a given season label. Fall/Winter excludes
+// teams that dropped out; every other (previous) season keeps the full roster.
+const satTeamsForLabel = (label) =>
+  label === CUR_SAT.label ? DIV.SAT.teams.filter(t => !SAT_DROPPED_FW.includes(t.name)) : DIV.SAT.teams;
 
 const _prevSatRow = (seasons) =>
   seasons.find(s => s.name === PREV_SAT.name) ||

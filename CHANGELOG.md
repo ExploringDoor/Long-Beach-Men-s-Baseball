@@ -8,6 +8,19 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-09-14b]
+
+### Changed — Indios removed from Fall/Winter 2026-27 (kept in Spring/Summer)
+
+Indios dropped out of the league right before Fall/Winter. Removed them from the new season **without** erasing their Spring/Summer history.
+
+- **Schedule:** pulled the single Indios Fall/Winter game (`Generals @ Indios`, 11/21) out of the `lbdc_schedules` id="sat" blob via REST. 11/21 already carried `Generals @ Leones`, so Generals kept a valid opponent — no reschedule strictly needed, but 11/21 is Daniel's to adjust in Admin → Manage Schedule.
+- **Standings:** added `SAT_DROPPED_FW = ["Indios"]` + `satTeamsForLabel(label)` helper near `CUR_SAT`/`PREV_SAT`. The helper returns the full 8-team roster for any previous (Spring/Summer) label and the roster minus dropped teams for the Fall/Winter label. Wired into: front-page standings widget (`topTeams` init + `calcRows` call, date-aware), and the Standings page (season fetch seed + the `liveTeams || …` fallback). Team Directory intentionally left alone — it's a franchise directory and Indios keeps their S/S record there.
+
+**Why:** a dropped team should vanish from the current season's standings/schedule but still own its completed-season record. **Where:** `src/App.jsx` — `SAT_DROPPED_FW`/`satTeamsForLabel` (near `SAT_CUTOVER_ISO`), HomePage standings, StandingsPage.
+
+Verified on live DB: FW standings show 7 teams (no Indios), Spring/Summer shows all 8 (Indios intact); FW schedule has 0 Indios games.
+
 ## [2026-09-14]
 
 ### Added — Photos on News & Events posts (front page)
