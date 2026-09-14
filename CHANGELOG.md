@@ -8,6 +8,19 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-09-14]
+
+### Added — Photos on News & Events posts (front page)
+
+Daniel wanted the championship team photo on the front page with his "Congratulations to the Champions!" wrap-up. News posts were text-only, so added a **photo picker** to the News admin: a scrollable strip of the existing Photos-album thumbnails (with captions) — click one to attach it, or Remove to clear. The photo shows **above the text** in that post on the Home page. No schema change — the image URL rides in the post's existing `style` JSON (`imageUrl`), so old posts are unaffected and it's fully graceful.
+
+Also went ahead and attached the "2026 Spring/Summer Champions" photo to the live champions post so it's up now; Daniel can swap/remove it anytime via the picker.
+
+Verified: picker shows album thumbnails; front-page champions post renders the photo above the text; editing a post loads its selected photo.
+
+**Where:** `src/App.jsx` — News admin form (photo picker + `newsGallery` load), Home `newsItems` render (image above body). DB: image URL stored in `news.style` JSON.
+
+---
 ## [2026-09-13]
 
 ### Fixed — Schedule page: split Saturday seasons + fix date ordering

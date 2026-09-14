@@ -1755,6 +1755,7 @@ function HomePage({ setTab, setTeamDetail }) {
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:20,color:"#111",textTransform:"uppercase",lineHeight:1.1}}>{item.title}</div>
                           {item.event_date && <div style={{fontSize:11,color:"#b45309",fontWeight:700,marginTop:3,textTransform:"uppercase",letterSpacing:".05em"}}>📅 {new Date(item.event_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"long",day:"numeric",year:"numeric"})}</div>}
+                          {(() => { let s={}; try{s=item.style?JSON.parse(item.style):{};}catch(e){} return s.imageUrl ? <img src={s.imageUrl} alt={item.title} style={{width:"100%",maxHeight:360,objectFit:"cover",borderRadius:8,marginTop:10,display:"block"}}/> : null; })()}
                           {item.body && (() => { let s={}; try{s=item.style?JSON.parse(item.style):{};}catch(e){} return <div style={{fontSize:Number(s.fontSize||14),fontFamily:s.fontFamily||"inherit",fontWeight:Number(s.fontWeight||400),fontStyle:s.fontStyle||"normal",color:s.color||"#444",textAlign:s.textAlign||"left",marginTop:8,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{item.body}</div>; })()}
                         </div>
                       </div>
@@ -11725,12 +11726,17 @@ function AdminPage({ onAlertChange }) {
   const updateNewsStyle = (key, val) => setNewsStyle(s => ({...s, [key]: val}));
   const [newsSchedule, setNewsSchedule] = useState("");
   const [newsExpire, setNewsExpire] = useState("");
+  const [newsGallery, setNewsGallery] = useState([]); // photos available to attach to a post
 
   const loadNews = () => {
     setNewsLoading(true);
     sbFetch("news?select=id,title,body,event_date,pinned,style,created_at&order=pinned.desc,created_at.desc&limit=20")
       .then(data => { setNewsItems(data || []); setNewsLoading(false); })
       .catch(() => setNewsLoading(false));
+    // Photos the commissioner can attach to a post (from the Photos album).
+    sbFetch("lbdc_gallery?type=eq.photo&select=id,caption,url&order=id.desc&limit=100")
+      .then(rows => setNewsGallery(rows || []))
+      .catch(() => {});
   };
 
   const saveNewsPost = async () => {
@@ -12381,6 +12387,27 @@ function AdminPage({ onAlertChange }) {
                 </div>
                 <textarea placeholder="Body / details (optional)" value={newsForm.body} onChange={e=>setNewsForm(f=>({...f,body:e.target.value}))} rows={3}
                   style={{padding:"10px 12px",border:"none",fontSize:Number(newsStyle.fontSize||14),fontFamily:newsStyle.fontFamily||"inherit",fontWeight:Number(newsStyle.fontWeight||400),fontStyle:newsStyle.fontStyle||"normal",color:newsStyle.color||"#333",textAlign:newsStyle.textAlign||"left",resize:"vertical",width:"100%",boxSizing:"border-box",outline:"none",display:"block"}}/>
+              </div>
+              {/* Photo picker — attach a photo from the album; shows ABOVE the text on the front page */}
+              <div style={{border:"1px solid rgba(0,0,0,0.1)",borderRadius:8,padding:"10px 12px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(0,0,0,0.45)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>📷 Photo (optional) — pick from your album, shows above the text</div>
+                {newsStyle.imageUrl ? (
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <img src={newsStyle.imageUrl} alt="" style={{width:96,height:66,objectFit:"cover",borderRadius:6,border:"1px solid rgba(0,0,0,0.12)"}}/>
+                    <button type="button" onClick={()=>updateNewsStyle("imageUrl","")} style={{background:"#fee2e2",border:"1px solid #fecaca",color:"#b91c1c",borderRadius:7,padding:"7px 12px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Remove photo</button>
+                  </div>
+                ) : newsGallery.length === 0 ? (
+                  <div style={{fontSize:12,color:"#999",fontStyle:"italic"}}>No photos in the album yet — add some under Photos &amp; Videos first.</div>
+                ) : (
+                  <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
+                    {newsGallery.map(p => (
+                      <div key={p.id} onClick={()=>updateNewsStyle("imageUrl",p.url)} title={p.caption||""} style={{flexShrink:0,cursor:"pointer",width:88}}>
+                        <img src={p.url} alt={p.caption||""} style={{width:88,height:62,objectFit:"cover",borderRadius:6,border:"1px solid rgba(0,0,0,0.12)"}}/>
+                        <div style={{fontSize:9,color:"#888",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.caption||""}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
                 <div style={{flex:1,minWidth:140}}>
