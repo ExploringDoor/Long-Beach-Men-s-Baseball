@@ -1032,12 +1032,7 @@ function Ticker({ setTab }) {
 
   useEffect(() => {
     // Compute this week's ISO date (e.g., "2026-04-18") so we only fetch games for THIS week.
-    const _weekDate = (() => {
-      const d = new Date(week.label + " 2026");
-      if (isNaN(d)) return null;
-      const y = d.getFullYear(), mm = String(d.getMonth()+1).padStart(2,"0"), dd = String(d.getDate()).padStart(2,"0");
-      return `${y}-${mm}-${dd}`;
-    })();
+    const _weekDate = toISODate(week.label); // handles "Apr 18", "09/26/26", ISO
     const dateFilter = _weekDate ? `&game_date=eq.${_weekDate}` : "";
     // Fetch scores for this week's games (filtered by date so dupes across weeks don't leak in)
     const pairs = games.map(g=>`and(away_team.eq.${encodeURIComponent(g.away)},home_team.eq.${encodeURIComponent(g.home)})`).join(",");
@@ -1580,7 +1575,7 @@ function TwibNotesPage({ onBack }) {
 function HomePage({ setTab, setTeamDetail }) {
   const [topTeams, setTopTeams] = useState([...ALL_TEAMS].filter(t=>t.divKey==="SAT").sort((a,b) => b.w!==a.w?b.w-a.w:a.l-b.l).slice(0,8));
   const today = new Date(); today.setHours(0,0,0,0);
-  const parseSchedLabel = (lbl) => { const d = new Date(lbl + " 2026"); return isNaN(d) ? new Date(0) : d; };
+  const parseSchedLabel = (lbl) => { const iso = toISODate(lbl); return iso ? new Date(iso + "T00:00:00") : new Date(0); };
   // Live admin-saved Saturday schedule (lbdc_schedules id=sat). null = not yet loaded; falls back to hardcoded SCHED.
   const [liveSat, setLiveSat] = useState(null);
   const SCHED_FALLBACK_FLAT = SCHED.flatMap(w =>
@@ -1600,7 +1595,8 @@ function HomePage({ setTab, setTeamDetail }) {
   // Format a TWIB date (ISO "2026-07-26" or a "Jul 26" label) for display.
   const fmtTwibDate = (d) => {
     if (!d) return "";
-    const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + "T12:00:00") : new Date(d + " 2026");
+    const iso = toISODate(d);
+    const dt = iso ? new Date(iso + "T12:00:00") : new Date(d + " 2026");
     return isNaN(dt) ? d : dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});
   };
   // Most recent weekly video → shown on the hero banner (right side).
