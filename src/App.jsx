@@ -6955,8 +6955,8 @@ function ContactPage() {
 
 /* ─── PAYMENTS PAGE ──────────────────────────────────────────────────────── */
 const PAYMENT_CATEGORIES = [
-  { id: "seasonal_ins",  label: "Seasonal Insurance (50's)",  amount: "$50", note: "Required for all 50's division players each season." },
-  { id: "game_fee_co",   label: "Game Fee — Crossover",       amount: "$10", note: "Per-game fee when playing a crossover game." },
+  { id: "seasonal_ins",  label: "Seasonal Insurance (50's)",  amount: "$75", note: "Required for all 50's division players each season." },
+  { id: "game_fee_co",   label: "Game Fee",                   amount: "$25", note: "Per-game fee." },
   { id: "tourn_regional",label: "Regional Tournament",        amount: "$125",note: "Entry fee per player for regional tournament participation." },
   { id: "tourn_national",label: "National Tournament",        amount: "$175",note: "Entry fee per player for national tournament participation." },
 ];
