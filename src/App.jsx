@@ -7052,13 +7052,19 @@ function PaymentsPage() {
 
 /* ─── ADMIN PAGE ─────────────────────────────────────────────────────────── */
 function PlayerEligibilityPage({ onBack }) {
-  const SEASON = "Spring/Summer 2026";
+  // Season-aware: past the Saturday cutover this tracker flips to the new
+  // (Fall/Winter) season — a fresh paid slate and game appearances reset to 0 —
+  // instead of carrying the finished season's payments/games forward. The old
+  // season's records stay archived under their own season key, untouched.
+  const pastCutover = new Date().toISOString().slice(0,10) > SAT_CUTOVER_ISO;
+  const SEASON = pastCutover ? CUR_SAT.label : PREV_SAT.label;
   // Saturday teams. Hardcoded list — same as Object.keys(TEAM_ROSTERS) minus
   // the Boomers entries, but kept explicit so it doesn't depend on roster
   // data. Live rosters come from lbdc_rosters below; the hardcoded
   // TEAM_ROSTERS constant is only a fallback when the DB is unreachable.
   const SAT_TEAMS = ["Tribe","Pirates","Titans","Brooklyn","Generals","Black Sox","Leones","Indios"];
-  const TEAMS = SAT_TEAMS;
+  // Drop teams that left the current season (e.g. Indios in Fall/Winter).
+  const TEAMS = pastCutover ? SAT_TEAMS.filter(t => !SAT_DROPPED_FW.includes(t)) : SAT_TEAMS;
   const [payments, setPayments] = useState([]); // [{player_name, team_name, paid}]
   const [appearances, setAppearances] = useState({}); // {player_name: count}
   // Live Saturday rosters from lbdc_rosters (same source the admin's roster
@@ -7102,7 +7108,14 @@ function PlayerEligibilityPage({ onBack }) {
       // Count distinct game appearances per player — current season only
       const counts = {};
       await ensureActiveSatProbed(seasons || []);
-      const satIds = getSatSeasonFilter(seasons || []);
+      // Date-aware (not game-aware): past the cutover, count ONLY the new
+      // Fall/Winter season's box scores — so game appearances reset to 0 for
+      // the new season instead of showing last season's totals. Before the
+      // cutover, fall back to the game-aware resolver.
+      const curRow = getCurSatSeasonRow(seasons || []);
+      const satIds = pastCutover
+        ? (curRow ? [curRow.id] : [])
+        : getSatSeasonFilter(seasons || []);
       if (satIds.length) {
         // Fetch ALL games (including duplicates) and ALL batting_lines, then dedup at the line level
         // by gameKey (date|away|home). This handles the case where duplicate game rows have

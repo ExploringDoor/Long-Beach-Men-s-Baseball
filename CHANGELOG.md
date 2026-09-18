@@ -8,6 +8,23 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-09-18]
+
+### Fixed — Player Eligibility tracker now resets each season
+
+Daniel: "the new season fees are beginning to trickle in. When I go to credit the players, the previous games played still appear. Is there a way that I can zero those out prior to the new season?"
+
+The Admin → Player Eligibility tracker was pinned to `SEASON = "Spring/Summer 2026"` and counted game appearances via the **game-aware** `getSatSeasonFilter` — which, with Fall/Winter having no box scores yet, still returned last season's games (14, 11, 9…). So both the GAMES column and the $75-PAID checkboxes carried the finished season forward.
+
+Made the tracker **date-aware** (same cutover pattern as standings):
+- `SEASON` = `pastCutover ? CUR_SAT.label : PREV_SAT.label` — past 9/12 it reads/writes `player_payments` under the `Fall/Winter 2026-27` key, so it's a fresh paid slate. Last season's 136 records stay archived under `Spring/Summer 2026`, untouched.
+- Game appearances count ONLY the current season's box scores (Fall/Winter season id past the cutover), so GAMES resets to 0 and climbs as FW games are entered.
+- Roster excludes teams dropped from the current season (Indios in Fall/Winter), consistent with the standings/schedule fix.
+
+**Why:** a new season should start every player at 0 games / unpaid, not inherit last season's totals. **Where:** `src/App.jsx` — eligibility admin (`SEASON`/`TEAMS`/`pastCutover`, appearance-count `satIds`).
+
+Verified on live DB in the admin view: GAMES shows 0/4 for all players, PAID 0/159 fresh, Indios excluded; Spring/Summer records preserved in the DB.
+
 ## [2026-09-14b]
 
 ### Changed — Indios removed from Fall/Winter 2026-27 (kept in Spring/Summer)
