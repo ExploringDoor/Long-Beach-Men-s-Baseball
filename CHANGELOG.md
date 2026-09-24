@@ -8,6 +8,24 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-09-24]
+
+### Fixed — Saturday team pages show a clean slate for the new season
+
+Daniel: "When we pull up the Saturday teams it should be a clean slate for the season beginning Saturday… It's currently showing last season."
+
+The Team Directory and individual team pages counted records/stats via the **game-aware** `getSatSeasonFilter`, which (Fall/Winter having no box scores yet) still resolved to Spring/Summer — so every team showed last season's record, batting/pitching leaders, and season eyebrow.
+
+Added a **date-aware** filter `getSatSeasonFilterDateAware` (+ `isPastSatCutover`, `getDateAwareSatLabel`) next to the existing resolvers. Past the 9/12 cutover it returns the current Fall/Winter season id even before it has games, so team-facing views read a clean slate (0-0, no stat leaders). Applied to:
+- `TeamDetailPage` — the three season effects (record, batting, pitching) + the header eyebrow/seed line now read `getDateAwareSatLabel()` (Fall/Winter 2026-27).
+- `TeamsPage` (directory) — records date-aware, section header shows the current season label, and Indios (dropped from Fall/Winter) is filtered out of the team pills + grid.
+
+Left game-aware on purpose: the Stats leaderboard, the game-preview head-to-head modal, and box-score entry's saved-game loader — those should still reference the season that actually has data.
+
+**Why:** the new season starts every team at 0-0 with no stats, not last season's numbers. **Where:** `src/App.jsx` — `getSatSeasonFilterDateAware`/`getDateAwareSatLabel`, `TeamDetailPage`, `TeamsPage`.
+
+Verified on live DB: Team Directory header reads "Fall/Winter 2026-27", no Indios; Tribe page shows 0-0 / --- PCT / 0 RF · 0 RA and no batting stats.
+
 ## [2026-09-18]
 
 ### Fixed — Player Eligibility tracker now resets each season

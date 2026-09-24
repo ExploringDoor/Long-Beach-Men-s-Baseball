@@ -3626,7 +3626,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
     const enc = encodeURIComponent;
     sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
       await ensureActiveSatProbed(seasons);
-      const satIds = getSatSeasonFilter(seasons);
+      const satIds = getSatSeasonFilterDateAware(seasons);
       const seasonFilter = `season_id=in.(${satIds.join(",")})`;
       if (!satIds.length) return;
       const [games, recentRaw] = await Promise.all([
@@ -3765,7 +3765,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
     const enc = encodeURIComponent;
     sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
       await ensureActiveSatProbed(seasons);
-      const satIds = getSatSeasonFilter(seasons);
+      const satIds = getSatSeasonFilterDateAware(seasons);
       const seasonFilter = `season_id=in.(${satIds.join(",")})`;
       if (!satIds.length) return;
       const games = await sbFetch(`games?select=id,game_date,away_team,home_team&${seasonFilter}&limit=200`);
@@ -3852,7 +3852,7 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
   useEffect(() => {
     sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
       await ensureActiveSatProbed(seasons);
-      const satIds = getSatSeasonFilter(seasons);
+      const satIds = getSatSeasonFilterDateAware(seasons);
       if (!satIds.length) return null;
       const filter = `season_id=in.(${satIds.join(",")})`;
       return sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score,status&${filter}&status=eq.Final&limit=200`);
@@ -4094,6 +4094,10 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
 
   // ── Regular season team page ───────────────────────────────────────────────
   const rec = liveRecord || {w:team.w,l:team.l,t:team.t,pct:team.pct,rs:team.rs,ra:team.ra};
+  // Season shown in the header eyebrow — date-aware for Saturday teams so it
+  // reads the new (Fall/Winter) season once the season has begun, matching the
+  // clean-slate record/stats below.
+  const seasonLabel = team && team.divKey === "SAT" ? getDateAwareSatLabel() : (team ? team.divName : "");
 
   // Build full season schedule for this team — prefer live Supabase data over static SCHED
   const rawSchedule = liveSchedule
@@ -4136,9 +4140,9 @@ function TeamDetailPage({ teamName, onBack, prevTab, setTab, setTeamDetail }) {
             <div style={{display:"flex",alignItems:"center",gap:20}}>
               <TLogo name={teamName} size={120} />
               <div>
-                <div style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color,marginBottom:4}}>{team.divName}</div>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color,marginBottom:4}}>{seasonLabel}</div>
                 <h1 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:"clamp(36px,5vw,60px)",textTransform:"uppercase",color:"#111",lineHeight:1}}>{teamName}</h1>
-                <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:4}}>#{team.seed} seed · {team.divName}</div>
+                <div style={{fontSize:13,color:"rgba(0,0,0,0.45)",marginTop:4}}>#{team.seed} seed · {seasonLabel}</div>
               </div>
             </div>
             <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
@@ -4463,7 +4467,7 @@ function TeamsPage({ setTab, setTeamDetail }) {
     };
     sbFetch("seasons?select=id,name&limit=50").then(async seasons => {
       await ensureActiveSatProbed(seasons);
-      const satIds = getSatSeasonFilter(seasons);
+      const satIds = getSatSeasonFilterDateAware(seasons);
       return Promise.all([
         satIds.length ? sbFetch(`games?select=id,game_date,away_team,home_team,away_score,home_score&season_id=in.(${satIds.join(",")})&status=eq.Final&limit=200`) : [],
       ]);
@@ -4483,7 +4487,7 @@ function TeamsPage({ setTab, setTeamDetail }) {
     <div style={{minHeight:"100vh",background:"#f2f4f8",overflowX:"hidden",width:"100%"}}>
       <PageHero label="2026 Season" title="Team Directory">
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:16,paddingBottom:2}}>
-          {[...ALL_TEAMS].sort((a,b)=>{const ar=liveRecords[a.name],br=liveRecords[b.name];const ap=ar?ar.w/(ar.gp||1):0,bp=br?br.w/(br.gp||1):0;return bp-ap;}).map(t => {
+          {[...ALL_TEAMS].filter(t => !(isPastSatCutover() && t.divKey==="SAT" && SAT_DROPPED_FW.includes(t.name))).sort((a,b)=>{const ar=liveRecords[a.name],br=liveRecords[b.name];const ap=ar?ar.w/(ar.gp||1):0,bp=br?br.w/(br.gp||1):0;return bp-ap;}).map(t => {
             const color = TEAM_COLORS[t.name]||"#002d6e";
             return (
               <button key={t.name} onClick={() => setTeamDetail(t.name)} style={{
@@ -4506,10 +4510,10 @@ function TeamsPage({ setTab, setTeamDetail }) {
           <div key={dk} style={{marginBottom:36}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
               <div style={{width:4,height:28,background:div.accent,borderRadius:2}} />
-              <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,textTransform:"uppercase",color:"#111"}}>{div.name}</h2>
+              <h2 style={{fontFamily:"'Barlow Condensed',sans-serif",fontWeight:900,fontSize:28,textTransform:"uppercase",color:"#111"}}>{dk==="SAT" ? getDateAwareSatLabel() : div.name}</h2>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
-              {div.teams.map((t,i) => {
+              {div.teams.filter(t => !(isPastSatCutover() && dk==="SAT" && SAT_DROPPED_FW.includes(t.name))).map((t,i) => {
                 const color = TEAM_COLORS[t.name]||div.accent;
                 const rec = liveRecords[t.name] || {w:t.w,l:t.l,t:t.t,pct:t.pct,rs:t.rs,ra:t.ra};
                 return (
@@ -12717,6 +12721,18 @@ const getDisplaySatSeasonLabel = () => (_CUR_SAT_EMPTY === true ? PREV_SAT.label
 // CURRENT-season reads (Home standings, default Scores/Standings/Stats, schedule
 // score overlay): the single current season id — game-aware (see above).
 const getSatSeasonFilter = (seasons) => { const s = getDisplaySatSeasonRow(seasons); return s ? [s.id] : []; };
+// DATE-aware variant for team-facing views (Teams directory + team pages):
+// once past the cutover, always the new (Fall/Winter) season — even before it
+// has any games — so a team "pulled up" for the new season shows a clean slate
+// (0-0, no stat leaders) instead of the finished season's records. Before the
+// cutover it matches the game-aware filter.
+const isPastSatCutover = () => new Date().toISOString().slice(0,10) > SAT_CUTOVER_ISO;
+const getSatSeasonFilterDateAware = (seasons) => {
+  if (isPastSatCutover()) { const cur = getCurSatSeasonRow(seasons); return cur ? [cur.id] : []; }
+  return getSatSeasonFilter(seasons);
+};
+// The season label those team-facing views should show.
+const getDateAwareSatLabel = () => (isPastSatCutover() ? CUR_SAT.label : PREV_SAT.label);
 // The season to resolve a CURRENT-season game to (default inserts).
 const getSatSeason = (seasons) => getCurSatSeasonRow(seasons);
 // Route a game SAVE to the right season by its date (handles the overlap: the
