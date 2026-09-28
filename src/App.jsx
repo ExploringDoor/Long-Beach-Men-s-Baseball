@@ -6274,14 +6274,31 @@ function PlayersForumPage({ setTab }) {
    public page shows a friendly "no board" message and admin sees a setup form. */
 function sqShuffle(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; }
 function sqLastDigit(v) { const n = parseInt(v, 10); return Number.isFinite(n) ? ((n % 10) + 10) % 10 : null; }
-function sqDraw10() { return { rowDigits: sqShuffle([0,1,2,3,4,5,6,7,8,9]), colDigits: sqShuffle([0,1,2,3,4,5,6,7,8,9]) }; }
-// Winning cell index (0–99) for a given score, or null if not resolvable yet.
+// Draw the outside numbers. 100-square board: a 0–9 digit per row and column.
+// 50-square board (5 rows): 0–9 across the 10 columns, and the 10 row-team
+// digits split two-per-row (e.g. row shows "3/8") so every final score still
+// maps to exactly one square.
+function sqDrawBoard(nsq) {
+  const colDigits = sqShuffle([0,1,2,3,4,5,6,7,8,9]);
+  if (nsq === 50) {
+    const s = sqShuffle([0,1,2,3,4,5,6,7,8,9]);
+    const rowDigits = [[s[0],s[1]],[s[2],s[3]],[s[4],s[5]],[s[6],s[7]],[s[8],s[9]]].map(p => p.slice().sort((a,b)=>a-b));
+    return { colDigits, rowDigits };
+  }
+  return { colDigits, rowDigits: sqShuffle([0,1,2,3,4,5,6,7,8,9]) };
+}
+// Does this row's drawn digit(s) cover last-digit lr? A row entry is either a
+// single digit (100-square board) or a two-digit pair (50-square board).
+function sqRowMatches(rd, lr) { return Array.isArray(rd) ? rd.includes(lr) : rd === lr; }
+// Display for a row's drawn digit(s): "7" or "3/8".
+function sqFmtRowDigit(rd) { return rd == null ? "?" : (Array.isArray(rd) ? rd.join("/") : String(rd)); }
+// Winning cell index for a given score, or null if not resolvable yet.
 function sqWinnerIndex(blob, rowScore, colScore) {
   if (!blob?.rowDigits || !blob?.colDigits) return null;
   const lr = sqLastDigit(rowScore), lc = sqLastDigit(colScore);
   if (lr === null || lc === null) return null;
-  const r = blob.rowDigits.indexOf(lr);
   const c = blob.colDigits.indexOf(lc);
+  const r = blob.rowDigits.findIndex(rd => sqRowMatches(rd, lr));
   if (r < 0 || c < 0) return null;
   return r * 10 + c;
 }
@@ -6301,11 +6318,11 @@ function SquaresPage({ setTab }) {
   const [adminIdx, setAdminIdx] = useState(null);   // admin: square being managed
   const [adminName, setAdminName] = useState("");
   const [msg, setMsg] = useState(null);
-  const [fTitle, setFTitle] = useState("Rams Squares");
-  const [fRows, setFRows] = useState("Rams");
-  const [fCols, setFCols] = useState("49ers");
-  const [fGame, setFGame] = useState("Rams vs 49ers · 9/10");
-  const [fPay, setFPay] = useState({ q1: "70", half: "90", q3: "70", final: "120" });
+  const [fTitle, setFTitle] = useState("Squares Pool");
+  const [fRows, setFRows] = useState("Falcons");
+  const [fCols, setFCols] = useState("Saints");
+  const [fGame, setFGame] = useState("Falcons vs Saints · 10/5");
+  const [fPay, setFPay] = useState({ q1: "35", half: "45", q3: "35", final: "60" });
   const [showSetup, setShowSetup] = useState(false);
   const [liveRow, setLiveRow] = useState("");
   const [liveCol, setLiveCol] = useState("");
@@ -6356,7 +6373,7 @@ function SquaresPage({ setTab }) {
     teamCols: fCols.trim() || "Opponent",
     gameLabel: fGame.trim(),
     status: "open",
-    squares: Array.from({ length: 100 }, () => ({ name: "", paid: false })),
+    squares: Array.from({ length: 50 }, () => ({ name: "", paid: false })),
     rowDigits: null, colDigits: null,
     live: { rowScore: "", colScore: "" },
     payouts: { q1: fPay.q1.trim(), half: fPay.half.trim(), q3: fPay.q3.trim(), final: fPay.final.trim() },
@@ -6367,7 +6384,7 @@ function SquaresPage({ setTab }) {
     await persist(prev => ({ ...(prev || freshBoard()), title: fTitle.trim() || "Squares", teamRows: fRows.trim() || "Rams", teamCols: fCols.trim() || "Opponent", gameLabel: fGame.trim(), payouts: { q1: fPay.q1.trim(), half: fPay.half.trim(), q3: fPay.q3.trim(), final: fPay.final.trim() } }));
     setShowSetup(false);
   };
-  const openSetup = () => { if (blob) { setFTitle(blob.title || "Rams Squares"); setFRows(blob.teamRows || "Rams"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); setFPay({ q1: blob.payouts?.q1 || "", half: blob.payouts?.half || "", q3: blob.payouts?.q3 || "", final: blob.payouts?.final || "" }); } setShowSetup(true); };
+  const openSetup = () => { if (blob) { setFTitle(blob.title || "Squares Pool"); setFRows(blob.teamRows || "Falcons"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); setFPay({ q1: blob.payouts?.q1 || "", half: blob.payouts?.half || "", q3: blob.payouts?.q3 || "", final: blob.payouts?.final || "" }); } setShowSetup(true); };
 
   // Public claim
   const claim = async () => {
@@ -6392,10 +6409,11 @@ function SquaresPage({ setTab }) {
   const unconfirmPay = (idx) => { patchSquareOptimistic(idx, { paid: false }); };
   const releaseSquare = (idx) => { if (!window.confirm(`Release square #${idx + 1}? This clears the name so someone else can take it.`)) return; patchSquareOptimistic(idx, { name: "", paid: false }); setAdminIdx(null); };
   const randomize = async () => {
+    const total = blob.squares.length;
     const filled = blob.squares.filter(s => s.name).length;
-    if (filled < 100 && !window.confirm(`Only ${filled}/100 squares are filled. Draw & reveal the numbers now anyway?`)) return;
+    if (filled < total && !window.confirm(`Only ${filled}/${total} squares are filled. Draw & reveal the numbers now anyway?`)) return;
     if (blob.rowDigits && !window.confirm("Numbers are already drawn. Re-draw and reshuffle everyone's numbers?")) return;
-    const { rowDigits, colDigits } = sqDraw10();
+    const { rowDigits, colDigits } = sqDrawBoard(total);
     await persist(prev => ({ ...prev, rowDigits, colDigits, status: "randomized" }));
   };
   const saveLive = async (r, c) => { await persist(prev => ({ ...prev, live: { rowScore: r, colScore: c } })); };
@@ -6430,6 +6448,8 @@ function SquaresPage({ setTab }) {
   const anyWinner = SQ_PERIODS.some(p => winnersObj[p.key]);
   const takenCount = blob ? blob.squares.filter(s => s.name).length : 0;
   const paidCount = blob ? blob.squares.filter(s => s.name && s.paid).length : 0;
+  const totalSquares = blob ? blob.squares.length : 50;
+  const rowsN = blob ? Math.max(1, Math.round(blob.squares.length / 10)) : 5; // 50→5 rows, 100→10 rows
 
   if (blob === undefined) return (
     <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
@@ -6496,7 +6516,7 @@ function SquaresPage({ setTab }) {
         {blob && (
           <>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
-              <span style={{ background: "#e5e9f0", color: navy, padding: "5px 12px", borderRadius: 999 }}>{takenCount} / 100 taken</span>
+              <span style={{ background: "#e5e9f0", color: navy, padding: "5px 12px", borderRadius: 999 }}>{takenCount} / {totalSquares} taken</span>
             </div>
 
             {blob.status === "open" && (
@@ -6506,7 +6526,7 @@ function SquaresPage({ setTab }) {
             )}
             {blob.status === "randomized" && (
               <div style={{ background: "#fff8e1", border: "1px solid #ffe08a", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13.5, color: "#4a3b00", textAlign: "center" }}>
-                🎲 Numbers are in! Find your square — your {blob.teamRows} digit is on the left, your {blob.teamCols} digit is across the top.
+                🎲 Numbers are in! Find your square — your {blob.teamRows} number is on the left{rowsN < 10 ? " (each row covers two numbers)" : ""}, your {blob.teamCols} number is across the top.
               </div>
             )}
 
@@ -6528,10 +6548,10 @@ function SquaresPage({ setTab }) {
                     {blob.colDigits ? blob.colDigits[c] : "?"}
                   </div>
                 ))}
-                {[0,1,2,3,4,5,6,7,8,9].map(r => (
+                {Array.from({ length: rowsN }, (_, r) => (
                   <React.Fragment key={"row"+r}>
-                    <div style={{ background: navy, color: gold, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15 }}>
-                      {blob.rowDigits ? blob.rowDigits[r] : "?"}
+                    <div style={{ background: navy, color: gold, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: rowsN < 10 ? 13 : 15 }}>
+                      {blob.rowDigits ? sqFmtRowDigit(blob.rowDigits[r]) : "?"}
                     </div>
                     {[0,1,2,3,4,5,6,7,8,9].map(c => {
                       const idx = r * 10 + c;
@@ -6578,7 +6598,7 @@ function SquaresPage({ setTab }) {
             {(blob.status === "randomized" || anyWinner || SQ_PERIODS.some(p => blob.payouts?.[p.key])) && (
               <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 12, padding: "14px 16px", marginTop: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
                 <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: navy, marginBottom: 2 }}>🏆 Payouts</div>
-                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginBottom: 8 }}>If all 100 squares fill, each quarter pays out these baseballs ⚾ — to whoever's square the score lands on.</div>
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginBottom: 8 }}>If all {totalSquares} squares fill, each quarter pays out these baseballs ⚾ — to whoever's square the score lands on.</div>
                 {SQ_PERIODS.map((p, i) => {
                   const w = winnersObj[p.key];
                   const pay = blob.payouts?.[p.key];
