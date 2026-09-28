@@ -8,6 +8,23 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-09-28]
+
+### Changed — Squares pool is now 50 squares (Falcons vs Saints, Mon 10/5)
+
+Daniel: filling 100 squares each week was a grind, so he asked to "split the boxes" to 50 at $5 each "with reverse." Clarified with him — he picked the clean version (one winner per quarter, no fussy half-dollar reverse payouts).
+
+Converted the board from 100 (10×10) to **50 squares (5 rows × 10 cols)**: the 10 row-team digits are drawn **two per row** (e.g. a row shows `3/8`), so every possible final score still maps to exactly one winning square — verified all 100 score combos resolve and all 50 squares are reachable (no dead squares). No reverse/double payouts to hand out.
+
+- `sqDrawBoard(nsq)` replaces `sqDraw10` — draws 10 column digits + (for 50) five two-digit row pairs.
+- `sqWinnerIndex` + `sqRowMatches`/`sqFmtRowDigit` handle a row entry that's a single digit (100-board) or a pair (50-board).
+- Board size, row count, the grid loop, the "N taken" pill, randomize's fill check, and the payout note are all derived from `blob.squares.length`, so 50- and 100-square boards both render.
+- New board written to `lbdc_schedules` id="squares": Falcons vs Saints · Mon 10/5, payouts **35 / 45 / 35 / 60** (= $175, 70% of the $250 pot; 30% still to the website). The 29 existing claims (12 paid) were carried over so nobody lost their spot or money — numbers weren't drawn yet, so square position carries no value.
+
+**Where:** `src/App.jsx` — squares helpers (`sqDrawBoard`/`sqWinnerIndex`/`sqRowMatches`/`sqFmtRowDigit`) and `SquaresPage` (freshBoard, randomize, render).
+
+Verified on production: board reads 29/50, grid is 5×10, payouts 35/45/35/60, no render errors.
+
 ## [2026-09-24]
 
 ### Fixed — Saturday team pages show a clean slate for the new season
