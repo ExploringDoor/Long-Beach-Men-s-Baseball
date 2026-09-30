@@ -6309,6 +6309,14 @@ const SQ_PERIODS = [
   { key: "q3", label: "3rd Quarter" },
   { key: "final", label: "Final" },
 ];
+// Baseball payout periods (World Series / MLB squares).
+const SQ_PERIODS_BASEBALL = [
+  { key: "i5", label: "5th Inning" },
+  { key: "final", label: "Final" },
+];
+// A board is self-describing: it carries its own `periods`. Older boards
+// without the field fall back to the football quarters.
+const boardPeriods = (blob) => (Array.isArray(blob?.periods) && blob.periods.length) ? blob.periods : SQ_PERIODS;
 function SquaresPage({ setTab }) {
   const [blob, setBlob] = useState(undefined);   // undefined=loading, null=no board, obj=board
   const [busy, setBusy] = useState(false);
@@ -6367,24 +6375,30 @@ function SquaresPage({ setTab }) {
     }).catch(() => {});
   };
 
-  const freshBoard = () => ({
-    title: fTitle.trim() || "Squares",
-    teamRows: fRows.trim() || "Rams",
-    teamCols: fCols.trim() || "Opponent",
-    gameLabel: fGame.trim(),
-    status: "open",
-    squares: Array.from({ length: 50 }, () => ({ name: "", paid: false })),
-    rowDigits: null, colDigits: null,
-    live: { rowScore: "", colScore: "" },
-    payouts: { q1: fPay.q1.trim(), half: fPay.half.trim(), q3: fPay.q3.trim(), final: fPay.final.trim() },
-    winners: { q1: null, half: null, q3: null, final: null },
-  });
+  // Periods for the board currently loaded (falls back to football).
+  const setupPeriods = boardPeriods(blob);
+  const freshBoard = () => {
+    const per = boardPeriods(blob);
+    return {
+      title: fTitle.trim() || "Squares",
+      teamRows: fRows.trim() || "Rams",
+      teamCols: fCols.trim() || "Opponent",
+      gameLabel: fGame.trim(),
+      status: "open",
+      squares: Array.from({ length: 50 }, () => ({ name: "", paid: false })),
+      rowDigits: null, colDigits: null,
+      live: { rowScore: "", colScore: "" },
+      periods: per,
+      payouts: Object.fromEntries(per.map(p => [p.key, (fPay[p.key] || "").trim()])),
+      winners: Object.fromEntries(per.map(p => [p.key, null])),
+    };
+  };
   const createBoard = async () => { const b = freshBoard(); const ok = await persist(() => b); if (ok) setShowSetup(false); };
   const saveConfig = async () => {
-    await persist(prev => ({ ...(prev || freshBoard()), title: fTitle.trim() || "Squares", teamRows: fRows.trim() || "Rams", teamCols: fCols.trim() || "Opponent", gameLabel: fGame.trim(), payouts: { q1: fPay.q1.trim(), half: fPay.half.trim(), q3: fPay.q3.trim(), final: fPay.final.trim() } }));
+    await persist(prev => { const per = boardPeriods(prev); return { ...(prev || freshBoard()), title: fTitle.trim() || "Squares", teamRows: fRows.trim() || "Rams", teamCols: fCols.trim() || "Opponent", gameLabel: fGame.trim(), payouts: Object.fromEntries(per.map(p => [p.key, (fPay[p.key] || "").trim()])) }; });
     setShowSetup(false);
   };
-  const openSetup = () => { if (blob) { setFTitle(blob.title || "Squares Pool"); setFRows(blob.teamRows || "Falcons"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); setFPay({ q1: blob.payouts?.q1 || "", half: blob.payouts?.half || "", q3: blob.payouts?.q3 || "", final: blob.payouts?.final || "" }); } setShowSetup(true); };
+  const openSetup = () => { if (blob) { setFTitle(blob.title || "Squares Pool"); setFRows(blob.teamRows || "Falcons"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); setFPay(blob.payouts ? { ...blob.payouts } : {}); } setShowSetup(true); };
 
   // Public claim
   const claim = async () => {
@@ -6445,7 +6459,8 @@ function SquaresPage({ setTab }) {
   const claimedList = blob ? blob.squares.map((sq, idx) => ({ idx, sq })).filter(x => x.sq.name).sort((a, b) => (a.sq.paid === b.sq.paid ? a.idx - b.idx : (a.sq.paid ? 1 : -1))) : [];
   const unpaidCount = claimedList.filter(x => !x.sq.paid).length;
   const winnersObj = blob?.winners || {};
-  const anyWinner = SQ_PERIODS.some(p => winnersObj[p.key]);
+  const periods = boardPeriods(blob);
+  const anyWinner = periods.some(p => winnersObj[p.key]);
   const takenCount = blob ? blob.squares.filter(s => s.name).length : 0;
   const paidCount = blob ? blob.squares.filter(s => s.name && s.paid).length : 0;
   const totalSquares = blob ? blob.squares.length : 50;
@@ -6496,12 +6511,12 @@ function SquaresPage({ setTab }) {
             </div>
             <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Game / date (optional)</label>
             <input value={fGame} onChange={e => setFGame(e.target.value)} style={{ ...inputStyle, margin: "5px 0 14px" }} placeholder="First Rams game of the season" />
-            <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Payout per quarter (in baseballs)</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Payout per period (in baseballs)</label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "6px 0 14px" }}>
-              {SQ_PERIODS.map(p => (
+              {setupPeriods.map(p => (
                 <div key={p.key}>
                   <label style={{ fontSize: 11, color: "#888" }}>{p.label}</label>
-                  <input inputMode="numeric" value={fPay[p.key]} onChange={e => setFPay(v => ({ ...v, [p.key]: e.target.value }))} style={{ ...inputStyle, marginTop: 3 }} placeholder="e.g. 20" />
+                  <input inputMode="numeric" value={fPay[p.key] || ""} onChange={e => setFPay(v => ({ ...v, [p.key]: e.target.value }))} style={{ ...inputStyle, marginTop: 3 }} placeholder="e.g. 20" />
                 </div>
               ))}
             </div>
@@ -6595,11 +6610,11 @@ function SquaresPage({ setTab }) {
             )}
 
             {/* Payouts & winners — the 4 standard football payout periods */}
-            {(blob.status === "randomized" || anyWinner || SQ_PERIODS.some(p => blob.payouts?.[p.key])) && (
+            {(blob.status === "randomized" || anyWinner || periods.some(p => blob.payouts?.[p.key])) && (
               <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 12, padding: "14px 16px", marginTop: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
                 <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, textTransform: "uppercase", color: navy, marginBottom: 2 }}>🏆 Payouts</div>
-                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginBottom: 8 }}>If all {totalSquares} squares fill, each quarter pays out these baseballs ⚾ — to whoever's square the score lands on.</div>
-                {SQ_PERIODS.map((p, i) => {
+                <div style={{ fontSize: 12, color: "rgba(0,0,0,0.5)", marginBottom: 8 }}>If all {totalSquares} squares fill, each payout below goes to whoever's square the score lands on ⚾.</div>
+                {periods.map((p, i) => {
                   const w = winnersObj[p.key];
                   const pay = blob.payouts?.[p.key];
                   return (
@@ -6659,7 +6674,7 @@ function SquaresPage({ setTab }) {
                   </div>
                   <div style={{ fontSize: 12, color: "#666", margin: "10px 0 6px" }}>Records whichever square the current score lands on:</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {SQ_PERIODS.map(p => (
+                    {periods.map(p => (
                       <button key={p.key} onClick={() => setPeriodWinner(p.key)} disabled={busy} style={{ ...btn(winnersObj[p.key] ? "#15803d" : navy), fontSize: 13, padding: "9px 12px" }}>
                         {winnersObj[p.key] ? "✓ " : "+ "}{p.label}
                       </button>
