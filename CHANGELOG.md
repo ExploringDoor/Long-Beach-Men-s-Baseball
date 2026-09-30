@@ -8,6 +8,23 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-09-30]
+
+### Added — Baseball mode for the squares pool (Padres vs Cubs, Thu 10/1)
+
+Interest shifted to a baseball game, so Daniel asked to switch the board to Padres vs Cubs (tomorrow) with baseball payout periods: "5th inning/Final."
+
+Made payout periods a property of the board itself (`blob.periods`) so one component drives both sports:
+- `SQ_PERIODS_BASEBALL` = 5th Inning + Final; `boardPeriods(blob)` returns the board's own periods, falling back to the football quarters for older boards.
+- Payout card, game-day winner buttons, and the setup form all iterate `boardPeriods(blob)`; `freshBoard`/`saveConfig` build `payouts`/`winners` from those keys via `Object.fromEntries`, so keys always match the sport.
+- Same 50-square, two-per-row, one-winner mechanic (Daniel floated "reverse," but the two-per-row board already gives every score exactly one winner — no half-payouts to hand out).
+
+New board written to `lbdc_schedules` id="squares": Padres vs Cubs · Thu 10/1, payouts **70 (5th) / 105 (Final)** = $175 (70% of the $250 pot). The 29 existing claims (12 paid) carried over again; numbers reset to undrawn.
+
+**Where:** `src/App.jsx` — `SQ_PERIODS_BASEBALL`/`boardPeriods` and `SquaresPage` (freshBoard, saveConfig, openSetup, render).
+
+Verified on production: board reads Padres vs Cubs · Thu 10/1, 29/50, periods show 5th Inning + Final (no football quarters), payouts 70/105, no errors.
+
 ## [2026-09-28]
 
 ### Changed — Squares pool is now 50 squares (Falcons vs Saints, Mon 10/5)
