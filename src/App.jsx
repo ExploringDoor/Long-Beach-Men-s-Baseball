@@ -6509,8 +6509,8 @@ function SquaresPage({ setTab }) {
                 <input value={fCols} onChange={e => setFCols(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="Opponent" />
               </div>
             </div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Game / date (optional)</label>
-            <input value={fGame} onChange={e => setFGame(e.target.value)} style={{ ...inputStyle, margin: "5px 0 14px" }} placeholder="First Rams game of the season" />
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Matchup + date / game # (shown on the pool)</label>
+            <input value={fGame} onChange={e => setFGame(e.target.value)} style={{ ...inputStyle, margin: "5px 0 14px" }} placeholder="Dodgers vs Phillies · Sat 10/3 (or Game 2)" />
             <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Payout per period (in baseballs)</label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "6px 0 14px" }}>
               {setupPeriods.map(p => (
@@ -6530,6 +6530,15 @@ function SquaresPage({ setTab }) {
         {/* The board */}
         {blob && (
           <>
+            {/* Prominent matchup + date/game banner (right on the pool) */}
+            {blob.gameLabel && (
+              <div style={{ background: navy, color: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 14, textAlign: "center", boxShadow: "0 2px 10px rgba(0,45,110,0.18)" }}>
+                <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 21, textTransform: "uppercase", letterSpacing: ".02em", lineHeight: 1.15 }}>
+                  📅 {blob.gameLabel}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
               <span style={{ background: "#e5e9f0", color: navy, padding: "5px 12px", borderRadius: 999 }}>{takenCount} / {totalSquares} taken</span>
             </div>
