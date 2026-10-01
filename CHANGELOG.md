@@ -8,6 +8,20 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-10-02]
+
+### Changed — Both squares pools stacked on one page (was tabs)
+
+Daniel wanted the baseball and football pools on the same page — "baseball on top, football on the bottom" — instead of the tab switcher.
+
+Refactored `SquaresPage` into a thin wrapper that renders one `SquaresBoard` per pool, stacked in `SQ_BOARDS` order (baseball first). `SquaresBoard` holds all the per-pool state/logic (load, claims, payments, numbers, winners, admin) keyed to its own `boardKey`, so the two boards are fully independent. Each pool gets a section heading ("⚾ Baseball Pool" / "🏈 Football Pool"). Players only see a pool that has a board; admins always see both (empty one shows "Create a board"). Removed the tab UI (`poolTabs`, `switchTab`, `activeKey`/`existingKeys`).
+
+Confirmed with Daniel: both pools are 25 squares (5×5) at $10 — the top axis now also uses 5 two-number slots like the side, which the 25-square board already does.
+
+**Where:** `src/App.jsx` — `SquaresPage` (wrapper) + new `SquaresBoard` component.
+
+Verified on the dev server against live data: public sees only the baseball pool (Padres board) as a section, no football section; admin sees both stacked in order, football showing its create state; no errors.
+
 ## [2026-10-01b]
 
 ### Added — "Numbers drawn" timestamp on the squares board

@@ -6324,20 +6324,28 @@ const SQ_PERIODS_BASEBALL = [
 // A board is self-describing: it carries its own `periods`. Older boards
 // without the field fall back to the football quarters.
 const boardPeriods = (blob) => (Array.isArray(blob?.periods) && blob.periods.length) ? blob.periods : SQ_PERIODS;
-// The concurrent squares pools. Each is its own row in lbdc_schedules. The page
-// shows a tab for every pool that currently has a board; if only one exists, no
-// tabs show (it just renders that board).
+// The concurrent squares pools, shown STACKED on one page (baseball on top,
+// football below). Each is its own row in lbdc_schedules.
 const SQ_BOARDS = [
-  { key: "squares",          sport: "baseball", tab: "⚾ Baseball" },
-  { key: "squares_football", sport: "football", tab: "🏈 Football" },
+  { key: "squares",          sport: "baseball", tab: "⚾ Baseball", heading: "⚾ Baseball Pool" },
+  { key: "squares_football", sport: "football", tab: "🏈 Football", heading: "🏈 Football Pool" },
 ];
-const SQ_BOARD_IDS = SQ_BOARDS.map(b => b.key).join(",");
+// Parent page: stacks every pool one above the other.
 function SquaresPage({ setTab }) {
+  const isAdmin = (() => { try { return sessionStorage.getItem("lbdc_admin") === "1"; } catch { return false; } })();
+  return (
+    <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
+      <PageHero label="Diamond Classics · Fundraiser" title="Squares Pools" subtitle="Baseball & football — grab your squares for the big games!" />
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
+        {SQ_BOARDS.map(cfg => <SquaresBoard key={cfg.key} boardKey={cfg.key} cfg={cfg} isAdmin={isAdmin} />)}
+      </div>
+    </div>
+  );
+}
+// One pool: its own board data, claims, payments, numbers, winners and admin.
+function SquaresBoard({ boardKey, cfg, isAdmin }) {
   const [blob, setBlob] = useState(undefined);   // undefined=loading, null=no board, obj=board
-  const [activeKey, setActiveKey] = useState("squares"); // which pool tab is showing
-  const [existingKeys, setExistingKeys] = useState([]);  // pools that have a board (for the tabs)
   const [busy, setBusy] = useState(false);
-  const [isAdmin] = useState(() => { try { return sessionStorage.getItem("lbdc_admin") === "1"; } catch { return false; } });
   const [claimIdx, setClaimIdx] = useState(null);   // public: square being claimed
   const [claimName, setClaimName] = useState("");
   const [adminIdx, setAdminIdx] = useState(null);   // admin: square being managed
@@ -6352,20 +6360,12 @@ function SquaresPage({ setTab }) {
   const [liveRow, setLiveRow] = useState("");
   const [liveCol, setLiveCol] = useState("");
 
-  const activeCfg = SQ_BOARDS.find(b => b.key === activeKey) || SQ_BOARDS[0];
-  // Load all pools at once: track which exist (for the tabs) and show the active one.
-  const load = (key = activeKey) => sbFetch(`lbdc_schedules?id=in.(${SQ_BOARD_IDS})&select=id,data`)
-    .then(rows => {
-      const boardFor = (k) => { const r = (rows || []).find(x => x.id === k); return (r?.data && Array.isArray(r.data.squares)) ? r.data : null; };
-      const exist = SQ_BOARDS.filter(b => boardFor(b.key)).map(b => b.key);
-      setExistingKeys(exist);
-      const useKey = boardFor(key) ? key : (exist[0] || key);
-      if (useKey !== activeKey) setActiveKey(useKey);
-      setBlob(boardFor(useKey));
-    })
+  const activeKey = boardKey;   // this board's lbdc_schedules id
+  const activeCfg = cfg;
+  const load = () => sbFetch(`lbdc_schedules?id=eq.${boardKey}&select=data`)
+    .then(rows => { const d = rows?.[0]?.data; setBlob(d && Array.isArray(d.squares) ? d : null); })
     .catch(() => setBlob(null));
   useEffect(() => { load(); }, []);
-  const switchTab = (key) => { if (key === activeKey) return; setActiveKey(key); setAdminIdx(null); setClaimIdx(null); setShowSetup(false); setLiveRow(""); setLiveCol(""); setMsg(null); setBlob(undefined); load(key); };
 
   // Re-read latest blob, apply mutate, write back. Re-reading first keeps
   // near-simultaneous claims from clobbering each other. Targets the active pool.
@@ -6377,7 +6377,7 @@ function SquaresPage({ setTab }) {
       const next = mutate(latest);
       if (next === null) { setBusy(false); return false; }
       await sbUpsert("lbdc_schedules", { id: activeKey, data: next });
-      setBlob(next); setExistingKeys(k => k.includes(activeKey) ? k : SQ_BOARDS.filter(b => k.includes(b.key) || b.key === activeKey).map(b => b.key)); setBusy(false); return true;
+      setBlob(next); setBusy(false); return true;
     } catch (e) { setBusy(false); flashSaveErr("Squares save failed — please try again."); return false; }
   };
 
@@ -6507,44 +6507,31 @@ function SquaresPage({ setTab }) {
   const rowsN = blob ? Math.max(1, Math.round(blob.squares.length / colsN)) : 5;
   const costPer = (blob && blob.costPer) ? blob.costPer : 5; // baseballs per square ($)
 
-  // Pool tabs: shown to everyone when more than one pool is live; admins always
-  // see every pool (a "+" tab marks one with no board yet, ready to create).
-  const showTabs = existingKeys.length > 1 || (isAdmin && existingKeys.length >= 1);
-  const poolTabs = showTabs ? (
-    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 16, flexWrap: "wrap" }}>
-      {SQ_BOARDS.filter(b => existingKeys.includes(b.key) || isAdmin).map(b => {
-        const on = activeKey === b.key, empty = !existingKeys.includes(b.key);
-        return (
-          <button key={b.key} onClick={() => switchTab(b.key)} style={{
-            padding: "8px 18px", borderRadius: 999, cursor: "pointer",
-            fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15,
-            textTransform: "uppercase", letterSpacing: ".04em",
-            background: on ? navy : "#fff", color: on ? "#fff" : navy, border: `2px solid ${navy}`,
-            opacity: empty && !on ? 0.6 : 1,
-          }}>{b.tab}{empty && isAdmin ? " +" : ""}</button>
-        );
-      })}
-    </div>
-  ) : null;
-
-  if (blob === undefined) return (
-    <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
-      <PageHero label="Diamond Classics · Fundraiser" title="Squares Pool" subtitle="Loading…" />
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
-        {poolTabs}
-        <div style={{ textAlign: "center", color: "#888", fontSize: 14, padding: "30px 0" }}>Loading…</div>
-      </div>
+  // Section heading shown above this pool's board (e.g. "⚾ Baseball Pool").
+  const header = (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 12px" }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 24, textTransform: "uppercase", color: navy, letterSpacing: ".02em" }}>{cfg.heading}</div>
+      <div style={{ flex: 1, height: 2, background: "rgba(0,45,110,0.12)", borderRadius: 2 }} />
     </div>
   );
+  const sectionStyle = { marginBottom: 44 };
+
+  if (blob === undefined) return (
+    <section style={sectionStyle}>
+      {header}
+      <div style={{ textAlign: "center", color: "#888", fontSize: 14, padding: "20px 0" }}>Loading…</div>
+    </section>
+  );
+
+  // Public viewers only see a pool that has a board; admins always see it (to
+  // create/manage). This is what makes empty pools invisible to players.
+  if (!blob && !isAdmin) return null;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
-      <PageHero label="Diamond Classics · Fundraiser" title={blob?.title || "Squares Board"} subtitle={blob?.gameLabel || "Pick a square for the big game."} />
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
+    <section style={sectionStyle}>
+      {header}
 
-        {poolTabs}
-
-        {msg && (
+      {msg && (
           <div onClick={() => setMsg(null)} style={{ background: msg.ok ? "#dcfce7" : "#fee2e2", border: `1px solid ${msg.ok ? "#86efac" : "#fecaca"}`, color: msg.ok ? "#14532d" : "#991b1b", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 14.5, lineHeight: 1.5, cursor: "pointer", fontWeight: 600 }}>
             {msg.text}
           </div>
@@ -6768,7 +6755,6 @@ function SquaresPage({ setTab }) {
             )}
           </>
         )}
-      </div>
 
       {/* Public claim modal */}
       {claimIdx !== null && (
@@ -6818,7 +6804,7 @@ function SquaresPage({ setTab }) {
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
