@@ -6291,6 +6291,12 @@ function sqDrawBoard(cols, rows) { return { colDigits: sqDrawDigits(cols), rowDi
 function sqRowMatches(rd, d) { return Array.isArray(rd) ? rd.includes(d) : rd === d; }
 // Display for a slot's drawn digit(s): "7" or "3/8".
 function sqFmtRowDigit(rd) { return rd == null ? "?" : (Array.isArray(rd) ? rd.join("/") : String(rd)); }
+// When the numbers were drawn, shown in Pacific time (the league is in CA).
+function sqFmtDrawTime(iso) {
+  if (!iso) return null;
+  try { return new Date(iso).toLocaleString("en-US", { timeZone: "America/Los_Angeles", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }); }
+  catch (e) { return null; }
+}
 // Winning cell index for a given score, or null if not resolvable yet. The
 // number of columns is colDigits.length (5 or 10), so idx = row*cols + col.
 function sqWinnerIndex(blob, rowScore, colScore) {
@@ -6458,7 +6464,10 @@ function SquaresPage({ setTab }) {
     if (blob.rowDigits && !window.confirm("Numbers are already drawn. Re-draw and reshuffle everyone's numbers?")) return;
     const cols = blob.cols || 10, rows = Math.max(1, Math.round(total / cols));
     const { rowDigits, colDigits } = sqDrawBoard(cols, rows);
-    await persist(prev => ({ ...prev, rowDigits, colDigits, status: "randomized" }));
+    // Stamp WHEN the numbers were drawn (and count re-draws) for transparency.
+    const reDraw = !!blob.rowDigits;
+    await persist(prev => ({ ...prev, rowDigits, colDigits, status: "randomized", drawnAt: new Date().toISOString(), drawCount: (prev.drawCount || 0) + 1 }));
+    if (reDraw) setMsg({ ok: true, text: "Numbers re-drawn — the draw time on the board is updated." });
   };
   const saveLive = async (r, c) => { await persist(prev => ({ ...prev, live: { rowScore: r, colScore: c } })); };
   // Record the winner for one of the 4 standard payout periods from the current
@@ -6668,6 +6677,13 @@ function SquaresPage({ setTab }) {
               <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#dcfce7", border: "1px solid #86efac", borderRadius: 2, verticalAlign: "middle", marginRight: 4 }} />locked in ✓</span>
               {isAdmin && <span>· tap any square to manage it</span>}
             </div>
+
+            {/* When the numbers were drawn (transparency) */}
+            {blob.drawnAt && sqFmtDrawTime(blob.drawnAt) && (
+              <div style={{ textAlign: "center", fontSize: 12, color: "rgba(0,0,0,0.5)", marginTop: 10 }}>
+                🎲 Numbers drawn: <b>{sqFmtDrawTime(blob.drawnAt)} PT</b>{blob.drawCount > 1 ? ` · re-drawn ${blob.drawCount}×` : ""}
+              </div>
+            )}
 
             {/* Current winner banner */}
             {winIdx !== null && blob.squares[winIdx]?.name && (
