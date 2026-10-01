@@ -8,6 +8,21 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-10-02b]
+
+### Added — "Past Pools" archive at the bottom of the Squares page
+
+Daniel wanted a way to look back at previous weeks' boards. Added a **📚 Past Pools** section under the live pools: each finished board is a clickable card (showing the matchup + winners); tapping it opens a read-only view of that board — the drawn numbers, who had every square, the winning squares highlighted 🏆, and the payouts.
+
+- Archive stored at `lbdc_schedules` id="squares_archive" as `{ boards: [...] }`, newest first, capped at 30.
+- `ReadOnlySquaresGrid` renders any archived board (any size) read-only; `SquaresArchive` lists them and shows the modal.
+- Boards get archived when an admin finishes one: "Clear board" is now **"🏁 Finish & archive"** when the board has claims — it saves the board to the archive, then resets to a fresh one. (Empty boards just clear as before.)
+- Seeded the just-finished **Padres vs Cubs** board (reconstructed from its final state — DG22 won both periods) as the first archive entry, since it had already been replaced by the Dodgers board.
+
+**Where:** `src/App.jsx` — `ReadOnlySquaresGrid`, `SquaresArchive` (rendered in `SquaresPage`), and `archiveBoard`/`clearBoard` in `SquaresBoard`.
+
+Verified on the dev server against live data: Past Pools shows the Padres card with 🏆 DG22; opening it renders the full 10×5 board with all names, the winning square highlighted, and the 70/105 payouts.
+
 ## [2026-10-02]
 
 ### Changed — Both squares pools stacked on one page (was tabs)

@@ -6330,6 +6330,93 @@ const SQ_BOARDS = [
   { key: "squares",          sport: "baseball", tab: "⚾ Baseball", heading: "⚾ Baseball Pool" },
   { key: "squares_football", sport: "football", tab: "🏈 Football", heading: "🏈 Football Pool" },
 ];
+// Read-only snapshot of a board's grid — used in the "Past Pools" archive view.
+// Shows the drawn numbers, who had each square, and highlights the winners.
+function ReadOnlySquaresGrid({ board }) {
+  const navy = "#002d6e", gold = "#FFC107";
+  const cols = board.cols || 10;
+  const rows = Math.max(1, Math.round(board.squares.length / cols));
+  const winnerIdx = new Set();
+  boardPeriods(board).forEach(p => { const w = board.winners?.[p.key]; if (w && typeof w.sq === "number") winnerIdx.add(w.sq - 1); });
+  return (
+    <div style={{ display: "flex", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: navy, color: gold, borderRadius: 5, padding: "0 3px", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 13, writingMode: "vertical-rl", transform: "rotate(180deg)", textTransform: "uppercase", flexShrink: 0 }}>{board.teamRows}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ background: "#0f5ca8", color: gold, borderRadius: 5, textAlign: "center", padding: "4px 0", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 13, textTransform: "uppercase", marginBottom: 3 }}>{board.teamCols}</div>
+        <div style={{ overflowX: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: `20px repeat(${cols}, minmax(38px, 1fr))`, gap: 2, minWidth: 22 + cols * 40 }}>
+            <div style={{ background: navy, borderRadius: 4, minHeight: 24 }} />
+            {Array.from({ length: cols }, (_, c) => (
+              <div key={"c" + c} style={{ background: "#0f5ca8", color: gold, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 12, minHeight: 24 }}>{board.colDigits ? sqFmtRowDigit(board.colDigits[c]) : "?"}</div>
+            ))}
+            {Array.from({ length: rows }, (_, r) => (
+              <React.Fragment key={"r" + r}>
+                <div style={{ background: navy, color: gold, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 12 }}>{board.rowDigits ? sqFmtRowDigit(board.rowDigits[r]) : "?"}</div>
+                {Array.from({ length: cols }, (_, c) => {
+                  const idx = r * cols + c, sq = board.squares[idx] || {}, win = winnerIdx.has(idx);
+                  return (
+                    <div key={idx} style={{ minHeight: 34, borderRadius: 4, border: win ? "2px solid " + gold : "1px solid #e3e7ee", background: win ? "#fff4cc" : sq.name ? "#eef3fb" : "#fafbfc", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 1, position: "relative", overflow: "hidden" }}>
+                      <span style={{ fontSize: sq.name ? 8.5 : 12, fontWeight: sq.name ? 800 : 900, color: sq.name ? "#1e3a5f" : "#c4cad4", wordBreak: "break-word", lineHeight: 1.05 }}>{sq.name || (idx + 1)}</span>
+                      {win && <span style={{ position: "absolute", top: 0, right: 1, fontSize: 8 }}>🏆</span>}
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+// "Past Pools" — a list of archived (finished) boards shown at the bottom of the
+// Squares page. Click one to see its final grid, numbers and winners.
+function SquaresArchive() {
+  const navy = "#002d6e", gold = "#FFC107";
+  const [archive, setArchive] = useState(null);
+  const [open, setOpen] = useState(null);
+  useEffect(() => { sbFetch("lbdc_schedules?id=eq.squares_archive&select=data").then(rows => { const b = rows?.[0]?.data?.boards; setArchive(Array.isArray(b) ? b : []); }).catch(() => setArchive([])); }, []);
+  if (!archive || archive.length === 0) return null;
+  const winnersLine = (b) => { const names = [...new Set(boardPeriods(b).map(p => b.winners?.[p.key]?.name).filter(Boolean))]; return names.length ? names.join(", ") : null; };
+  return (
+    <section style={{ marginTop: 10, borderTop: "2px solid rgba(0,45,110,0.12)", paddingTop: 20 }}>
+      <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", color: navy, marginBottom: 10 }}>📚 Past Pools</div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {archive.map((b, i) => {
+          const w = winnersLine(b);
+          return (
+            <button key={i} onClick={() => setOpen(b)} style={{ textAlign: "left", background: "#fff", border: "1px solid rgba(0,0,0,0.1)", borderLeft: "3px solid " + navy, borderRadius: 10, padding: "12px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 14.5, color: "#111" }}>{b.gameLabel || b.title || "Squares pool"}</div>
+                <div style={{ fontSize: 12, color: "#15803d", fontWeight: 700, marginTop: 2 }}>{w ? `🏆 ${w}` : "Tap to view the board"}</div>
+              </div>
+              <span style={{ color: navy, fontWeight: 900, fontSize: 18 }}>›</span>
+            </button>
+          );
+        })}
+      </div>
+      {open && (
+        <div onClick={() => setOpen(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 14 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "18px 16px", width: "100%", maxWidth: 460, maxHeight: "88vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 20, textTransform: "uppercase", color: navy, lineHeight: 1.1 }}>{open.gameLabel || open.title}</div>
+            {open.drawnAt && sqFmtDrawTime(open.drawnAt) && <div style={{ fontSize: 11.5, color: "rgba(0,0,0,0.5)", margin: "4px 0 10px" }}>🎲 Numbers drawn: {sqFmtDrawTime(open.drawnAt)} PT</div>}
+            <div style={{ margin: "10px 0" }}><ReadOnlySquaresGrid board={open} /></div>
+            <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 10, marginTop: 6 }}>
+              {boardPeriods(open).map((p, i) => { const w = open.winners?.[p.key]; const pay = open.payouts?.[p.key]; return (
+                <div key={p.key} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "5px 0", borderTop: i ? "1px solid #f3f5f9" : "none", fontSize: 13 }}>
+                  <span style={{ fontWeight: 700, color: "rgba(0,0,0,0.55)", textTransform: "uppercase", fontSize: 12 }}>{p.label}</span>
+                  <span style={{ fontWeight: 900, color: navy }}>{pay ? `${pay} ⚾` : "—"}</span>
+                  <span style={{ flex: 1, textAlign: "right", color: "#15803d", fontWeight: 700 }}>{w ? `${w.name} #${w.sq}` : "—"}</span>
+                </div>
+              ); })}
+            </div>
+            <button onClick={() => setOpen(null)} style={{ marginTop: 14, width: "100%", padding: "11px", background: navy, border: "none", borderRadius: 10, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, textTransform: "uppercase", cursor: "pointer" }}>Close</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
 // Parent page: stacks every pool one above the other.
 function SquaresPage({ setTab }) {
   const isAdmin = (() => { try { return sessionStorage.getItem("lbdc_admin") === "1"; } catch { return false; } })();
@@ -6338,6 +6425,7 @@ function SquaresPage({ setTab }) {
       <PageHero label="Diamond Classics · Fundraiser" title="Squares Pools" subtitle="Baseball & football — grab your squares for the big games!" />
       <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
         {SQ_BOARDS.map(cfg => <SquaresBoard key={cfg.key} boardKey={cfg.key} cfg={cfg} isAdmin={isAdmin} />)}
+        <SquaresArchive />
       </div>
     </div>
   );
@@ -6479,7 +6567,28 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
     await persist(prev => ({ ...prev, winners: { ...(prev.winners || {}), [key]: { name, sq: idx + 1, rowScore: liveRow, colScore: liveCol } } }));
   };
   const clearPeriodWinner = async (key) => { await persist(prev => ({ ...prev, winners: { ...(prev.winners || {}), [key]: null } })); };
-  const clearBoard = async () => { if (window.confirm("Delete this squares board completely? This clears all names, payments, numbers and winners.")) { await persist(() => freshBoard()); setAdminIdx(null); } };
+  // Save a finished board into the "Past Pools" archive (newest first, capped).
+  // Skips empty boards. Best-effort — never blocks the main action.
+  const archiveBoard = async (oldBoard) => {
+    if (!oldBoard || !Array.isArray(oldBoard.squares) || !oldBoard.squares.some(s => s.name)) return;
+    try {
+      const rows = await sbFetch("lbdc_schedules?id=eq.squares_archive&select=data");
+      const list = Array.isArray(rows?.[0]?.data?.boards) ? rows[0].data.boards : [];
+      const next = [{ ...oldBoard, archivedAt: new Date().toISOString() }, ...list].slice(0, 30);
+      await sbUpsert("lbdc_schedules", { id: "squares_archive", data: { boards: next } });
+    } catch (e) { /* non-blocking */ }
+  };
+  const clearBoard = async () => {
+    const hasClaims = blob && blob.squares.some(s => s.name);
+    const prompt = hasClaims
+      ? "Archive this board to “Past Pools” and start a fresh one? Names, payments, numbers and winners are saved to the archive, then the board resets."
+      : "Delete this squares board completely? This clears all names, payments, numbers and winners.";
+    if (!window.confirm(prompt)) return;
+    const old = blob;
+    await persist(() => freshBoard());
+    if (hasClaims) await archiveBoard(old);
+    setAdminIdx(null);
+  };
 
   const onSquareClick = (idx) => {
     if (isAdmin) { const sq = blob.squares[idx]; setAdminIdx(idx); setAdminName(sq.name || ""); setMsg(null); return; }
@@ -6708,7 +6817,7 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
                   <button onClick={openSetup} style={btn("#6b7280")}>Edit matchup</button>
                   <button onClick={randomize} disabled={busy} style={btn("#b8860b")}>🎲 {blob.rowDigits ? "Re-draw" : "Randomize"} numbers</button>
-                  <button onClick={clearBoard} disabled={busy} style={btn("#b91c1c")}>Clear board</button>
+                  <button onClick={clearBoard} disabled={busy} style={btn("#b91c1c")}>{blob.squares.some(s => s.name) ? "🏁 Finish & archive" : "Clear board"}</button>
                 </div>
                 {/* Payments checklist — mark off the 5 baseballs without hunting the grid */}
                 <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 14 }}>
