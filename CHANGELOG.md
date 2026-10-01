@@ -8,6 +8,16 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-10-01b]
+
+### Added — "Numbers drawn" timestamp on the squares board
+
+For transparency on a real-money pool (there was no record of when a board's numbers were drawn — the table's `updated_at` isn't maintained), the Randomize action now stamps `drawnAt` (ISO) and increments `drawCount`. The board shows a line under the grid: **"🎲 Numbers drawn: Oct 1, 2026, 7:42 PM PT"** in Pacific time, noting "· re-drawn N×" if the numbers were re-shuffled. Boards drawn before this feature have no stamp and show nothing (honest — we don't know when).
+
+**Where:** `src/App.jsx` — `randomize` (stamps `drawnAt`/`drawCount`), `sqFmtDrawTime`, and the board render.
+
+Verified: formatter renders Pacific time correctly; a drawn test board showed the line with the re-draw count; the live Padres board (drawn before this) correctly shows no line and still renders.
+
 ## [2026-10-01]
 
 ### Added — Two concurrent squares pools + 25-square + $10 boards
