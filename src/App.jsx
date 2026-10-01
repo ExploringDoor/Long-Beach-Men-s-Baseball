@@ -6274,33 +6274,34 @@ function PlayersForumPage({ setTab }) {
    public page shows a friendly "no board" message and admin sees a setup form. */
 function sqShuffle(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; }
 function sqLastDigit(v) { const n = parseInt(v, 10); return Number.isFinite(n) ? ((n % 10) + 10) % 10 : null; }
-// Draw the outside numbers. 100-square board: a 0–9 digit per row and column.
-// 50-square board (5 rows): 0–9 across the 10 columns, and the 10 row-team
-// digits split two-per-row (e.g. row shows "3/8") so every final score still
-// maps to exactly one square.
-function sqDrawBoard(nsq) {
-  const colDigits = sqShuffle([0,1,2,3,4,5,6,7,8,9]);
-  if (nsq === 50) {
-    const s = sqShuffle([0,1,2,3,4,5,6,7,8,9]);
-    const rowDigits = [[s[0],s[1]],[s[2],s[3]],[s[4],s[5]],[s[6],s[7]],[s[8],s[9]]].map(p => p.slice().sort((a,b)=>a-b));
-    return { colDigits, rowDigits };
-  }
-  return { colDigits, rowDigits: sqShuffle([0,1,2,3,4,5,6,7,8,9]) };
+// Draw the digits for ONE axis with `slots` cells that together cover 0–9.
+//  • 10 slots → a single digit each (10-wide board).
+//  • 5 slots  → two digits each, e.g. "3/8" (5-wide/tall board).
+// Every digit 0–9 lands in exactly one slot, so every score has one winner.
+function sqDrawDigits(slots) {
+  const s = sqShuffle([0,1,2,3,4,5,6,7,8,9]);
+  if (slots === 5) return [[s[0],s[1]],[s[2],s[3]],[s[4],s[5]],[s[6],s[7]],[s[8],s[9]]].map(p => p.slice().sort((a,b)=>a-b));
+  return s; // 10 single digits
 }
-// Does this row's drawn digit(s) cover last-digit lr? A row entry is either a
-// single digit (100-square board) or a two-digit pair (50-square board).
-function sqRowMatches(rd, lr) { return Array.isArray(rd) ? rd.includes(lr) : rd === lr; }
-// Display for a row's drawn digit(s): "7" or "3/8".
+// Draw both axes for a board of `cols` × `rows` cells (each 5 or 10).
+// 100-square = 10×10, 50-square = 10 cols × 5 rows, 25-square = 5×5.
+function sqDrawBoard(cols, rows) { return { colDigits: sqDrawDigits(cols), rowDigits: sqDrawDigits(rows) }; }
+// Does this slot's drawn digit(s) cover last-digit d? A slot is either a single
+// digit (10-wide axis) or a two-digit pair (5-wide axis).
+function sqRowMatches(rd, d) { return Array.isArray(rd) ? rd.includes(d) : rd === d; }
+// Display for a slot's drawn digit(s): "7" or "3/8".
 function sqFmtRowDigit(rd) { return rd == null ? "?" : (Array.isArray(rd) ? rd.join("/") : String(rd)); }
-// Winning cell index for a given score, or null if not resolvable yet.
+// Winning cell index for a given score, or null if not resolvable yet. The
+// number of columns is colDigits.length (5 or 10), so idx = row*cols + col.
 function sqWinnerIndex(blob, rowScore, colScore) {
   if (!blob?.rowDigits || !blob?.colDigits) return null;
   const lr = sqLastDigit(rowScore), lc = sqLastDigit(colScore);
   if (lr === null || lc === null) return null;
-  const c = blob.colDigits.indexOf(lc);
+  const cols = blob.colDigits.length;
+  const c = blob.colDigits.findIndex(cd => sqRowMatches(cd, lc));
   const r = blob.rowDigits.findIndex(rd => sqRowMatches(rd, lr));
   if (r < 0 || c < 0) return null;
-  return r * 10 + c;
+  return r * cols + c;
 }
 // The 4 standard football-squares payout periods.
 const SQ_PERIODS = [
@@ -6317,8 +6318,18 @@ const SQ_PERIODS_BASEBALL = [
 // A board is self-describing: it carries its own `periods`. Older boards
 // without the field fall back to the football quarters.
 const boardPeriods = (blob) => (Array.isArray(blob?.periods) && blob.periods.length) ? blob.periods : SQ_PERIODS;
+// The concurrent squares pools. Each is its own row in lbdc_schedules. The page
+// shows a tab for every pool that currently has a board; if only one exists, no
+// tabs show (it just renders that board).
+const SQ_BOARDS = [
+  { key: "squares",          sport: "baseball", tab: "⚾ Baseball" },
+  { key: "squares_football", sport: "football", tab: "🏈 Football" },
+];
+const SQ_BOARD_IDS = SQ_BOARDS.map(b => b.key).join(",");
 function SquaresPage({ setTab }) {
   const [blob, setBlob] = useState(undefined);   // undefined=loading, null=no board, obj=board
+  const [activeKey, setActiveKey] = useState("squares"); // which pool tab is showing
+  const [existingKeys, setExistingKeys] = useState([]);  // pools that have a board (for the tabs)
   const [busy, setBusy] = useState(false);
   const [isAdmin] = useState(() => { try { return sessionStorage.getItem("lbdc_admin") === "1"; } catch { return false; } });
   const [claimIdx, setClaimIdx] = useState(null);   // public: square being claimed
@@ -6335,22 +6346,32 @@ function SquaresPage({ setTab }) {
   const [liveRow, setLiveRow] = useState("");
   const [liveCol, setLiveCol] = useState("");
 
-  const load = () => sbFetch("lbdc_schedules?id=eq.squares&select=data")
-    .then(rows => { const d = rows?.[0]?.data; setBlob(d && Array.isArray(d.squares) ? d : null); })
+  const activeCfg = SQ_BOARDS.find(b => b.key === activeKey) || SQ_BOARDS[0];
+  // Load all pools at once: track which exist (for the tabs) and show the active one.
+  const load = (key = activeKey) => sbFetch(`lbdc_schedules?id=in.(${SQ_BOARD_IDS})&select=id,data`)
+    .then(rows => {
+      const boardFor = (k) => { const r = (rows || []).find(x => x.id === k); return (r?.data && Array.isArray(r.data.squares)) ? r.data : null; };
+      const exist = SQ_BOARDS.filter(b => boardFor(b.key)).map(b => b.key);
+      setExistingKeys(exist);
+      const useKey = boardFor(key) ? key : (exist[0] || key);
+      if (useKey !== activeKey) setActiveKey(useKey);
+      setBlob(boardFor(useKey));
+    })
     .catch(() => setBlob(null));
   useEffect(() => { load(); }, []);
+  const switchTab = (key) => { if (key === activeKey) return; setActiveKey(key); setAdminIdx(null); setClaimIdx(null); setShowSetup(false); setLiveRow(""); setLiveCol(""); setMsg(null); setBlob(undefined); load(key); };
 
   // Re-read latest blob, apply mutate, write back. Re-reading first keeps
-  // near-simultaneous claims from clobbering each other.
+  // near-simultaneous claims from clobbering each other. Targets the active pool.
   const persist = async (mutate) => {
     setBusy(true);
     try {
-      const rows = await sbFetch("lbdc_schedules?id=eq.squares&select=data");
+      const rows = await sbFetch(`lbdc_schedules?id=eq.${activeKey}&select=data`);
       const latest = (rows?.[0]?.data && Array.isArray(rows[0].data.squares)) ? rows[0].data : null;
       const next = mutate(latest);
       if (next === null) { setBusy(false); return false; }
-      await sbUpsert("lbdc_schedules", { id: "squares", data: next });
-      setBlob(next); setBusy(false); return true;
+      await sbUpsert("lbdc_schedules", { id: activeKey, data: next });
+      setBlob(next); setExistingKeys(k => k.includes(activeKey) ? k : SQ_BOARDS.filter(b => k.includes(b.key) || b.key === activeKey).map(b => b.key)); setBusy(false); return true;
     } catch (e) { setBusy(false); flashSaveErr("Squares save failed — please try again."); return false; }
   };
 
@@ -6362,30 +6383,38 @@ function SquaresPage({ setTab }) {
   // first so concurrent player claims are preserved.
   const syncQueue = useRef(Promise.resolve());
   const patchSquareOptimistic = (idx, patch) => {
+    const key = activeKey; // capture the pool this edit belongs to
     setBlob(prev => { if (!prev) return prev; const sqs = prev.squares.map(s => ({ ...s })); sqs[idx] = { ...sqs[idx], ...patch }; return { ...prev, squares: sqs }; });
     syncQueue.current = syncQueue.current.then(async () => {
       try {
-        const rows = await sbFetch("lbdc_schedules?id=eq.squares&select=data");
+        const rows = await sbFetch(`lbdc_schedules?id=eq.${key}&select=data`);
         const latest = (rows?.[0]?.data && Array.isArray(rows[0].data.squares)) ? rows[0].data : null;
         if (!latest) return;
         const sqs = latest.squares.map(s => ({ ...s }));
         sqs[idx] = { ...sqs[idx], ...patch };
-        await sbUpsert("lbdc_schedules", { id: "squares", data: { ...latest, squares: sqs } });
+        await sbUpsert("lbdc_schedules", { id: key, data: { ...latest, squares: sqs } });
       } catch (e) { flashSaveErr("A change didn't save — refreshing…"); load(); }
     }).catch(() => {});
   };
 
-  // Periods for the board currently loaded (falls back to football).
-  const setupPeriods = boardPeriods(blob);
+  // Periods for the board being edited/created: the loaded board's own, else the
+  // active pool's sport default (baseball = 5th/Final, football = quarters).
+  const sportPeriods = activeCfg.sport === "baseball" ? SQ_PERIODS_BASEBALL : SQ_PERIODS;
+  const setupPeriods = (Array.isArray(blob?.periods) && blob.periods.length) ? blob.periods : sportPeriods;
   const freshBoard = () => {
-    const per = boardPeriods(blob);
+    const per = setupPeriods;
+    // New boards are 25 squares (5×5) at $10 — two digits per row AND column.
+    const NSQ = 25, COLS = 5;
     return {
-      title: fTitle.trim() || "Squares",
-      teamRows: fRows.trim() || "Rams",
-      teamCols: fCols.trim() || "Opponent",
+      title: fTitle.trim() || "Squares Pool",
+      teamRows: fRows.trim() || "Team 1",
+      teamCols: fCols.trim() || "Team 2",
       gameLabel: fGame.trim(),
       status: "open",
-      squares: Array.from({ length: 50 }, () => ({ name: "", paid: false })),
+      sport: activeCfg.sport,
+      cols: COLS,
+      costPer: 10,
+      squares: Array.from({ length: NSQ }, () => ({ name: "", paid: false })),
       rowDigits: null, colDigits: null,
       live: { rowScore: "", colScore: "" },
       periods: per,
@@ -6414,7 +6443,7 @@ function SquaresPage({ setTab }) {
       return { ...prev, squares: sqs };
     });
     if (taken) { setMsg({ ok: false, text: "Sorry — that square was just taken. Please pick another." }); setClaimIdx(null); setClaimName(""); }
-    else if (ok) { setMsg({ ok: true, text: `Square #${claimIdx + 1} reserved for ${name}! ⚾ Send Daniel 5 baseballs to lock it in — it turns green once he's got them.` }); setClaimIdx(null); setClaimName(""); }
+    else if (ok) { setMsg({ ok: true, text: `Square #${claimIdx + 1} reserved for ${name}! ⚾ Send Daniel ${costPer} baseballs to lock it in — it turns green once he's got them.` }); setClaimIdx(null); setClaimName(""); }
   };
 
   // Admin actions — instant (optimistic) via patchSquareOptimistic.
@@ -6427,7 +6456,8 @@ function SquaresPage({ setTab }) {
     const filled = blob.squares.filter(s => s.name).length;
     if (filled < total && !window.confirm(`Only ${filled}/${total} squares are filled. Draw & reveal the numbers now anyway?`)) return;
     if (blob.rowDigits && !window.confirm("Numbers are already drawn. Re-draw and reshuffle everyone's numbers?")) return;
-    const { rowDigits, colDigits } = sqDrawBoard(total);
+    const cols = blob.cols || 10, rows = Math.max(1, Math.round(total / cols));
+    const { rowDigits, colDigits } = sqDrawBoard(cols, rows);
     await persist(prev => ({ ...prev, rowDigits, colDigits, status: "randomized" }));
   };
   const saveLive = async (r, c) => { await persist(prev => ({ ...prev, live: { rowScore: r, colScore: c } })); };
@@ -6464,11 +6494,37 @@ function SquaresPage({ setTab }) {
   const takenCount = blob ? blob.squares.filter(s => s.name).length : 0;
   const paidCount = blob ? blob.squares.filter(s => s.name && s.paid).length : 0;
   const totalSquares = blob ? blob.squares.length : 50;
-  const rowsN = blob ? Math.max(1, Math.round(blob.squares.length / 10)) : 5; // 50→5 rows, 100→10 rows
+  const colsN = blob ? (blob.cols || 10) : 10;           // 25→5 cols, 50/100→10 cols
+  const rowsN = blob ? Math.max(1, Math.round(blob.squares.length / colsN)) : 5;
+  const costPer = (blob && blob.costPer) ? blob.costPer : 5; // baseballs per square ($)
+
+  // Pool tabs: shown to everyone when more than one pool is live; admins always
+  // see every pool (a "+" tab marks one with no board yet, ready to create).
+  const showTabs = existingKeys.length > 1 || (isAdmin && existingKeys.length >= 1);
+  const poolTabs = showTabs ? (
+    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 16, flexWrap: "wrap" }}>
+      {SQ_BOARDS.filter(b => existingKeys.includes(b.key) || isAdmin).map(b => {
+        const on = activeKey === b.key, empty = !existingKeys.includes(b.key);
+        return (
+          <button key={b.key} onClick={() => switchTab(b.key)} style={{
+            padding: "8px 18px", borderRadius: 999, cursor: "pointer",
+            fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15,
+            textTransform: "uppercase", letterSpacing: ".04em",
+            background: on ? navy : "#fff", color: on ? "#fff" : navy, border: `2px solid ${navy}`,
+            opacity: empty && !on ? 0.6 : 1,
+          }}>{b.tab}{empty && isAdmin ? " +" : ""}</button>
+        );
+      })}
+    </div>
+  ) : null;
 
   if (blob === undefined) return (
     <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
-      <PageHero label="Diamond Classics" title="Squares Board" subtitle="Loading…" />
+      <PageHero label="Diamond Classics · Fundraiser" title="Squares Pool" subtitle="Loading…" />
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
+        {poolTabs}
+        <div style={{ textAlign: "center", color: "#888", fontSize: 14, padding: "30px 0" }}>Loading…</div>
+      </div>
     </div>
   );
 
@@ -6476,6 +6532,8 @@ function SquaresPage({ setTab }) {
     <div style={{ minHeight: "100vh", background: "#f2f4f8" }}>
       <PageHero label="Diamond Classics · Fundraiser" title={blob?.title || "Squares Board"} subtitle={blob?.gameLabel || "Pick a square for the big game."} />
       <div style={{ maxWidth: 760, margin: "0 auto", padding: "22px clamp(10px,3vw,40px) 60px" }}>
+
+        {poolTabs}
 
         {msg && (
           <div onClick={() => setMsg(null)} style={{ background: msg.ok ? "#dcfce7" : "#fee2e2", border: `1px solid ${msg.ok ? "#86efac" : "#fecaca"}`, color: msg.ok ? "#14532d" : "#991b1b", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 14.5, lineHeight: 1.5, cursor: "pointer", fontWeight: 600 }}>
@@ -6545,7 +6603,7 @@ function SquaresPage({ setTab }) {
 
             {blob.status === "open" && (
               <div style={{ background: "#eef3fb", border: "1px solid #d6e0f0", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: 14.5, color: navy, textAlign: "center", lineHeight: 1.5 }}>
-                <b>How to play:</b> tap any open numbered square, drop your name in, then send Daniel <b>5 baseballs ⚾</b> to lock it in. Your square turns <span style={{ color: "#b91c1c", fontWeight: 800 }}>red</span> when reserved and <span style={{ color: "#15803d", fontWeight: 800 }}>green</span> once he's got your baseballs. The outside numbers are drawn once the board fills up!
+                <b>How to play:</b> tap any open numbered square, drop your name in, then send Daniel <b>{costPer} baseballs ⚾</b> to lock it in. Your square turns <span style={{ color: "#b91c1c", fontWeight: 800 }}>red</span> when reserved and <span style={{ color: "#15803d", fontWeight: 800 }}>green</span> once he's got your baseballs. The outside numbers are drawn once the board fills up!
               </div>
             )}
             {blob.status === "randomized" && (
@@ -6565,11 +6623,11 @@ function SquaresPage({ setTab }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ background: "#0f5ca8", color: gold, borderRadius: 6, textAlign: "center", padding: "5px 0", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 17, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 3 }}>{blob.teamCols}</div>
                 <div style={{ overflowX: "auto", background: "#fff", borderRadius: 12, padding: 8, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "26px repeat(10, minmax(46px, 1fr))", gap: 2, minWidth: 500 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: `26px repeat(${colsN}, minmax(46px, 1fr))`, gap: 2, minWidth: 30 + colsN * 48 }}>
                 <div style={{ background: navy, borderRadius: 5, minHeight: 30 }} />
-                {[0,1,2,3,4,5,6,7,8,9].map(c => (
-                  <div key={"ch"+c} style={{ background: "#0f5ca8", color: gold, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 15, minHeight: 30 }}>
-                    {blob.colDigits ? blob.colDigits[c] : "?"}
+                {Array.from({ length: colsN }, (_, c) => (
+                  <div key={"ch"+c} style={{ background: "#0f5ca8", color: gold, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: colsN < 10 ? 13 : 15, minHeight: 30 }}>
+                    {blob.colDigits ? sqFmtRowDigit(blob.colDigits[c]) : "?"}
                   </div>
                 ))}
                 {Array.from({ length: rowsN }, (_, r) => (
@@ -6577,8 +6635,8 @@ function SquaresPage({ setTab }) {
                     <div style={{ background: navy, color: gold, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: rowsN < 10 ? 13 : 15 }}>
                       {blob.rowDigits ? sqFmtRowDigit(blob.rowDigits[r]) : "?"}
                     </div>
-                    {[0,1,2,3,4,5,6,7,8,9].map(c => {
-                      const idx = r * 10 + c;
+                    {Array.from({ length: colsN }, (_, c) => {
+                      const idx = r * colsN + c;
                       const sq = blob.squares[idx];
                       const isWin = winIdx === idx;
                       const claimed = !!sq.name;
@@ -6651,7 +6709,7 @@ function SquaresPage({ setTab }) {
                 </div>
                 {/* Payments checklist — mark off the 5 baseballs without hunting the grid */}
                 <div style={{ borderTop: "1px solid #eef1f6", paddingTop: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 8 }}>💵 Mark off the 5 baseballs{unpaidCount > 0 && <span style={{ color: "#b91c1c" }}> · {unpaidCount} still owe</span>}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", marginBottom: 8 }}>💵 Mark off the {costPer} baseballs{unpaidCount > 0 && <span style={{ color: "#b91c1c" }}> · {unpaidCount} still owe</span>}</div>
                   {claimedList.length === 0 ? (
                     <div style={{ fontSize: 13, color: "#999", fontStyle: "italic" }}>No squares claimed yet.</div>
                   ) : (
@@ -6661,7 +6719,7 @@ function SquaresPage({ setTab }) {
                           <span style={{ fontSize: 13.5, fontWeight: 600, color: "#333" }}><span style={{ color: "#888", fontWeight: 700, marginRight: 6 }}>#{idx + 1}</span>{sq.name}</span>
                           {sq.paid
                             ? <button onClick={() => unconfirmPay(idx)} style={{ background: "none", border: "none", color: "#15803d", fontSize: 12.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>✓ got 'em · undo</button>
-                            : <button onClick={() => confirmPay(idx)} disabled={busy} style={{ background: "#15803d", border: "none", borderRadius: 7, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12.5, padding: "6px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>✓ Got 5 baseballs</button>}
+                            : <button onClick={() => confirmPay(idx)} disabled={busy} style={{ background: "#15803d", border: "none", borderRadius: 7, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 700, fontSize: 12.5, padding: "6px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>✓ Got {costPer} baseballs</button>}
                         </div>
                       ))}
                     </div>
@@ -6701,7 +6759,7 @@ function SquaresPage({ setTab }) {
         <div onClick={() => setClaimIdx(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 18 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "22px 20px", width: "100%", maxWidth: 380, boxShadow: "0 12px 40px rgba(0,0,0,0.3)" }}>
             <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 24, textTransform: "uppercase", color: navy }}>Claim Square #{claimIdx + 1}</div>
-            <div style={{ fontSize: 13.5, color: "rgba(0,0,0,0.6)", margin: "4px 0 14px", lineHeight: 1.5 }}>Drop your name in, then send Daniel <b>5 baseballs ⚾</b> to lock it in. (It turns green once he's got them.)</div>
+            <div style={{ fontSize: 13.5, color: "rgba(0,0,0,0.6)", margin: "4px 0 14px", lineHeight: 1.5 }}>Drop your name in, then send Daniel <b>{costPer} baseballs ⚾</b> to lock it in. (It turns green once he's got them.)</div>
             <input autoFocus value={claimName} onChange={e => setClaimName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") claim(); }} placeholder="Your name" style={{ ...inputStyle, marginBottom: 14 }} />
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={claim} disabled={busy || !claimName.trim()} style={{ ...btn(claimName.trim() ? navy : "#9ca3af"), flex: 1 }}>Claim it ⚾</button>
@@ -6719,10 +6777,10 @@ function SquaresPage({ setTab }) {
             {blob.squares[adminIdx].name ? (
               <>
                 <div style={{ fontSize: 15, margin: "8px 0 4px" }}><b>{blob.squares[adminIdx].name}</b></div>
-                <div style={{ fontSize: 13, color: blob.squares[adminIdx].paid ? "#15803d" : "#b91c1c", fontWeight: 700, marginBottom: 16 }}>{blob.squares[adminIdx].paid ? "🔒 Locked in — 5 baseballs received (green)" : "⚠ Waiting on 5 baseballs (red)"}</div>
+                <div style={{ fontSize: 13, color: blob.squares[adminIdx].paid ? "#15803d" : "#b91c1c", fontWeight: 700, marginBottom: 16 }}>{blob.squares[adminIdx].paid ? `🔒 Locked in — ${costPer} baseballs received (green)` : `⚠ Waiting on ${costPer} baseballs (red)`}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {!blob.squares[adminIdx].paid
-                    ? <button onClick={() => confirmPay(adminIdx)} disabled={busy} style={btn("#15803d")}>✓ Got the 5 baseballs</button>
+                    ? <button onClick={() => confirmPay(adminIdx)} disabled={busy} style={btn("#15803d")}>✓ Got the {costPer} baseballs</button>
                     : <button onClick={() => unconfirmPay(adminIdx)} disabled={busy} style={btn("#6b7280")}>Undo — mark unpaid (unlocks)</button>}
                   {/* Once paid/green, the square is LOCKED — no accidental release. To free it, undo the payment first. */}
                   {!blob.squares[adminIdx].paid
