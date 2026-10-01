@@ -8,6 +8,21 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-10-01]
+
+### Added — Two concurrent squares pools + 25-square + $10 boards
+
+Daniel wants a baseball pool and a football pool running at the same time, both 25 squares at $10. Built the capability without disturbing the live Padres pool (confirmed: leave it as-is, new setup for the next games).
+
+- **Multi-board:** `SQ_BOARDS` lists the pools (keys `squares` / `squares_football`), each its own `lbdc_schedules` row. The page shows a tab per pool that exists — one pool = no tabs (players see exactly what they do today); admins always see every pool, with a "+" tab for one not yet created. `load` / `persist` / `patchSquareOptimistic` all target the active pool's key.
+- **25-square (5×5) boards:** `sqDrawDigits(slots)` draws 5 two-digit slots or 10 single digits per axis; a 25-square board pairs BOTH axes, so every score still has exactly one winner. Grid columns/rows, the draw, and the winner index derive from the board (`cols` + `squares.length`). Verified all 100 score combos resolve across 25 distinct squares.
+- **$10 per square:** cost is a board field (`costPer`); every buy-in string (claim, how-to-play, payments checklist, admin) reads it instead of a hardcoded 5.
+- New in-app boards default to 25 squares at $10 for the active sport (baseball = 5th/Final, football = quarters).
+
+**Where:** `src/App.jsx` — `sqDrawDigits`/`sqDrawBoard`/`sqWinnerIndex`, `SQ_BOARDS`, and `SquaresPage` (state, load, persist, freshBoard, render, tabs).
+
+Verified on production: live Padres pool ($5 / 50-square) renders unchanged with no tabs for players; a temporary football board confirmed the 25-square 5×5 grid, $10 buy-in text, football quarters, and the Baseball/Football admin tabs — then removed. The two-pool $10 setup turns on when the next boards are created.
+
 ## [2026-09-30]
 
 ### Added — Baseball mode for the squares pool (Padres vs Cubs, Thu 10/1)
