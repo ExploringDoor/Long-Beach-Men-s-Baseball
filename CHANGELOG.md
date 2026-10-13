@@ -8,6 +8,18 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-10-13]
+
+### Added — "New game, same players" one-click roll-over (squares)
+
+After a game-switch wiped out claims (they weren't carried over), added a safe roll-over so players never get lost when a board moves to a new game.
+
+New admin button **"🔄 New game, same players"** (shows only when a board has claims). It opens the matchup form in roll-over mode — a green note confirms it *keeps all N players' squares* and *resets numbers, payments and winners* — and "🔄 Start new game" applies it: `saveRollover` keeps every `name`, sets `paid:false` (new game = new buy-in), and clears `rowDigits`/`colDigits`/`winners`/`live`/`drawnAt`/`drawCount` with `status:"open"`, plus the new teams/label/payouts. ("Edit matchup" still changes the game while keeping numbers; "Finish & archive" still saves to Past Pools and clears.)
+
+**Where:** `src/App.jsx` — `SquaresBoard`: `saveRollover`, `openSetup(asRollover)`, `rollover` state, the admin button, and the setup-form note/save wiring.
+
+Verified: the transform on the live 5-claim football board keeps all 5 names and resets the rest; the button appears only with claims; the form shows the correct player count. (Verified read-only — no writes to the live boards.)
+
 ## [2026-10-02b]
 
 ### Added — "Past Pools" archive at the bottom of the Squares page

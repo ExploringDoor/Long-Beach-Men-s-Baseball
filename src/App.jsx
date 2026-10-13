@@ -6445,6 +6445,7 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
   const [fGame, setFGame] = useState("Falcons vs Saints · 10/5");
   const [fPay, setFPay] = useState({ q1: "35", half: "45", q3: "35", final: "60" });
   const [showSetup, setShowSetup] = useState(false);
+  const [rollover, setRollover] = useState(false); // setup form is a "new game, keep players" roll-over
   const [liveRow, setLiveRow] = useState("");
   const [liveCol, setLiveCol] = useState("");
 
@@ -6521,7 +6522,29 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
     await persist(prev => { const per = boardPeriods(prev); return { ...(prev || freshBoard()), title: fTitle.trim() || "Squares", teamRows: fRows.trim() || "Rams", teamCols: fCols.trim() || "Opponent", gameLabel: fGame.trim(), payouts: Object.fromEntries(per.map(p => [p.key, (fPay[p.key] || "").trim()])) }; });
     setShowSetup(false);
   };
-  const openSetup = () => { if (blob) { setFTitle(blob.title || "Squares Pool"); setFRows(blob.teamRows || "Falcons"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); setFPay(blob.payouts ? { ...blob.payouts } : {}); } setShowSetup(true); };
+  // Roll over to a NEW game while KEEPING every player's name. Resets the
+  // numbers, payments, winners, live score and status for the new game — so
+  // nobody has to re-sign-up, but the new game starts clean.
+  const saveRollover = async () => {
+    await persist(prev => {
+      const base = prev || freshBoard();
+      const per = boardPeriods(base);
+      return {
+        ...base,
+        title: fTitle.trim() || "Squares", teamRows: fRows.trim() || "Rams", teamCols: fCols.trim() || "Opponent",
+        gameLabel: fGame.trim(),
+        payouts: Object.fromEntries(per.map(p => [p.key, (fPay[p.key] || "").trim()])),
+        squares: base.squares.map(s => ({ name: s.name, paid: false })), // keep names, reset payments
+        rowDigits: null, colDigits: null, status: "open",
+        live: { rowScore: "", colScore: "" },
+        winners: Object.fromEntries(per.map(p => [p.key, null])),
+        drawnAt: null, drawCount: 0,
+      };
+    });
+    setRollover(false); setShowSetup(false);
+    setMsg({ ok: true, text: "New game is up — all players kept their squares. Numbers and payments reset for the new game." });
+  };
+  const openSetup = (asRollover = false) => { if (blob) { setFTitle(blob.title || "Squares Pool"); setFRows(blob.teamRows || "Falcons"); setFCols(blob.teamCols || ""); setFGame(blob.gameLabel || ""); setFPay(blob.payouts ? { ...blob.payouts } : {}); } setRollover(asRollover); setShowSetup(true); };
 
   // Public claim
   const claim = async () => {
@@ -6659,7 +6682,12 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
         {/* Setup / edit matchup (admin) */}
         {isAdmin && showSetup && (
           <div style={{ background: "#fff", border: "2px solid " + gold, borderRadius: 14, padding: "20px 18px", marginBottom: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 19, textTransform: "uppercase", color: navy, marginBottom: 12 }}>{blob ? "Edit board" : "New squares board"}</div>
+            <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 19, textTransform: "uppercase", color: navy, marginBottom: 12 }}>{rollover ? "🔄 New game — same players" : blob ? "Edit board" : "New squares board"}</div>
+            {rollover && (
+              <div style={{ background: "#e8f7ee", border: "1px solid #a7e0be", borderRadius: 10, padding: "10px 13px", marginBottom: 14, fontSize: 13, color: "#14532d", lineHeight: 1.5 }}>
+                Keeps all <b>{takenCount} players'</b> squares. Resets the <b>numbers, payments and winners</b> for the new game. Set the new matchup &amp; payouts below, then start it.
+              </div>
+            )}
             <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase" }}>Board title</label>
             <input value={fTitle} onChange={e => setFTitle(e.target.value)} style={{ ...inputStyle, margin: "5px 0 12px" }} placeholder="Rams Squares" />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -6684,8 +6712,8 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
               ))}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={blob ? saveConfig : createBoard} disabled={busy} style={btn(navy)}>{blob ? "Save" : "Create board"}</button>
-              <button onClick={() => setShowSetup(false)} style={btn("#6b7280")}>Cancel</button>
+              <button onClick={rollover ? saveRollover : (blob ? saveConfig : createBoard)} disabled={busy} style={btn(rollover ? "#0f7a3d" : navy)}>{rollover ? "🔄 Start new game" : blob ? "Save" : "Create board"}</button>
+              <button onClick={() => { setShowSetup(false); setRollover(false); }} style={btn("#6b7280")}>Cancel</button>
             </div>
           </div>
         )}
@@ -6815,7 +6843,8 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
               <div style={{ background: "#fff", border: "2px solid " + navy, borderRadius: 14, padding: "16px 16px 18px", marginTop: 20 }}>
                 <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 900, fontSize: 18, textTransform: "uppercase", color: navy, marginBottom: 12 }}>⚙️ Commissioner controls</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
-                  <button onClick={openSetup} style={btn("#6b7280")}>Edit matchup</button>
+                  <button onClick={() => openSetup(false)} style={btn("#6b7280")}>Edit matchup</button>
+                  {blob.squares.some(s => s.name) && <button onClick={() => openSetup(true)} style={btn("#0f7a3d")}>🔄 New game, same players</button>}
                   <button onClick={randomize} disabled={busy} style={btn("#b8860b")}>🎲 {blob.rowDigits ? "Re-draw" : "Randomize"} numbers</button>
                   <button onClick={clearBoard} disabled={busy} style={btn("#b91c1c")}>{blob.squares.some(s => s.name) ? "🏁 Finish & archive" : "Clear board"}</button>
                 </div>
