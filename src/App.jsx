@@ -6612,6 +6612,15 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
     if (hasClaims) await archiveBoard(old);
     setAdminIdx(null);
   };
+  // Take a pool DOWN (hide it from players) without losing anything — all names,
+  // payments and numbers are preserved; it just stops showing on the page until
+  // it's brought back. The opposite of deleting.
+  const takeDown = async () => {
+    if (!window.confirm("Take this pool down? It disappears for players but everything (names, payments, numbers) is saved — you can bring it back anytime.")) return;
+    await persist(prev => ({ ...prev, hidden: true }));
+    setAdminIdx(null); setShowSetup(false);
+  };
+  const bringBack = async () => { await persist(prev => ({ ...prev, hidden: false })); };
 
   const onSquareClick = (idx) => {
     if (isAdmin) { const sq = blob.squares[idx]; setAdminIdx(idx); setAdminName(sq.name || ""); setMsg(null); return; }
@@ -6658,6 +6667,23 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
   // Public viewers only see a pool that has a board; admins always see it (to
   // create/manage). This is what makes empty pools invisible to players.
   if (!blob && !isAdmin) return null;
+
+  // Taken-down pool: hidden from players entirely. Admins see a compact card
+  // (data preserved) with a one-click "Bring back".
+  if (blob && blob.hidden) {
+    if (!isAdmin) return null;
+    return (
+      <section style={sectionStyle}>
+        {header}
+        <div style={{ background: "#fff", border: "1px dashed rgba(0,0,0,0.25)", borderRadius: 12, padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 13.5, color: "#555" }}>
+            🙈 <b>Taken down</b> — hidden from players. <span style={{ color: "#888" }}>{takenCount} {takenCount === 1 ? "square" : "squares"} saved{blob.gameLabel ? ` · ${blob.gameLabel}` : ""}.</span>
+          </div>
+          <button onClick={bringBack} disabled={busy} style={btn("#0f7a3d")}>▶ Bring back</button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section style={sectionStyle}>
@@ -6846,6 +6872,7 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
                   <button onClick={() => openSetup(false)} style={btn("#6b7280")}>Edit matchup</button>
                   {blob.squares.some(s => s.name) && <button onClick={() => openSetup(true)} style={btn("#0f7a3d")}>🔄 New game, same players</button>}
                   <button onClick={randomize} disabled={busy} style={btn("#b8860b")}>🎲 {blob.rowDigits ? "Re-draw" : "Randomize"} numbers</button>
+                  <button onClick={takeDown} disabled={busy} style={btn("#6b7280")}>🙈 Take down</button>
                   <button onClick={clearBoard} disabled={busy} style={btn("#b91c1c")}>{blob.squares.some(s => s.name) ? "🏁 Finish & archive" : "Clear board"}</button>
                 </div>
                 {/* Payments checklist — mark off the 5 baseballs without hunting the grid */}

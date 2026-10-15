@@ -8,6 +8,16 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-10-15]
+
+### Added — "Take down" / "Bring back" a squares pool (hide without deleting)
+
+Daniel wanted to pull the baseball pool off the page for now (maybe back for the World Series) without losing its claim. Added a hide flag so a pool can be removed from view with nothing deleted.
+
+New admin button **"🙈 Take down"** sets `hidden:true` — the pool vanishes for players, but all names/payments/numbers stay saved. While hidden, admins see a compact card ("🙈 Taken down — N squares saved") with a one-click **"▶ Bring back"** (`hidden:false`). `takeDown`/`bringBack` in `SquaresBoard`; hidden boards render null for the public and the card for admins.
+
+**Where:** `src/App.jsx` — `SquaresBoard`: `takeDown`/`bringBack`, hidden-state render branch, admin button.
+
 ## [2026-10-13]
 
 ### Added — "New game, same players" one-click roll-over (squares)
