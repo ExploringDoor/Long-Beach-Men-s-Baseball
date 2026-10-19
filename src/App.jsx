@@ -7847,7 +7847,8 @@ function FieldFeesPage({ onBack }) {
   const [filterTeam, setFilterTeam] = useState("All");
   const [filterField, setFilterField] = useState("All");
   const [filterStatus, setFilterStatus] = useState("all"); // all | paid | unpaid
-  const [filterDiv, setFilterDiv] = useState("All"); // All | Saturday | Tournaments
+  // Field fees are tracked per SEASON. Default to the current one (date-aware).
+  const [season, setSeason] = useState(() => new Date().toISOString().slice(0, 10) > SAT_CUTOVER_ISO ? CUR_SAT.label : PREV_SAT.label);
 
   // Reuse BoxScoreEntry's chronological sort (toISODate then time-of-day).
   const _timeMin = (t) => {
@@ -7864,11 +7865,11 @@ function FieldFeesPage({ onBack }) {
   const load = async () => {
     setLoading(true);
     try {
-      const [ffRows, satRows, fieldRows, tournRows] = await Promise.all([
+      // Field fees apply to LEAGUE (Saturday) play only — not tournaments.
+      const [ffRows, satRows, fieldRows] = await Promise.all([
         sbFetch("lbdc_schedules?id=eq.field_fees&select=data"),
         sbFetch("lbdc_schedules?id=eq.sat&select=data"),
         sbFetch("lbdc_fields?id=eq.main&select=data"),
-        sbFetch("tournament_games?select=id,tournament_name,game_date,game_time,field,away_team,home_team,notes&order=game_date.asc,game_time.asc"),
       ]);
 
       // Stored config (may be absent on first run).
@@ -7878,14 +7879,11 @@ function FieldFeesPage({ onBack }) {
 
       // Normalize the games union.
       const satData = Array.isArray(satRows?.[0]?.data) ? satRows[0].data : [];
-      const union = [
-        ...satData.map(g => ({ date: g.date, time: g.time, field: g.field || "", away: g.away, home: g.home, division: "Saturday" })),
-        ...(tournRows || [])
-          .filter(g => g.notes !== "__placeholder__")
-          .map(g => ({ date: g.game_date, time: g.game_time || "", field: g.field || "", away: g.away_team, home: g.home_team, division: "Tournaments", tournament_name: g.tournament_name })),
-      ].filter(g => g.away && g.home
-        && !["TBD","TBA","BYE"].includes(g.away)
-        && !["TBD","TBA","BYE"].includes(g.home));
+      const union = satData
+        .map(g => ({ date: g.date, time: g.time, field: g.field || "", away: g.away, home: g.home, division: "Saturday" }))
+        .filter(g => g.away && g.home
+          && !["TBD","TBA","BYE"].includes(g.away)
+          && !["TBD","TBA","BYE"].includes(g.home));
       union.sort((a, b) => {
         const dA = toISODate(a.date) || "9999-12-31";
         const dB = toISODate(b.date) || "9999-12-31";
@@ -7976,22 +7974,27 @@ function FieldFeesPage({ onBack }) {
     persist({ ...d, paid: { ...d.paid, [k]: { ...cur, notes } } });
   };
 
-  // Distinct teams + fields for filter dropdowns.
-  const allTeams = [...new Set(games.flatMap(g => [g.away, g.home]).filter(Boolean))].sort();
-  const allFields = [...new Set(games.map(g => g.field).filter(Boolean))].sort();
+  // A game's season (date-aware, same cutover as the schedule/standings).
+  const gameSeason = (g) => (toISODate(g.date) || "") > SAT_CUTOVER_ISO ? CUR_SAT.label : PREV_SAT.label;
+  // Only the SELECTED season's league games drive the totals, balances and table.
+  const seasonGames = games.filter(g => gameSeason(g) === season);
 
-  // Totals (across ALL games, unfiltered) — owed counts both teams per game.
+  // Distinct teams + fields for filter dropdowns (within the selected season).
+  const allTeams = [...new Set(seasonGames.flatMap(g => [g.away, g.home]).filter(Boolean))].sort();
+  const allFields = [...new Set(seasonGames.map(g => g.field).filter(Boolean))].sort();
+
+  // Totals for the selected season — owed counts both teams per game.
   let totalOwed = 0, collected = 0;
-  games.forEach(g => {
+  seasonGames.forEach(g => {
     const fee = feeFor(g);
     totalOwed += fee * 2;
     [g.away, g.home].forEach(team => { if (isPaid(g, team)) collected += fee; });
   });
   const outstanding = totalOwed - collected;
 
-  // Per-team summary (across all games).
+  // Per-team summary (selected season).
   const teamSummary = {};
-  games.forEach(g => {
+  seasonGames.forEach(g => {
     const fee = feeFor(g);
     [g.away, g.home].forEach(team => {
       if (!teamSummary[team]) teamSummary[team] = { team, games: 0, owed: 0, paid: 0 };
@@ -8006,8 +8009,7 @@ function FieldFeesPage({ onBack }) {
 
   // Filtered games for the table. Status applies if EITHER team matches when no
   // team filter, else the filtered team's status.
-  const filteredGames = games.filter(g => {
-    if (filterDiv !== "All" && g.division !== filterDiv) return false;
+  const filteredGames = seasonGames.filter(g => {
     if (filterField !== "All" && g.field !== filterField) return false;
     if (filterTeam !== "All" && g.away !== filterTeam && g.home !== filterTeam) return false;
     if (filterStatus !== "all") {
@@ -8025,7 +8027,7 @@ function FieldFeesPage({ onBack }) {
   const exportCSV = () => {
     const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
     const lines = [["Date", "Matchup", "Field", "Team", "Fee", "Paid", "Notes"].map(esc).join(",")];
-    games.forEach(g => {
+    seasonGames.forEach(g => {
       const fee = feeFor(g);
       const matchup = `${g.away} @ ${g.home}`;
       [g.away, g.home].forEach(team => {
@@ -8036,7 +8038,7 @@ function FieldFeesPage({ onBack }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "field-fees.csv";
+    a.download = `field-fees-${season.replace(/[^\w]+/g, "-").toLowerCase()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -8102,13 +8104,26 @@ function FieldFeesPage({ onBack }) {
               </div>
             </div>
 
+            {/* Season toggle — field fees are tracked per season (league play only) */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              {[CUR_SAT.label, PREV_SAT.label].map(lbl => (
+                <button key={lbl} type="button" onClick={() => { setSeason(lbl); setFilterTeam("All"); setFilterField("All"); }} style={{
+                  padding: "7px 16px", borderRadius: 20, cursor: "pointer",
+                  fontFamily: "'Barlow Condensed',sans-serif", fontWeight: 800, fontSize: 13,
+                  letterSpacing: ".04em", textTransform: "uppercase",
+                  background: season === lbl ? "#0f766e" : "#fff", color: season === lbl ? "#fff" : "#555",
+                  border: `1px solid ${season === lbl ? "#0f766e" : "rgba(0,0,0,0.15)"}`,
+                }}>{lbl}</button>
+              ))}
+              <span style={{ fontSize: 11.5, color: "rgba(0,0,0,0.4)", fontWeight: 600 }}>· League play only</span>
+            </div>
+
             {/* Filters */}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
               {[
                 { label: "Team", value: filterTeam, set: setFilterTeam, opts: ["All", ...allTeams] },
                 { label: "Field", value: filterField, set: setFilterField, opts: ["All", ...allFields] },
                 { label: "Status", value: filterStatus, set: setFilterStatus, opts: ["all", "paid", "unpaid"] },
-                { label: "Division", value: filterDiv, set: setFilterDiv, opts: ["All", "Saturday", "Tournaments"] },
               ].map(f => (
                 <label key={f.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "rgba(0,0,0,0.5)" }}>
                   <span style={{ textTransform: "uppercase" }}>{f.label}:</span>
@@ -8195,7 +8210,7 @@ function FieldFeesPage({ onBack }) {
             </div>
 
             <div style={{ background: "#f8f9fb", border: "1px solid rgba(0,0,0,0.09)", borderRadius: 8, padding: "12px 16px", fontSize: 12, color: "rgba(0,0,0,0.45)", lineHeight: 1.8 }}>
-              <strong style={{ color: "#333" }}>Note:</strong> Each team owes the full field fee per game (not split). Total Owed = fee × 2 per game. Toggling a checkbox or editing a note saves immediately.
+              <strong style={{ color: "#333" }}>Note:</strong> Field fees cover <strong>league (Saturday) play only</strong> — tournaments aren't included. Totals and balances above are for the <strong>{season}</strong> season (use the toggle to switch). Each team owes the full field fee per game (not split), so Total Owed = fee × 2 per game. Toggling a checkbox or editing a note saves immediately.
             </div>
           </>
         )}

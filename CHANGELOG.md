@@ -8,6 +8,20 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-10-19]
+
+### Changed — Field Fees: separated by season, league play only
+
+Daniel asked to split the field-fees ledger by season and scope it to league play (not tournaments).
+
+- **League only:** dropped tournament games from the ledger entirely (no more `tournament_games` fetch / union) — field fees now cover Saturday league games only. Removed the now-pointless "Division" filter.
+- **Per season:** added a Fall/Winter ⇄ Spring/Summer toggle (defaults to the current season, date-aware via `SAT_CUTOVER_ISO`). Totals (Owed/Collected/Outstanding), the games table, Team Balances, and the CSV export all scope to the selected season. A game's season comes from its date, so existing paid records (keyed by date) carry over correctly with no migration.
+- Footnote and CSV filename updated to reflect the selected season + league-only scope.
+
+**Where:** `src/App.jsx` — `FieldFeesPage`: `load` union (sat only), `season` state + `gameSeason`/`seasonGames`, season toggle UI, season-scoped totals/table/export.
+
+Verified in Admin → Field Fees: season toggle present; Fall/Winter shows 23 league games, Spring/Summer 62; no tournament games; totals/balances update per season.
+
 ## [2026-10-15]
 
 ### Added — "Take down" / "Bring back" a squares pool (hide without deleting)
