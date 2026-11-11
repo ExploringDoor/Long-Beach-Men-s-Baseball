@@ -8,6 +8,18 @@ Format: each entry has a **What**, **Why**, and **Where** so you know what to co
 
 ---
 
+## [2026-11-10]
+
+### Fixed — Box score saves no longer wipe the OTHER team's stats (the "stats aren't saving" bug)
+
+The Generals manager reported stats not saving. Root cause: on save, `handleSave` did `DELETE batting_lines WHERE game_id=gid` (every line for the game) then re-inserted only the current submission's rows. Each captain enters just their own side, so when the second captain submitted, the DELETE erased the first captain's batting/pitching lines. The DB showed it — almost every Fall/Winter game had only one team's batting (whoever submitted last).
+
+Now the delete is **scoped to the team(s) in the current submission** (`&team=eq.<team>`), so a captain replacing their own side leaves the opponent's already-entered stats intact. Admin "both sides" submissions still fully replace (they include both teams). Verified with a simulated two-captain flow: A then B then an A edit → both teams' lines preserved throughout.
+
+**Where:** `src/App.jsx` — `BoxScoreEntry.handleSave`, the batting/pitching replace block.
+
+Note: stats already wiped before this fix (Generals' Oct/Nov games) are gone from the DB and need re-entering — they'll stick now.
+
 ## [2026-10-19]
 
 ### Changed — Field Fees: separated by season, league play only

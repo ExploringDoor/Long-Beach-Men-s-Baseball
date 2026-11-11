@@ -14227,12 +14227,20 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
       let statsWarning = "";
       let statsLost = false;
       try {
+        // Replace ONLY the team(s) in THIS submission. Each captain enters their
+        // own side, so deleting every line for the game (the old behavior) meant
+        // the second captain to submit WIPED the first captain's batting/pitching
+        // — exactly the "stats aren't saving" report. Scoping the delete by team
+        // keeps the opponent's already-entered stats intact. (Admin "both sides"
+        // submissions include both teams, so they still fully replace.)
         if (batRows.length > 0) {
-          await sbDelete(`batting_lines?game_id=eq.${gid}`);
+          const batTeams = [...new Set(batRows.map(r => r.team).filter(Boolean))];
+          for (const tm of batTeams) await sbDelete(`batting_lines?game_id=eq.${gid}&team=eq.${encodeURIComponent(tm)}`);
           await sbPost("batting_lines", batRows);
         }
         if (pitRows.length > 0) {
-          await sbDelete(`pitching_lines?game_id=eq.${gid}`);
+          const pitTeams = [...new Set(pitRows.map(r => r.team).filter(Boolean))];
+          for (const tm of pitTeams) await sbDelete(`pitching_lines?game_id=eq.${gid}&team=eq.${encodeURIComponent(tm)}`);
           await sbPost("pitching_lines", pitRows);
         }
       } catch(statsErr) {
