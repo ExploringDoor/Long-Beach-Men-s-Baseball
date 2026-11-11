@@ -14748,9 +14748,12 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,marginLeft:10}}>
                 <div style={{fontSize:12,color:"#2d6a4f",fontWeight:700,cursor:"pointer"}} onClick={()=>selectSavedGame(g)}>Edit →</div>
-                <button type="button" onClick={async(e)=>{
+                {/* Deleting a whole game (both teams' stats) is admin-only — a
+                    captain accidentally deleted a game this way. Captains edit
+                    via "Edit →"; they can't nuke the game. */}
+                {!captainTeam && <button type="button" onClick={async(e)=>{
                   e.stopPropagation();
-                  if(!window.confirm(`Delete ${g.away_team} vs ${g.home_team} (${g.game_date})? This cannot be undone.`)) return;
+                  if(!window.confirm(`Delete ${g.away_team} vs ${g.home_team} (${g.game_date})? This deletes BOTH teams' stats and the game. This cannot be undone.`)) return;
                   try{
                     await sbDelete(`batting_lines?game_id=eq.${g.id}`);
                     await sbDelete(`pitching_lines?game_id=eq.${g.id}`);
@@ -14760,7 +14763,7 @@ function BoxScoreEntry({ onClose, captainTeam="", preloadGame=null }) {
                 }} style={{background:"rgba(220,38,38,0.08)",border:"1px solid rgba(220,38,38,0.25)",
                   borderRadius:6,color:"#dc2626",fontSize:13,padding:"4px 8px",cursor:"pointer",fontWeight:700}}>
                   🗑️
-                </button>
+                </button>}
               </div>
             </div>
           ))}
