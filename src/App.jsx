@@ -6647,6 +6647,11 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
   const colsN = blob ? (blob.cols || 10) : 10;           // 25→5 cols, 50/100→10 cols
   const rowsN = blob ? Math.max(1, Math.round(blob.squares.length / colsN)) : 5;
   const costPer = (blob && blob.costPer) ? blob.costPer : 5; // baseballs per square ($)
+  // Actual split for THIS board: payouts / full pot. Falls back to 70 if payouts
+  // aren't set yet, so each pool shows its own true "% into the pool".
+  const _payoutSum = periods.reduce((a, p) => a + (parseInt(blob?.payouts?.[p.key]) || 0), 0);
+  const _fullPot = totalSquares * costPer;
+  const poolPct = (_fullPot > 0 && _payoutSum > 0) ? Math.round(_payoutSum / _fullPot * 100) : 70;
 
   // Section heading shown above this pool's board (e.g. "⚾ Baseball Pool").
   const header = (
@@ -6773,7 +6778,7 @@ function SquaresBoard({ boardKey, cfg, isAdmin }) {
 
             {/* Where the proceeds go (transparency — percentages only, no dollar figures) */}
             <div style={{ textAlign: "center", fontSize: 12.5, color: "rgba(0,0,0,0.6)", marginBottom: 14, lineHeight: 1.55 }}>
-              Where the baseballs go: <b style={{ color: navy }}>70%</b> into the pool (the prizes) · <b style={{ color: navy }}>30%</b> keeps this website running and improving the player experience.
+              Where the baseballs go: <b style={{ color: navy }}>{poolPct}%</b> into the pool (the prizes) · <b style={{ color: navy }}>{100 - poolPct}%</b> keeps this website running and improving the player experience.
             </div>
 
             {/* Grid — team name on each axis: cols team across the top, rows team down the side */}
